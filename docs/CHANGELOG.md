@@ -5,7 +5,28 @@
 
 ## 2026-09-30
 
-### CLI Tools > Claude Code: opsi API_FORCE_IDLE_TIMEOUT & API_TIMEOUT_MS
+### Hilangkan warning MODULE_TYPELESS_PACKAGE_JSON + hardening EBADF
+
+- Warning `MODULE_TYPELESS_PACKAGE_JSON` untuk
+  `src/sse/services/backgroundTokenRefresh.js` saat `node custom-server.js`
+  dijalankan: file ber-sintaks ESM berekstensi `.js` sementara package.json
+  tidak punya `"type"`, sehingga Node me-reparse sebagai ES module (ada
+  overhead performa). File di-rename menjadi `backgroundTokenRefresh.mjs`;
+  import di `custom-server.js`, `src/shared/services/initializeApp.js`, dan
+  `tests/unit/background-token-refresh.test.js` disesuaikan. Terverifikasi:
+  `.js` memicu warning, `.mjs` bersih.
+- Pola double-`closeSync` yang sama seperti bug EBADF kemarin ternyata ada di
+  tiga fungsi install Headroom (`installHeadroomExtras` via pip,
+  `runUvToolInstall`, `uninstallHeadroomExtras`): listener `error` dan `exit`
+  keduanya menutup fd yang sama. Kini memakai helper `onceCloser()` (fd
+  ditutup tepat sekali); `startHeadroomProxy` juga direfaktor memakai helper
+  yang sama. Test: 38 lolos (background-token-refresh, headroom lifecycle,
+  platform-detect, headroom-detect), ESLint bersih.
+- Catatan: warning `"next start" does not work with "output: standalone"`
+  sengaja dibiarkan — custom-server memang dirancang memakai `next start`
+  agar wrapper `http.createServer` (sanitasi IP) tetap aktif; warning-nya
+  benign. EBADF di log adalah dari build lama sebelum fix `3f76a9d6` —
+  cukup `git pull` + `npm run build` + restart.
 
 - Tambah checkbox **Idle timeout** (`API_FORCE_IDLE_TIMEOUT`): dicentang
   menulis `1` (idle timeout 5 menit aktif untuk semua provider), tidak

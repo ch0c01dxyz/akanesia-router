@@ -12,6 +12,19 @@ const INSTALL_LOG_FILE = path.join(HEADROOM_DIR, "install.log");
 const DEFAULT_PORT = 8787;
 const STARTUP_TIMEOUT_MS = 8000;
 
+// Returns a closeFd() that closes the given fd exactly once. Closing an
+// already-closed fd throws EBADF — without this guard, overlapping 'error'
+// and 'exit' listeners on the same child (or a stale startup listener)
+// surface it as an uncaughtException.
+function onceCloser(fd) {
+  let closed = false;
+  return () => {
+    if (closed) return;
+    closed = true;
+    try { fs.closeSync(fd); } catch { /* already closed */ }
+  };
+}
+
 function ensureDir() {
   if (!fs.existsSync(HEADROOM_DIR)) fs.mkdirSync(HEADROOM_DIR, { recursive: true });
 }
@@ -91,15 +104,10 @@ export async function startHeadroomProxy({ port = DEFAULT_PORT, codeAware = fals
   child.unref();
   writePid(child.pid);
 
-  // The fd must be closed exactly once: closing an already-closed fd throws
-  // EBADF, which previously surfaced as an uncaughtException when the proxy
-  // exited later (the startup "exit" listener was never removed).
-  let outFdClosed = false;
-  const closeOutFd = () => {
-    if (outFdClosed) return;
-    outFdClosed = true;
-    try { fs.closeSync(outFd); } catch { /* already closed */ }
-  };
+  // The fd must be closed exactly once (see onceCloser): without the guard,
+  // a stale startup 'exit' listener closed it again when the proxy exited
+  // later, surfacing EBADF as an uncaughtException.
+  const closeOutFd = onceCloser(outFd);
 
   // Wait until the process either stays alive briefly (success) or exits fast (failure).
   await new Promise((resolve, reject) => {
@@ -243,6 +251,9 @@ export async function installHeadroomExtras(extras = []) {
   ensureDir();
   // Truncate ("w") so the log reflects only the current install for live progress.
   const outFd = fs.openSync(INSTALL_LOG_FILE, "w");
+  // 'error' and 'exit' can both fire for one child — guard the close so the
+  // second listener never throws EBADF as an uncaughtException.
+  const closeOutFd = onceCloser(outFd);
   const child = spawn(py, args, {
     stdio: ["ignore", outFd, outFd],
     windowsHide: true,
@@ -250,9 +261,9 @@ export async function installHeadroomExtras(extras = []) {
   });
 
   return new Promise((resolve, reject) => {
-    child.once("error", (e) => { fs.closeSync(outFd); reject(e); });
+    child.once("error", (e) => { closeOutFd(); reject(e); });
     child.once("exit", async (code) => {
-      fs.closeSync(outFd);
+      closeOutFd();
       if (code === 0) {
         const status = await getInstalledHeadroomExtras(py);
         invalidateHeadroomStatusCache();
@@ -279,6 +290,9 @@ async function runUvToolInstall(spec, requested) {
 
   ensureDir();
   const outFd = fs.openSync(INSTALL_LOG_FILE, "w");
+  // 'error' and 'exit' can both fire for one child — guard the close so the
+  // second listener never throws EBADF as an uncaughtException.
+  const closeOutFd = onceCloser(outFd);
   const child = spawn(uv, args, {
     stdio: ["ignore", outFd, outFd],
     windowsHide: true,
@@ -286,9 +300,9 @@ async function runUvToolInstall(spec, requested) {
   });
 
   return new Promise((resolve, reject) => {
-    child.once("error", (e) => { fs.closeSync(outFd); reject(e); });
+    child.once("error", (e) => { closeOutFd(); reject(e); });
     child.once("exit", async (code) => {
-      fs.closeSync(outFd);
+      closeOutFd();
       if (code === 0) {
         const status = await getInstalledHeadroomExtras(findUvToolPython());
         invalidateHeadroomStatusCache();
@@ -332,6 +346,9 @@ export async function uninstallHeadroomExtras(extras = []) {
 
   ensureDir();
   const outFd = fs.openSync(INSTALL_LOG_FILE, "w");
+  // 'error' and 'exit' can both fire for one child — guard the close so the
+  // second listener never throws EBADF as an uncaughtException.
+  const closeOutFd = onceCloser(outFd);
   const child = spawn(py, args, {
     stdio: ["ignore", outFd, outFd],
     windowsHide: true,
@@ -339,9 +356,9 @@ export async function uninstallHeadroomExtras(extras = []) {
   });
 
   return new Promise((resolve, reject) => {
-    child.once("error", (e) => { fs.closeSync(outFd); reject(e); });
+    child.once("error", (e) => { closeOutFd(); reject(e); });
     child.once("exit", async (code) => {
-      fs.closeSync(outFd);
+      closeOutFd();
       if (code === 0) {
         const status = await getInstalledHeadroomExtras(py);
         invalidateHeadroomStatusCache();
