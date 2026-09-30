@@ -59,6 +59,8 @@ export default function ClaudeToolCard({
   const [exaMcpEnabled, setExaMcpEnabled] = useState(false);
   const [autoCompactWindow, setAutoCompactWindow] = useState("");
   const [oneMContext, setOneMContext] = useState(false);
+  const [apiForceIdleTimeout, setApiForceIdleTimeout] = useState(false);
+  const [apiTimeoutMs, setApiTimeoutMs] = useState("");
   const hasInitializedModels = useRef(false);
 
   // Claude Code only string-matches the marker against the model name, so it
@@ -113,6 +115,8 @@ export default function ClaudeToolCard({
     const env = claudeStatus?.settings?.env;
     if (!env) return;
     setOneMContext(tool.defaultModels.some((model) => env[model.envKey]?.endsWith("[1m]")));
+    setApiForceIdleTimeout(env.API_FORCE_IDLE_TIMEOUT === "1");
+    setApiTimeoutMs(env.API_TIMEOUT_MS ? String(env.API_TIMEOUT_MS) : "");
   }, [claudeStatus?.settings?.env, tool.defaultModels]);
 
   useEffect(() => {
@@ -196,6 +200,23 @@ export default function ClaudeToolCard({
     return url.endsWith("/v1") ? url : `${url}/v1`;
   };
 
+  // Build the timeout-related env vars, validating API_TIMEOUT_MS.
+  // Returns { extra } on success or { error } with a user-facing message.
+  const buildTimeoutEnv = () => {
+    const extra = { API_FORCE_IDLE_TIMEOUT: apiForceIdleTimeout ? "1" : "0" };
+    const raw = apiTimeoutMs.trim();
+    if (raw) {
+      if (!/^\d+$/.test(raw) || Number(raw) <= 0) {
+        return { error: "API_TIMEOUT_MS must be a positive integer (milliseconds)." };
+      }
+      if (Number(raw) > 2147483647) {
+        return { error: "API_TIMEOUT_MS exceeds the maximum 2147483647 — larger values overflow the timer and fail immediately." };
+      }
+      extra.API_TIMEOUT_MS = String(Number(raw));
+    }
+    return { extra };
+  };
+
   const handleApplySettings = async () => {
     setApplying(true);
     setMessage(null);
@@ -220,6 +241,13 @@ export default function ClaudeToolCard({
       if (autoCompactWindow) {
         env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = autoCompactWindow;
       }
+      const { extra: timeoutEnv, error: timeoutError } = buildTimeoutEnv();
+      if (timeoutError) {
+        setMessage({ type: "error", text: timeoutError });
+        setApplying(false);
+        return;
+      }
+      Object.assign(env, timeoutEnv);
       const res = await fetch("/api/cli-tools/claude-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -254,6 +282,8 @@ export default function ClaudeToolCard({
         setExaMcpEnabled(false);
         setAutoCompactWindow("");
         setOneMContext(false);
+        setApiForceIdleTimeout(false);
+        setApiTimeoutMs("");
       } else {
         setMessage({ type: "error", text: data.error || "Failed to reset settings" });
       }
@@ -286,6 +316,9 @@ export default function ClaudeToolCard({
     if (autoCompactWindow) {
       env.CLAUDE_CODE_AUTO_COMPACT_WINDOW = autoCompactWindow;
     }
+    const { extra: timeoutEnv, error: timeoutErr } = buildTimeoutEnv();
+    // Skip invalid values in manual copy (Apply surfaces the error instead).
+    if (!timeoutErr) Object.assign(env, timeoutEnv);
 
     return [
       {
@@ -445,6 +478,32 @@ export default function ClaudeToolCard({
                       <span className="material-symbols-outlined text-text-muted text-[14px] cursor-help">info</span>
                     </Tooltip>
                   </label>
+                </div>
+
+                {/* API_FORCE_IDLE_TIMEOUT */}
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
+                  <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Idle timeout</span>
+                  <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input type="checkbox" checked={apiForceIdleTimeout} onChange={(e) => setApiForceIdleTimeout(e.target.checked)} className="w-3.5 h-3.5 accent-primary cursor-pointer" />
+                    <span className="text-xs text-text-muted">Force on for every provider</span>
+                    <Tooltip text="Override the 5-minute body idle timeout that aborts a streaming model response when no bytes arrive. Checked writes API_FORCE_IDLE_TIMEOUT=1 (timeout on for every provider); unchecked writes 0 (timeout off — for a slow gateway or local model that pauses longer than 5 minutes between chunks). When unset, the timeout is active on providers other than the direct Anthropic API.">
+                      <span className="material-symbols-outlined text-text-muted text-[14px] cursor-help">info</span>
+                    </Tooltip>
+                  </label>
+                </div>
+
+                {/* API_TIMEOUT_MS */}
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
+                  <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">API timeout</span>
+                  <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
+                  <div className="flex items-center gap-1.5">
+                    <input type="text" inputMode="numeric" value={apiTimeoutMs} onChange={(e) => setApiTimeoutMs(e.target.value.replace(/[^\d]/g, ""))} placeholder="600000" className="w-full min-w-0 px-2 py-2 bg-surface rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 sm:py-1.5" />
+                    <span className="text-xs text-text-muted whitespace-nowrap">ms</span>
+                    <Tooltip text="Timeout for API requests in milliseconds (default: 600000, or 10 minutes; maximum: 2147483647). Increase this when requests time out on slow networks or when routing through a proxy. Values above the maximum overflow the underlying timer and cause requests to fail immediately. Leave empty to use the default.">
+                      <span className="material-symbols-outlined text-text-muted text-[14px] cursor-help">info</span>
+                    </Tooltip>
+                  </div>
                 </div>
 
                 {/* Exa MCP — ~/.claude.json mcpServers (not settings.json) */}

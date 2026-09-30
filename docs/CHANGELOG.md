@@ -5,7 +5,20 @@
 
 ## 2026-09-30
 
-### Fix EBADF uncaughtException setelah Stop Headroom
+### CLI Tools > Claude Code: opsi API_FORCE_IDLE_TIMEOUT & API_TIMEOUT_MS
+
+- Tambah checkbox **Idle timeout** (`API_FORCE_IDLE_TIMEOUT`): dicentang
+  menulis `1` (idle timeout 5 menit aktif untuk semua provider), tidak
+  dicentang menulis `0` (timeout dimatikan — untuk gateway lambat atau model
+  lokal yang jeda antar chunk > 5 menit). Nilai awal dibaca dari
+  `settings.json`.
+- Tambah input **API timeout** (`API_TIMEOUT_MS`, milidetik, placeholder
+  600000): input hanya menerima digit; Apply memvalidasi integer positif dan
+  menolak nilai > 2147483647 (overflow timer → request langsung gagal) dengan
+  pesan error. Dikosongkan = tidak ditulis (pakai default 600000 / 10 menit).
+- Keduanya ikut ditulis saat Apply, ikut di-reset oleh tombol Reset
+  (`API_FORCE_IDLE_TIMEOUT` ditambahkan ke `RESET_ENV_KEYS`; `API_TIMEOUT_MS`
+  sudah ada di sana sebelumnya), dan ikut muncul di Manual Config.
 
 - Error `EBADF: bad file descriptor, close` (uncaughtException) di console
   setelah Start/Stop: `fs.closeSync(outFd)` dipanggil dua kali — sekali saat
