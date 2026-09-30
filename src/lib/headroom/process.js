@@ -3,6 +3,7 @@ import path from "path";
 import { spawn } from "child_process";
 import { DATA_DIR } from "@/lib/dataDir.js";
 import { findHeadroomBinary, findPython310, findUvBinary, findUvToolPython, getHeadroomInstallKind, HEADROOM_COMPRESSION_EXTRAS, EXTRA_MARKERS, getInstalledHeadroomExtras } from "./detect.js";
+import { IS_WINDOWS } from "../platform.js";
 
 const HEADROOM_DIR = path.join(DATA_DIR, "headroom");
 const PID_FILE = path.join(HEADROOM_DIR, "proxy.pid");
@@ -69,10 +70,14 @@ export async function startHeadroomProxy({ port = DEFAULT_PORT, codeAware = fals
   const outFd = fs.openSync(LOG_FILE, "a");
 
   const args = ["proxy", "--port", String(safePort), ...extrasProxyArgs({ codeAware, kompress })];
+  // .bat/.cmd shims (e.g. pyenv-win, `uv tool install` on Windows) need the
+  // shell — CreateProcess cannot run them directly.
+  const needsShell = IS_WINDOWS && /\.(bat|cmd)$/i.test(binary);
   const child = spawn(binary, args, {
     stdio: ["ignore", outFd, outFd],
     detached: true,
     windowsHide: true,
+    shell: needsShell,
     env: { ...process.env },
   });
 

@@ -1,6 +1,13 @@
-import { execFileSync, execSync } from "child_process";
+import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
+import {
+  IS_WINDOWS,
+  findOnPath,
+  isExecutablePath,
+  probeRun,
+  windowsExecutableExtensions,
+} from "../platform.js";
 
 // Extras that improve headroom compression quality. `proxy` is the base;
 // `code` adds tree-sitter AST compression; `ml` adds Kompress-v2 HF model.
@@ -17,8 +24,7 @@ export const EXTRA_MARKERS = {
 
 const HEADROOM_PIP_TIMEOUT_MS = 8000;
 
-const IS_WIN = process.platform === "win32";
-const WHICH_CMD = IS_WIN ? "where" : "which";
+const IS_WIN = IS_WINDOWS;
 
 // uv binary/shim locations. `uv tool install` puts the `headroom` shim in
 // `%USERPROFILE%\.local\bin` (Windows) or `~/.local/bin` — these are often
@@ -66,32 +72,19 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0
 export const DEFAULT_HEADROOM_URL = process.env.HEADROOM_URL || "http://localhost:8787";
 
 // Detect whether the headroom CLI is installed and where its binary lives.
+// The `where`/`which` hit is validated, not trusted blindly: it must be
+// executable on the current platform (on Windows an extensionless script is
+// NOT executable — spawning one pops the "Open with" dialog) and it must
+// actually run (`--version` exits 0).
 export function findHeadroomBinary() {
-  try {
-    const out = execSync(`${WHICH_CMD} headroom`, {
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true,
-      env: { ...process.env, PATH: EXTENDED_PATH },
-    }).toString().trim();
-    // Windows `where` may return multiple lines — take the first.
-    return out ? out.split(/\r?\n/)[0].trim() : null;
-  } catch {
-    return null;
-  }
+  const bin = findOnPath("headroom", EXTENDED_PATH);
+  return bin && probeRun(bin, ["--version"]) ? bin : null;
 }
 
 // Find the `uv` binary (used for uv-managed headroom installs).
 export function findUvBinary() {
-  try {
-    const out = execSync(`${WHICH_CMD} uv`, {
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true,
-      env: { ...process.env, PATH: EXTENDED_PATH },
-    }).toString().trim();
-    return out ? out.split(/\r?\n/)[0].trim() : null;
-  } catch {
-    return null;
-  }
+  const bin = findOnPath("uv", EXTENDED_PATH);
+  return bin && probeRun(bin, ["--version"]) ? bin : null;
 }
 
 // Python inside uv's isolated tool venv for headroom-ai
@@ -137,49 +130,84 @@ export function getHeadroomInstallKind() {
 // Interpreters to probe, most specific first: the python next to the headroom
 // binary (guaranteed to have headroom-ai), then full paths from EXTRA_BINS, then
 // bare names resolved via PATH.
+//
+// Windows note: bare names are resolved through `where` (PATHEXT-aware) and
+// any still-bare candidate is expanded with PATHEXT extensions, so probing
+// never hands an extensionless name to the OS — executing one via cmd.exe is
+// what popped the Windows "Open with" dialog.
 function pythonCandidates() {
   const list = [];
+  const add = (p) => {
+    if (p && !list.includes(p)) list.push(p);
+  };
   const bin = findHeadroomBinary();
   if (bin) {
     const dir = path.dirname(bin);
     const names = IS_WIN ? ["python.exe", "python3.exe"] : ["python3", "python3.13", "python"];
-    for (const n of names) list.push(path.join(dir, n));
+    for (const n of names) add(path.join(dir, n));
   }
   for (const dir of EXTRA_BINS) {
     if (!dir) continue;
-    for (const n of PYTHON_CANDIDATES) list.push(path.join(dir, IS_WIN ? `${n}.exe` : n));
+    for (const n of PYTHON_CANDIDATES) add(path.join(dir, IS_WIN ? `${n}.exe` : n));
   }
-  list.push(...PYTHON_CANDIDATES);
-  return list;
+  if (IS_WIN) {
+    for (const n of PYTHON_CANDIDATES) add(findOnPath(n, EXTENDED_PATH));
+  } else {
+    for (const n of PYTHON_CANDIDATES) add(n);
+  }
+  return IS_WIN ? list.flatMap(expandWindowsExecutable) : list;
+}
+
+// `python` → [`python.com`, `python.exe`, `python.bat`, `python.cmd`];
+// already-suffixed names pass through untouched.
+function expandWindowsExecutable(p) {
+  if (!IS_WIN || !p || /\.[a-z0-9]+$/i.test(path.basename(p))) return [p];
+  return windowsExecutableExtensions().map((ext) => `${p}${ext}`);
+}
+
+// `python --version` WITHOUT a shell (execFile). The old code used
+// execSync(string), which runs through cmd.exe on Windows — cmd.exe executes
+// via file associations, so an extensionless script (e.g. a pyenv shim)
+// triggered the "Open with" dialog. Returns the version string or null.
+function probePythonVersion(candidate) {
+  try {
+    return execFileSync(candidate, ["--version"], {
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+      timeout: HEADROOM_PIP_TIMEOUT_MS,
+      env: { ...process.env, PATH: EXTENDED_PATH },
+    })
+      .toString()
+      .trim();
+  } catch {
+    return null;
+  }
 }
 
 export function findPython310() {
   let fallback = null;
   for (const candidate of pythonCandidates()) {
+    // Never hand a non-executable file to the OS. On Windows this guard is
+    // what prevents the "Open with" dialog: an extensionless script is
+    // rejected here instead of being executed via the shell.
+    if (!isExecutablePath(candidate)) continue;
+    const ver = probePythonVersion(candidate);
+    if (!ver) continue;
+    const match = ver.match(/(\d+)\.(\d+)/);
+    if (!match) continue;
+    const [major, minor] = [parseInt(match[1], 10), parseInt(match[2], 10)];
+    if (!(major > MIN_VERSION[0] || (major === MIN_VERSION[0] && minor >= MIN_VERSION[1]))) continue;
+    if (!fallback) fallback = candidate;
     try {
-      const ver = execSync(`${candidate} --version`, {
+      execFileSync(candidate, ["-m", "pip", "show", "headroom-ai"], {
         stdio: ["ignore", "pipe", "ignore"],
         windowsHide: true,
+        timeout: HEADROOM_PIP_TIMEOUT_MS,
         env: { ...process.env, PATH: EXTENDED_PATH },
-      }).toString().trim();
-      const match = ver.match(/(\d+)\.(\d+)/);
-      if (!match) continue;
-      const [major, minor] = [parseInt(match[1], 10), parseInt(match[2], 10)];
-      if (!(major > MIN_VERSION[0] || (major === MIN_VERSION[0] && minor >= MIN_VERSION[1]))) continue;
-      if (!fallback) fallback = candidate;
-      try {
-        execFileSync(candidate, ["-m", "pip", "show", "headroom-ai"], {
-          stdio: ["ignore", "pipe", "ignore"],
-          windowsHide: true,
-          timeout: HEADROOM_PIP_TIMEOUT_MS,
-          env: { ...process.env, PATH: EXTENDED_PATH },
-        });
-        return candidate;
-      } catch {
-        // Keep scanning until an interpreter that sees headroom-ai is found.
-      }
+      });
+      return candidate;
     } catch {
-      // candidate not present, try next
+      // Keep scanning until an interpreter that sees headroom-ai is found.
     }
   }
   return fallback;

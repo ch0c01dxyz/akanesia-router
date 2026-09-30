@@ -5,6 +5,27 @@
 
 ## 2026-09-30
 
+### Fix dialog "Open with" di halaman Token Saver (Windows)
+
+- Akar masalah: kandidat binary di-probe lewat `execSync(string)` → cmd.exe,
+  yang mengeksekusi via asosiasi ekstensi Windows. File tanpa ekstensi
+  dikenal (mis. pyenv shim `#!/bin/sh` + `pyenv exec …`) memicu dialog
+  "How do you want to open this file?" saat halaman dibuka
+  (`/api/headroom/status` → `findPython310()`).
+- Modul baru `src/lib/platform.js`: deteksi eksplisit windows/macos/linux
+  (`getOsKind()`), `isExecutablePath()` (Windows: wajib ekstensi PATHEXT;
+  macOS/Linux: execute bit), `probeRun()`/`findOnPath()` yang tidak pernah
+  lewat shell (kecuali `.bat`/`.cmd` yang selalu terasosiasi).
+- `headroom/detect.js`: `findHeadroomBinary()`/`findUvBinary()` kini
+  memvalidasi hasil `where`/`which` + probe `--version`;
+  `findPython310()` probe via `execFile` tanpa shell, nama telanjang di
+  Windows diselesaikan lewat `where` (PATHEXT-aware).
+- `headroom/process.js` & `pxpipe/install.js`: spawn `.bat`/`.cmd` via shell
+  di Windows (sebelumnya CreateProcess gagal); `findNpm()` divalidasi sama.
+- Test baru `tests/unit/platform-detect.test.js` (15 lolos); smoke test:
+  pyenv shim `headroom` di PATH kini ditolak (`null`), python asli tetap
+  terdeteksi.
+
 ### Panduan instalasi di README
 
 - Bagian "Instalasi" baru: cara CLI launcher, dari source, plus

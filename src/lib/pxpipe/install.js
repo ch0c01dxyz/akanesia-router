@@ -1,15 +1,15 @@
 import fs from "fs";
 import path from "path";
-import { spawn, execSync } from "child_process";
+import { spawn } from "child_process";
 import { DATA_DIR } from "@/lib/dataDir.js";
+import { IS_WINDOWS, findOnPath, probeRun } from "@/lib/platform.js";
 
 export const PXPIPE_DIR = path.join(DATA_DIR, "pxpipe");
 export const PXPIPE_PACKAGE = "pxpipe-proxy";
 const INSTALL_LOG = path.join(PXPIPE_DIR, "install.log");
 const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
 
-const IS_WIN = process.platform === "win32";
-const NPM_CMD = IS_WIN ? "npm.cmd" : "npm";
+const IS_WIN = IS_WINDOWS;
 
 // Same PATH extension trick as headroom/detect.js: packaged/launchd environments
 // often miss the Node bin dirs.
@@ -32,17 +32,13 @@ export function libraryEntry() {
   return path.join(packageRoot(), "dist", "core", "library.js");
 }
 
+// npm resolved via `where`/`which`, then validated: the hit must be
+// executable on the current platform and must actually run
+// (`npm --version` exits 0). A blind `where` hit (e.g. an extensionless
+// script) must never be spawned — on Windows that pops "Open with".
 export function findNpm() {
-  try {
-    const out = execSync(`${IS_WIN ? "where" : "which"} npm`, {
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true,
-      env: { ...process.env, PATH: EXTENDED_PATH },
-    }).toString().trim();
-    return out ? out.split(/\r?\n/)[0].trim() : null;
-  } catch {
-    return null;
-  }
+  const npm = findOnPath("npm", EXTENDED_PATH);
+  return npm && probeRun(npm, ["--version"]) ? npm : null;
 }
 
 // { installed, version, path } — installed means the library entry exists on disk.
@@ -88,11 +84,15 @@ async function runInstall() {
   const outFd = fs.openSync(INSTALL_LOG, "a");
   fs.writeSync(outFd, `\n[${new Date().toISOString()}] npm install ${PXPIPE_PACKAGE}@latest\n`);
 
+  // On Windows npm resolves to npm.cmd — CreateProcess cannot run .cmd
+  // directly, so go through the shell (always associated, no "Open with").
+  const needsShell = IS_WIN && /\.(bat|cmd)$/i.test(npm);
   await new Promise((resolve, reject) => {
     const child = spawn(npm, ["install", `${PXPIPE_PACKAGE}@latest`, "--no-audit", "--no-fund", "--omit=dev"], {
       cwd: PXPIPE_DIR,
       stdio: ["ignore", outFd, outFd],
       windowsHide: true,
+      shell: needsShell,
       env: { ...process.env, PATH: EXTENDED_PATH },
     });
     const timer = setTimeout(() => {
