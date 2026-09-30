@@ -91,25 +91,42 @@ export async function startHeadroomProxy({ port = DEFAULT_PORT, codeAware = fals
   child.unref();
   writePid(child.pid);
 
+  // The fd must be closed exactly once: closing an already-closed fd throws
+  // EBADF, which previously surfaced as an uncaughtException when the proxy
+  // exited later (the startup "exit" listener was never removed).
+  let outFdClosed = false;
+  const closeOutFd = () => {
+    if (outFdClosed) return;
+    outFdClosed = true;
+    try { fs.closeSync(outFd); } catch { /* already closed */ }
+  };
+
   // Wait until the process either stays alive briefly (success) or exits fast (failure).
   await new Promise((resolve, reject) => {
-    const startupTimer = setTimeout(() => {
-      if (isPidAlive(child.pid)) resolve();
-      else reject(new Error("headroom proxy exited during startup — see proxy.log"));
-    }, STARTUP_TIMEOUT_MS);
-
-    child.once("exit", (code) => {
+    const onExit = (code) => {
       clearTimeout(startupTimer);
       clearPid();
-      fs.closeSync(outFd);
+      closeOutFd();
       const e = new Error(`headroom proxy exited early (code=${code}) — see proxy.log`);
       e.code = "EARLY_EXIT";
       reject(e);
-    });
+    };
+    const startupTimer = setTimeout(() => {
+      // Startup phase is over — detach the listener so a later exit of the
+      // long-lived proxy can never touch outFd again.
+      child.off("exit", onExit);
+      if (isPidAlive(child.pid)) resolve();
+      else {
+        closeOutFd();
+        reject(new Error("headroom proxy exited during startup — see proxy.log"));
+      }
+    }, STARTUP_TIMEOUT_MS);
+
+    child.once("exit", onExit);
   });
 
   // Close parent's copy of the fd; child retains its own after unref.
-  fs.closeSync(outFd);
+  closeOutFd();
 
   // The process staying alive is not enough: the Python proxy needs a few
   // seconds to boot and bind the port (longer on low-spec devices). Wait

@@ -5,6 +5,21 @@
 
 ## 2026-09-30
 
+### Fix EBADF uncaughtException setelah Stop Headroom
+
+- Error `EBADF: bad file descriptor, close` (uncaughtException) di console
+  setelah Start/Stop: `fs.closeSync(outFd)` dipanggil dua kali — sekali saat
+  startup sukses, sekali lagi oleh listener `child.once("exit")` yang tidak
+  pernah dilepas, sehingga saat proxy mati belakangan fd yang sudah tertutup
+  ditutup ulang. Kini: fd ditutup tepat sekali via guard `closeOutFd()`,
+  listener `exit` fase startup dilepas setelah fase startup selesai, dan
+  `closeSync` dibungkus try/catch defensif.
+- Regression test baru `tests/unit/headroom-process-lifecycle.test.js`:
+  binary `headroom` palsu (HTTP server dengan boot delay 1,5 dtk) —
+  start menunggu `/health`, stop, lalu assert tidak ada uncaughtException
+  EBADF. Terverifikasi A/B: kode lama gagal dengan EBADF persis seperti
+  laporan, kode baru lolos.
+
 ### Perbaikan status basi setelah Start/Stop Headroom + dashboard lebih lengkap
 
 - Bug: setelah Start via modal, tombol sudah bertuliskan "Stop Headroom"
