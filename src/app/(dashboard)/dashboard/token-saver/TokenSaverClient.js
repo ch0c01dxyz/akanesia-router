@@ -838,6 +838,8 @@ export default function TokenSaverClient() {
           {headroomRunning && (
             <Link
               href="/dashboard/token-saver/headroom"
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-full rounded border border-border px-4 py-2 text-center text-sm hover:bg-surface-2"
             >
               Open Headroom Dashboard
