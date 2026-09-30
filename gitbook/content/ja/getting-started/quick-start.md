@@ -1,6 +1,6 @@
 # はじめに
 
-9Routerを5分で起動し、AIリクエストをインテリジェントにルーティングし始めましょう。
+Akanesia-Gatewayを5分で起動し、AIリクエストをインテリジェントにルーティングし始めましょう。
 
 ---
 
@@ -43,7 +43,7 @@ Dashboard → Providers → Connect [Provider]
 **例: Claude Code**
 1. 「Connect Claude Code」をクリック
 2. Claudeアカウントでログイン
-3. 9Routerを認可
+3. Akanesia-Gatewayを認可
 4. ✅ 完了! モデルを使用: `cc/claude-opus-4-5-20251101`
 
 #### オプションB: APIキー(低価格プロバイダー)
@@ -83,7 +83,7 @@ Dashboard → Providers → Connect [Free Provider]
 
 ## 4. CLIツールで使用
 
-コーディングツールを9Routerに向けます:
+コーディングツールをAkanesia-Gatewayに向けます:
 
 ### Cursor IDE
 
@@ -243,5 +243,5 @@ CLIで使用: premium-coding
 ## ヘルプが必要?
 
 - **ウェブサイト**: [9router.com](https://9router.com)
-- **GitHub**: [github.com/decolua/9router](https://github.com/decolua/9router)
-- **Issues**: [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub**: [github.com/ch0c01dxyz/akanesia-router](https://github.com/ch0c01dxyz/akanesia-router)
+- **Issues**: [github.com/ch0c01dxyz/akanesia-router/issues](https://github.com/ch0c01dxyz/akanesia-router/issues)

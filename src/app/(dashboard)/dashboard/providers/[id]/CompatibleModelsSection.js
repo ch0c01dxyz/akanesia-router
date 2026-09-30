@@ -71,12 +71,14 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
   );
 }
 
-export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
+export default function CompatibleModelsSection({ providerId, providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [testingModelId, setTestingModelId] = useState(null);
   const [modelTestResults, setModelTestResults] = useState({});
+  const [checkingModels, setCheckingModels] = useState(false);
+  const [checkResult, setCheckResult] = useState(null);
 
   const handleTestModel = async (modelId) => {
     if (testingModelId) return;
@@ -158,6 +160,25 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
     }
   };
 
+  const handleCheckModels = async () => {
+    if (checkingModels) return;
+    setCheckingModels(true);
+    setCheckResult(null);
+    try {
+      const res = await fetch("/api/providers/check-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "provider", providerId: providerId || providerStorageAlias, forceRefresh: true }),
+      });
+      const data = await res.json();
+      setCheckResult(data);
+    } catch (error) {
+      setCheckResult({ error: error?.message || "Model check request failed" });
+    } finally {
+      setCheckingModels(false);
+    }
+  };
+
   const canImport = connections.some((conn) => conn.isActive !== false);
 
   return (
@@ -185,7 +206,51 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         <Button size="sm" variant="secondary" icon="download" onClick={handleImport} disabled={!canImport || importing}>
           {importing ? "Importing..." : "Import from /models"}
         </Button>
+        <Button size="sm" variant="secondary" icon="fact_check" onClick={handleCheckModels} disabled={checkingModels} title="Check available models for this provider">
+          {checkingModels ? "Checking..." : "Check Models"}
+        </Button>
       </div>
+
+      {checkResult && (() => {
+        const item = (checkResult.results || [])[0];
+        return (
+          <div className="rounded-lg border border-border bg-black/[0.02] dark:bg-white/[0.02] p-3 text-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-medium text-sm">Model check result</span>
+              <button onClick={() => setCheckResult(null)} className="text-text-muted hover:text-text-main" aria-label="Close">
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+            {checkResult.error && !item ? (
+              <p className="text-red-400">{checkResult.error}</p>
+            ) : item ? (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className={`material-symbols-outlined text-[16px] ${item.ok ? "text-emerald-500" : item.skipped ? "text-amber-500" : "text-red-500"}`}>
+                    {item.ok ? "check_circle" : item.skipped ? "pause_circle" : "error"}
+                  </span>
+                  <span className="font-medium">{item.name || item.provider}</span>
+                  {item.latencyMs !== undefined && <span className="text-text-muted font-mono">{item.latencyMs}ms</span>}
+                  <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${item.ok ? "bg-emerald-500/15 text-emerald-400" : item.skipped ? "bg-amber-500/15 text-amber-400" : "bg-red-500/15 text-red-400"}`}>
+                    {item.ok ? `${item.modelCount ?? 0} models` : item.skipped ? "skipped" : "error"}
+                  </span>
+                </div>
+                {!item.ok && !item.skipped && item.error && <p className="text-red-400 break-words">{item.error}</p>}
+                {item.skipped && item.reason && <p className="text-amber-400/80">{item.reason}</p>}
+                {item.ok && item.models && item.models.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto mt-1">
+                    {item.models.map((m) => (
+                      <code key={m} className="block truncate py-0.5 font-mono text-text-muted">{m}</code>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-text-muted">No result returned.</p>
+            )}
+          </div>
+        );
+      })()}
 
       {!canImport && (
         <p className="text-xs text-text-muted">
@@ -215,6 +280,7 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
 }
 
 CompatibleModelsSection.propTypes = {
+  providerId: PropTypes.string,
   providerStorageAlias: PropTypes.string.isRequired,
   providerDisplayAlias: PropTypes.string.isRequired,
   modelAliases: PropTypes.object.isRequired,

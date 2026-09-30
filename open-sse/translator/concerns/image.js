@@ -36,7 +36,9 @@ function isPrivateIp(ip) {
 
 // Resolve host once and return only public IPs (SSRF guard).
 // Rejects if any resolved record is private/reserved (defeats multi-A tricks).
-async function resolvePinnedIps(hostname) {
+// Diekspor agar prefetch bisa me-reuse satu Agent per hostname dalam satu sesi
+// tanpa menduplikasi logika pinning ini.
+export async function resolvePinnedIps(hostname) {
   if (!hostname || BLOCKED_HOSTS.has(hostname.toLowerCase())) return null;
   try {
     const records = await lookup(hostname, { all: true });
@@ -74,24 +76,37 @@ function detectImageMime(buf) {
  * @returns {Promise<{url: string, mimeType: string}|null>}
  */
 export async function fetchImageAsBase64(imageUrl, options = {}) {
-  const { signal, timeoutMs = FETCH_TIMEOUT_MS, maxBytes = MAX_IMAGE_BYTES } = options;
+  const {
+    signal,
+    timeoutMs = FETCH_TIMEOUT_MS,
+    maxBytes = MAX_IMAGE_BYTES,
+    // Dispatcher milik pemanggil (opsional). Bila diisi, koneksi dianggap sudah
+    // di-pin oleh pemanggil: fungsi tidak membuat Agent baru dan tidak
+    // menutupnya (lifecycle milik pemanggil — dipakai untuk reuse antar gambar).
+    dispatcher: dispatcherLuar = null,
+  } = options;
   if (!imageUrl || (!imageUrl.startsWith("http://") && !imageUrl.startsWith("https://"))) {
     return null;
   }
 
   let url;
   try { url = new URL(imageUrl); } catch { return null; }
-  const pinnedIps = await resolvePinnedIps(url.hostname);
-  if (!pinnedIps) return null;
+
+  // Pin connect to the validated IP so no second DNS resolution can rebind (TOCTOU fix).
+  let dispatcher = dispatcherLuar;
+  let dispatcherMilikSendiri = false;
+  if (!dispatcher) {
+    const pinnedIps = await resolvePinnedIps(url.hostname);
+    if (!pinnedIps) return null;
+    dispatcher = new Agent({
+      connect: { lookup: (_h, _o, cb) => cb(null, [{ address: pinnedIps[0].address, family: pinnedIps[0].family }]) },
+    });
+    dispatcherMilikSendiri = true;
+  }
 
   const controller = new AbortController();
   const timeout = signal ? null : setTimeout(() => controller.abort(), timeoutMs);
   const fetchSignal = signal || controller.signal;
-
-  // Pin connect to the validated IP so no second DNS resolution can rebind (TOCTOU fix).
-  const dispatcher = new Agent({
-    connect: { lookup: (_h, _o, cb) => cb(null, [{ address: pinnedIps[0].address, family: pinnedIps[0].family }]) },
-  });
 
   try {
     // redirect:"manual" prevents a public URL redirecting to a private one (SSRF bypass).
@@ -119,6 +134,8 @@ export async function fetchImageAsBase64(imageUrl, options = {}) {
     return null;
   } finally {
     if (timeout) clearTimeout(timeout);
-    dispatcher.close().catch(() => {});
+    // Hanya tutup dispatcher yang dibuat sendiri; milik pemanggil dibiarkan
+    // hidup agar bisa dipakai ulang oleh gambar lain dalam sesi yang sama.
+    if (dispatcherMilikSendiri) dispatcher.close().catch(() => {});
   }
 }

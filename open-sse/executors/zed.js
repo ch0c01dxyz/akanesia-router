@@ -219,8 +219,8 @@ function wrapZedCompletionStream(response, provider, model) {
 }
 
 class ZedExecutor extends BaseExecutor {
-  constructor() {
-    super("zed");
+  constructor(provider = "zed") {
+    super(provider);
   }
 
   async resolveModel(model, credentials, signal, log) {

@@ -1,9 +1,9 @@
 {
-  "name": "9router",
-  "version": "0.5.91",
-  "description": "9Router CLI - Start and manage 9Router server",
+  "name": "akanesia-router",
+  "version": "1.5.0",
+  "description": "Akanesia-Gateway CLI - Start and manage Akanesia-Gateway server",
   "bin": {
-    "9router": "./cli.js"
+    "akanesia-router": "./cli.js"
   },
   "files": [
     "cli.js",
@@ -36,13 +36,13 @@
     "node": ">=18.0.0"
   },
   "keywords": [
-    "9router",
+    "akanesia-router",
     "cli",
     "proxy",
     "ai",
     "api"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "devDependencies": {
     "esbuild": "^0.25.12",
     "nodemon": "^3.1.14"

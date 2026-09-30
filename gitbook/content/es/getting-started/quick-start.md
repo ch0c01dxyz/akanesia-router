@@ -1,6 +1,6 @@
 # Empezar
 
-Pon en marcha 9Router en 5 minutos y comienza a enrutar solicitudes de IA de forma inteligente.
+Pon en marcha Akanesia-Gateway en 5 minutos y comienza a enrutar solicitudes de IA de forma inteligente.
 
 ---
 
@@ -43,7 +43,7 @@ Dashboard → Providers → Connect [Provider]
 **Ejemplo: Claude Code**
 1. Clic en "Connect Claude Code"
 2. Inicia sesión con tu cuenta de Claude
-3. Autoriza 9Router
+3. Autoriza Akanesia-Gateway
 4. ✅ ¡Listo! Usa el modelo: `cc/claude-opus-4-5-20251101`
 
 #### Opción B: API Key (Proveedores baratos)
@@ -83,7 +83,7 @@ Dashboard → Providers → Connect [Free Provider]
 
 ## 4. Usar en herramientas CLI
 
-Apunta tu herramienta de codificación a 9Router:
+Apunta tu herramienta de codificación a Akanesia-Gateway:
 
 ### Cursor IDE
 
@@ -243,5 +243,5 @@ Rutina diaria:
 ## ¿Necesitas ayuda?
 
 - **Sitio web**: [9router.com](https://9router.com)
-- **GitHub**: [github.com/decolua/9router](https://github.com/decolua/9router)
-- **Issues**: [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub**: [github.com/ch0c01dxyz/akanesia-router](https://github.com/ch0c01dxyz/akanesia-router)
+- **Issues**: [github.com/ch0c01dxyz/akanesia-router/issues](https://github.com/ch0c01dxyz/akanesia-router/issues)

@@ -54,9 +54,9 @@ Only add a dedicated test when a provider has a special format that does not rou
 
 ## 5. `registerAll.js` — why it is required
 
-`translator/index.js` uses `require(...)` (bundler-only) to lazy-load translators. Under vitest/ESM, `require` **silently no-ops** → empty registry → `translateRequest` skips the translation step → **false pass** (data is lost but the test goes green by mistake).
+`translator/index.js` me-load 24 modul translator secara LAZY via `TRANSLATOR_MANIFEST` + `ensureTranslatorsFor*` (tidak ada static side-effect import). Registry kosong sampai modul di-load → `translateRequest`/`translateResponse` tanpa ensure akan melewatkan translasi → **false pass** (data hilang tapi test hijau).
 
-→ Every test calling `translateRequest`/`translateResponse` MUST `import "./registerAll.js"` at the top of the file.
+→ Setiap test yang memanggil `translateRequest`/`translateResponse` WAJIB `import "./registerAll.js"` di baris paling atas (eager-import semua translator supaya `register()` berjalan). Pengecualian: `lazy-load.test.js` yang memang menguji mekanisme ensure itu sendiri.
 
 ## 6. Bug-exposure convention — `it.fails`
 

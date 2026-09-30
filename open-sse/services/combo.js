@@ -6,6 +6,7 @@ import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
+import { QUOTA_DEFAULTS, clampQuotaMaxFallbacks } from "../config/quotaErrorClasses.js";
 
 // Hard capabilities = input modalities; missing one drops request data (e.g. image
 // stripped). Must be prioritized. Soft (e.g. search) only degrades a feature.
@@ -275,9 +276,12 @@ export function getComboModelsFromData(modelStr, combosData) {
  * @param {string} [options.comboName] - Name of the combo (for round-robin tracking)
  * @param {string} [options.comboStrategy] - Strategy: "fallback" or "round-robin"
  * @param {number|string} [options.comboStickyLimit=1] - Requests per combo model before switching
+ * @param {number|string} [options.maxFallbacks] - Ide #4: batas fallback dalam-request
+ *   (1 percobaan awal + maksimal maxFallbacks fallback); default QUOTA_DEFAULTS.maxFallbacks.
+ *   Pemanggil (mis. chat.js) mengisi dari settings.quotaMaxFallbacks.
  * @returns {Promise<Response>}
  */
-export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true }) {
+export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, maxFallbacks = QUOTA_DEFAULTS.maxFallbacks }) {
   // Apply rotation strategy if enabled
   let rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit);
 
@@ -297,8 +301,29 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   let earliestRetryAfter = null;
   let lastStatus = null;
 
+  // Ide #4: guard dalam-request — attempted-set mencegah model yang sama
+  // dicoba dua kali dalam satu request; fallbacksUsed membatasi kedalaman
+  // fallback (1 percobaan awal + maksimal maxFallbacks fallback).
+  const fallbackLimit = clampQuotaMaxFallbacks(maxFallbacks);
+  const attemptedModels = new Set();
+  let fallbacksUsed = 0;
+
   for (let i = 0; i < rotatedModels.length; i++) {
     const modelStr = rotatedModels[i];
+
+    // Lewati model yang sudah dicoba dalam request ini.
+    if (attemptedModels.has(modelStr)) {
+      log.debug("COMBO", `Skip model ${modelStr}: sudah dicoba dalam request ini`);
+      continue;
+    }
+    attemptedModels.add(modelStr);
+
+    // Batas kedalaman fallback tercapai → hentikan seperti "semua gagal".
+    if (fallbacksUsed > fallbackLimit) {
+      log.warn("COMBO", `Batas fallback tercapai (${fallbackLimit}) — hentikan loop`);
+      break;
+    }
+
     log.info("COMBO", `Trying model ${i + 1}/${rotatedModels.length}: ${modelStr}`);
 
     try {
@@ -349,11 +374,13 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       }
 
       // Fallback to next model
+      fallbacksUsed++;
       lastError = errorText || String(result.status);
       if (!lastStatus) lastStatus = result.status;
       log.warn("COMBO", `Model ${modelStr} failed, trying next`, { status: result.status });
     } catch (error) {
       // Catch unexpected exceptions to ensure fallback continues
+      fallbacksUsed++;
       lastError = error.message || String(error);
       if (!lastStatus) lastStatus = 500;
       log.warn("COMBO", `Model ${modelStr} threw error, trying next`, { error: lastError });

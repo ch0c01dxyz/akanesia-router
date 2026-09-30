@@ -108,6 +108,15 @@ export async function PATCH(request) {
         .catch((error) => console.warn("[AutoPing] settings update failed:", error.message));
     }
 
+    // Ide #2: toggle warmup ON berlaku langsung tanpa restart.
+    if (body.fillFirstWarmupEnabled === true) {
+      import("@/lib/fillFirstWarmup")
+        .then(({ triggerFillFirstWarmup }) => {
+          triggerFillFirstWarmup();
+        })
+        .catch((error) => console.warn("[FillFirstWarmup] trigger gagal:", error.message));
+    }
+
     const { password, oidcClientSecret, ...safeSettings } = settings;
     safeSettings.oidcConfigured = !!(safeSettings.oidcIssuerUrl && safeSettings.oidcClientId && oidcClientSecret);
     return NextResponse.json(safeSettings, { headers: SETTINGS_RESPONSE_HEADERS });

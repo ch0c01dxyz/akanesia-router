@@ -7,8 +7,10 @@ import { filterToOpenAIFormat } from "./formats/openai.js";
 import { normalizeThinkingConfig } from "../services/provider.js";
 import { applyThinking, captureThinking } from "./concerns/thinkingUnified.js";
 import { captureSessionId } from "../utils/sessionManager.js";
-import { AntigravityExecutor } from "../executors/antigravity.js";
 import { PROVIDERS } from "../providers/index.js";
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL, fileURLToPath } from "node:url";
 
 // Registry for translators. Lazy-init guards against circular-import order:
 // translator modules call register() (side-effect) before this module's body runs.
@@ -29,7 +31,8 @@ export function register(from, to, requestFn, responseFn) {
   }
 }
 
-// No-op: translators self-register via the static imports at the bottom of this file.
+// No-op (dulu: translator self-register via static import; sekarang via
+// lazy-load ensureTranslatorsFor*). Dipertahankan agar pemanggil lama tidak rusak.
 function ensureInitialized() {}
 
 // Strip specific content types from messages (explicit opt-in via strip[] in PROVIDER_MODELS)
@@ -281,26 +284,203 @@ export function initTranslators() {
   ensureInitialized();
 }
 
-// Static side-effect imports: each module calls register() at load (works in ESM + bundler).
-import "./request/claude-to-openai.js";
-import "./request/openai-to-claude.js";
-import "./request/gemini-to-openai.js";
-import "./request/openai-to-gemini.js";
-import "./request/openai-to-vertex.js";
-import "./request/antigravity-to-openai.js";
-import "./request/openai-responses.js";
-import "./request/openai-to-kiro.js";
-import "./request/openai-to-cursor.js";
-import "./request/openai-to-ollama.js";
-import "./request/openai-to-commandcode.js";
-import "./request/claude-to-kiro.js";
-import "./response/claude-to-openai.js";
-import "./response/openai-to-claude.js";
-import "./response/gemini-to-openai.js";
-import "./response/openai-to-antigravity.js";
-import "./response/openai-responses.js";
-import "./response/kiro-to-openai.js";
-import "./response/cursor-to-openai.js";
-import "./response/ollama-to-openai.js";
-import "./response/commandcode-to-openai.js";
-import "./response/kiro-to-claude.js";
+// ---------------------------------------------------------------------------
+// Lazy-load translator.
+//
+// 24 modul translator TIDAK lagi diimpor statis di bawah file ini. Mereka
+// dimuat on-demand lewat manifest di bawah (pola yang sama dengan lazy-load
+// executor di open-sse/executors/index.js): dynamic import + cache + singleflight.
+//
+// Alasan desain:
+// - translateRequest()/translateResponse() tetap SINKRON karena dipanggil di
+//   hot path (per chunk SSE). Dynamic import tidak boleh terjadi per chunk.
+// - Sebagai gantinya, setiap entry point async WAJIB memanggil
+//   ensureTranslatorsForRequest(sourceFormat, targetFormat) (atau
+//   ensureTranslatorsFor(daftarKunci, arah)) SEBELUM request diproses / stream
+//   dibuat. Setelah itu registry terisi penuh dan fungsi translate sinkron
+//   aman dipakai.
+// - Modul translator aman di-load on-demand: audit 2026-09-29 menunjukkan
+//   satu-satunya side-effect top-level adalah register() + deklarasi
+//   fungsi/konstanta (tanpa timer, tanpa I/O, tanpa process.on, tanpa
+//   top-level await). Circular import (modul → register() → index.js) tidak
+//   deadlock karena register() hanya memakai assignment Map yang di-hoist
+//   via `var` (lihat komentar registry di atas).
+// ---------------------------------------------------------------------------
+
+// Manifest pasangan format → file modul. Satu kunci bisa punya file request
+// dan response yang BERBEDA (mis. "claude:openai": request/claude-to-openai.js
+// untuk requestFn, response/claude-to-openai.js untuk responseFn).
+// Satu entri per kunci "dari:ke" (tanpa duplikat).
+const TRANSLATOR_MANIFEST = {
+  "antigravity:openai": {
+    request: "./request/antigravity-to-openai.js",
+    response: "./response/gemini-to-openai.js",
+  },
+  "claude:kiro": { request: "./request/claude-to-kiro.js" },
+  "claude:openai": {
+    request: "./request/claude-to-openai.js",
+    response: "./response/claude-to-openai.js",
+  },
+  "gemini:openai": {
+    request: "./request/gemini-to-openai.js",
+    response: "./response/gemini-to-openai.js",
+  },
+  "gemini-cli:openai": {
+    request: "./request/gemini-to-openai.js",
+    response: "./response/gemini-to-openai.js",
+  },
+  "vertex:openai": { response: "./response/gemini-to-openai.js" },
+  "openai-responses:openai": {
+    request: "./request/openai-responses.js",
+    response: "./response/openai-responses.js",
+  },
+  "openai:openai-responses": {
+    request: "./request/openai-responses.js",
+    response: "./response/openai-responses.js",
+  },
+  "openai:claude": {
+    request: "./request/openai-to-claude.js",
+    response: "./response/openai-to-claude.js",
+  },
+  "openai:clova": { request: "./request/openai-to-clova.js" },
+  "openai:commandcode": { request: "./request/openai-to-commandcode.js" },
+  "openai:cursor": { request: "./request/openai-to-cursor.js" },
+  "openai:gemini": { request: "./request/openai-to-gemini.js" },
+  "openai:gemini-cli": { request: "./request/openai-to-gemini.js" },
+  "openai:antigravity": {
+    request: "./request/openai-to-gemini.js",
+    response: "./response/openai-to-antigravity.js",
+  },
+  "openai:kiro": { request: "./request/openai-to-kiro.js" },
+  "openai:ollama": { request: "./request/openai-to-ollama.js" },
+  "openai:vertex": { request: "./request/openai-to-vertex.js" },
+  "clova:openai": { response: "./response/clova-to-openai.js" },
+  "commandcode:openai": { response: "./response/commandcode-to-openai.js" },
+  "cursor:openai": { response: "./response/cursor-to-openai.js" },
+  "kiro:claude": { response: "./response/kiro-to-claude.js" },
+  "kiro:openai": { response: "./response/kiro-to-openai.js" },
+  "ollama:openai": { response: "./response/ollama-to-openai.js" },
+};
+
+// Cari direktori translator/ di runtime (pola sama seperti executor):
+// repo dev → .next/standalone → fallback lokasi file ini (untuk vitest).
+function cariDirektoriTranslator() {
+  const kandidat = [
+    path.join(process.cwd(), "open-sse", "translator"),
+    path.join(process.cwd(), ".next", "standalone", "open-sse", "translator"),
+  ];
+  try {
+    const dariModul = path.dirname(fileURLToPath(import.meta.url));
+    if (dariModul) kandidat.push(dariModul);
+  } catch { /* abaikan: import.meta.url tidak selalu file URL */ }
+  for (const dir of kandidat) {
+    try {
+      if (dir && fs.existsSync(dir) && fs.statSync(dir).isDirectory()) return dir;
+    } catch { /* abaikan */ }
+  }
+  return kandidat[0];
+}
+const DIREKTORI_TRANSLATOR = cariDirektoriTranslator();
+
+// Cache file yang sudah di-load + singleflight untuk import konkuren
+// (pola sama seperti executors/index.js).
+const fileSudahDiLoad = new Set();
+const fileInFlight = new Map();
+
+function imporModulTranslator(file) {
+  const url = pathToFileURL(path.join(DIREKTORI_TRANSLATOR, file)).href;
+  // webpackIgnore agar Next.js tidak mencoba me-resolve URL dinamis ini;
+  // file translator ikut ter-copy ke standalone via outputFileTracingIncludes.
+  return import(/* webpackIgnore: true */ /* turbopackIgnore: true */ url);
+}
+
+function muatFileTranslator(file) {
+  if (fileSudahDiLoad.has(file)) return Promise.resolve();
+  const berjalan = fileInFlight.get(file);
+  if (berjalan) return berjalan;
+  const p = imporModulTranslator(file).then(
+    () => {
+      fileSudahDiLoad.add(file);
+      fileInFlight.delete(file);
+    },
+    (err) => {
+      fileInFlight.delete(file);
+      throw new Error(`[translator] Gagal me-load modul ${file}: ${err?.message || err}`);
+    }
+  );
+  fileInFlight.set(file, p);
+  return p;
+}
+
+function kunciSudahTerdaftar(kunci, arah) {
+  const reg = arah === "response" ? responseRegistry : requestRegistry;
+  return !!reg?.has(kunci);
+}
+
+/**
+ * Pastikan translator untuk pasangan format tersedia di registry.
+ * @param {string[]} daftarKunci - kunci registry "dari:ke", mis. ["openai:claude"].
+ * @param {"request"|"response"|"both"} arah - arah translasi yang dibutuhkan.
+ *
+ * Kunci yang tidak ada di manifest diabaikan (pasangan tanpa translator =
+ * passthrough, konsisten dengan perilaku translateRequest/translateResponse).
+ * Kunci yang sudah terdaftar tidak di-load ulang. Gagal import = throw
+ * (fail-loud) supaya tidak ada translasi yang diam-diam terlewat.
+ */
+export async function ensureTranslatorsFor(daftarKunci, arah = "both") {
+  const files = new Set();
+  for (const kunci of daftarKunci) {
+    const entri = TRANSLATOR_MANIFEST[kunci];
+    if (!entri) continue;
+    if ((arah === "request" || arah === "both") && entri.request && !kunciSudahTerdaftar(kunci, "request")) {
+      files.add(entri.request);
+    }
+    if ((arah === "response" || arah === "both") && entri.response && !kunciSudahTerdaftar(kunci, "response")) {
+      files.add(entri.response);
+    }
+  }
+  await Promise.all([...files].map(muatFileTranslator));
+}
+
+/**
+ * Pastikan SEMUA translator yang mungkin dibutuhkan satu request chat
+ * sudah ter-load: pasangan langsung + kedua kaki pivot via OpenAI untuk
+ * request dan response. Panggil sekali di awal request (async) sebelum
+ * translateRequest()/stream dibuat; setelah itu fungsi translate sinkron
+ * aman dipakai di hot path.
+ */
+export async function ensureTranslatorsForRequest(sourceFormat, targetFormat) {
+  const O = FORMATS.OPENAI;
+  const OR = FORMATS.OPENAI_RESPONSES;
+  const kunciRequest = [
+    `${sourceFormat}:${targetFormat}`,
+    `${sourceFormat}:${O}`,
+    `${O}:${targetFormat}`,
+  ];
+  const kunciResponse = [
+    `${targetFormat}:${sourceFormat}`,
+    `${targetFormat}:${O}`,
+    `${O}:${sourceFormat}`,
+  ];
+  // Jalur codex: provider Responses-API memakai pasangan openai-responses di
+  // stream, dengan target akhir mengikuti CODEX_SOURCE_TO_TARGET di
+  // handlers/chatCore/streamingHandler.js (claude/antigravity/openai-responses).
+  if (sourceFormat === OR || targetFormat === OR) {
+    kunciRequest.push(`${O}:${OR}`, `${OR}:${O}`);
+    kunciResponse.push(`${OR}:${O}`, `${O}:${OR}`, `${O}:${FORMATS.CLAUDE}`, `${O}:${FORMATS.ANTIGRAVITY}`);
+  }
+  await Promise.all([
+    ensureTranslatorsFor(kunciRequest, "request"),
+    ensureTranslatorsFor(kunciResponse, "response"),
+  ]);
+}
+
+/**
+ * Cek apakah translator untuk pasangan format sudah terdaftar
+ * (tanpa me-load apa pun). Berguna untuk test/diagnostik.
+ */
+export function isTranslatorLoaded(kunci, arah = "both") {
+  if (arah === "request") return kunciSudahTerdaftar(kunci, "request");
+  if (arah === "response") return kunciSudahTerdaftar(kunci, "response");
+  return kunciSudahTerdaftar(kunci, "request") || kunciSudahTerdaftar(kunci, "response");
+}

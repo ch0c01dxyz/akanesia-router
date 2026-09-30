@@ -225,9 +225,9 @@ describe("MimoFreeExecutor", () => {
 });
 
 describe("MiMo Free provider registration", () => {
-  it("registers a specialized executor for mimo-free and the mmf alias", () => {
-    expect(getExecutor("mimo-free")).toBeInstanceOf(MimoFreeExecutor);
-    expect(getExecutor("mmf")).toBeInstanceOf(MimoFreeExecutor);
+  it("registers a specialized executor for mimo-free and the mmf alias", async () => {
+    expect(await getExecutor("mimo-free")).toBeInstanceOf(MimoFreeExecutor);
+    expect(await getExecutor("mmf")).toBeInstanceOf(MimoFreeExecutor);
   });
 
   it("registers mimo-free as a no-auth provider in open-sse config", () => {

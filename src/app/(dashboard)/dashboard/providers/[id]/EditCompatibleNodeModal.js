@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Button, Badge, Input, Modal, Select } from "@/shared/components";
+import CustomHeadersEditor from "../components/CustomHeadersEditor";
 
 export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose, isAnthropic }) {
   const [formData, setFormData] = useState({
@@ -19,11 +20,13 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
 
   useEffect(() => {
     if (node) {
+// eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: sinkronisasi form dari node saat dibuka/diubah; jangan di-refactor
       setFormData({
         name: node.name || "",
         prefix: node.prefix || "",
         apiType: node.apiType || "chat",
         baseUrl: node.baseUrl || (isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"),
+        customHeaders: node.customHeaders || [],
       });
     }
   }, [node, isAnthropic]);
@@ -41,6 +44,7 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
         name: formData.name,
         prefix: formData.prefix,
         baseUrl: formData.baseUrl,
+        customHeaders: formData.customHeaders || [],
       };
       if (!isAnthropic) {
         payload.apiType = formData.apiType;
@@ -61,7 +65,8 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
           baseUrl: formData.baseUrl,
           apiKey: checkKey,
           type: isAnthropic ? "anthropic-compatible" : "openai-compatible",
-          modelId: checkModelId.trim() || undefined
+          modelId: checkModelId.trim() || undefined,
+          customHeaders: formData.customHeaders || []
         }),
       });
       const data = await res.json();
@@ -106,6 +111,10 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
           onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
           placeholder={isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"}
           hint={`Use the base URL (ending in /v1) for your ${isAnthropic ? "Anthropic" : "OpenAI"}-compatible API.`}
+        />
+        <CustomHeadersEditor
+          value={formData.customHeaders || []}
+          onChange={(customHeaders) => setFormData({ ...formData, customHeaders })}
         />
         <div className="flex gap-2">
           <Input

@@ -11,6 +11,48 @@ import { saveRequestDetail } from "@/lib/usageDb.js";
 import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
 import { upstreamResponseHeaders } from "../../utils/upstreamHeaders.js";
 
+// Batas baca body error non-SSE (P8): hanya 16 KB pertama yang dibaca.
+// Sebelumnya `await response.text()` mem-buffer SELURUH body tanpa batas —
+// upstream jahat/rusak bisa mengirim body tak terbatas → memory exhaustion
+// (undici maxResponseSize default -1 = unbounded). Kode di bawah hanya memakai
+// ≤160 char, jadi membaca lebih dari 16 KB tidak ada gunanya.
+const BATAS_BACA_BODY_ERROR = 16 * 1024;
+
+/**
+ * Baca body response secara terbatas (fail-open → string kosong).
+ * Setelah batas tercapai, stream di-cancel agar upstream berhenti mengirim
+ * (hemat bandwidth + waktu, bukan sekadar memotong hasil).
+ */
+async function bacaBodyTerbatas(response, maxBytes = BATAS_BACA_BODY_ERROR) {
+  try {
+    const stream = response?.body;
+    if (!stream || typeof stream.getReader !== "function") return "";
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let teks = "";
+    let total = 0;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done || !value) break;
+        const sisa = maxBytes - total;
+        if (sisa <= 0) break;
+        const potong = value.subarray(0, Math.min(value.byteLength, sisa));
+        teks += decoder.decode(potong, { stream: true });
+        total += potong.byteLength;
+        if (total >= maxBytes) break;
+      }
+      teks += decoder.decode();
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+    return teks;
+  } catch {
+    return "";
+  }
+}
+
 // Codex returns Responses API SSE → which client format to translate INTO, by request sourceFormat.
 // Gemini-family all map to ANTIGRAVITY decoder; unknown sources fall back to OPENAI.
 const CODEX_SOURCE_TO_TARGET = {
@@ -56,14 +98,15 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
 
   // When upstream returns HTML/text instead of SSE (e.g. Cloudflare 5xx error
   // page), piping it through the SSE transform stream causes Next.js
-  // "failed to pipe response" and crashes the chat router. Read the body,
-  // pull a short human-readable message from the <title>, sanitize it, and
+  // "failed to pipe response" and crashes the chat router. Read (capped at
+  // 16 KB — see bacaBodyTerbatas) the body, pull a short human-readable
+  // message from the <title>, sanitize it, and
   // return a clean JSON error instead. The message is stripped of HTML tags
   // and clamped so untrusted upstream text never reaches the client verbatim
   // (the UI may render error.message as HTML).
   const upstreamContentType = (providerResponse.headers.get('content-type') || '').toLowerCase();
   if (upstreamContentType && !upstreamContentType.includes('text/event-stream') && !upstreamContentType.includes('application/json')) {
-    const bodyText = await providerResponse.text().catch(() => '');
+    const bodyText = await bacaBodyTerbatas(providerResponse);
     const titleMatch = bodyText.match(/<title>([^<]+)<\/title>/i);
     const sanitizedTitle = (titleMatch?.[1] || '').replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, ' ').trim().slice(0, 160);
     const shortMsg = sanitizedTitle
@@ -96,7 +139,7 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
 
   saveRequestDetail(buildRequestDetail({
     provider, model, connectionId,
-    latency: { ttft: 0, total: Date.now() - requestStartTime },
+    latency: { ttft: 0, ttftClient: null, total: Date.now() - requestStartTime },
     tokens: { prompt_tokens: 0, completion_tokens: 0 },
     request: extractRequestConfig(body, stream),
     providerRequest: finalBody || translatedBody || null,
@@ -120,9 +163,15 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
 export function buildOnStreamComplete({ provider, model, connectionId, apiKey, requestStartTime, body, stream, finalBody, translatedBody, clientRawRequest, pxpipe, reqTag, log }) {
   const streamDetailId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
-  const onStreamComplete = (contentObj, usage, ttftAt) => {
+  const onStreamComplete = (contentObj, usage, ttftAt, firstClientByteAt) => {
     const latency = {
+      // ttft: waktu hingga byte PERTAMA tiba dari upstream (diukur di hulu
+      // transform stream). Dipertahankan apa adanya untuk kompatibilitas dashboard.
       ttft: ttftAt ? ttftAt - requestStartTime : Date.now() - requestStartTime,
+      // ttftClient (baru, temuan audit #8): waktu hingga payload PERTAMA
+      // benar-benar dikirim ke klien (enqueue pertama ke response). Selisih
+      // keduanya = biaya buffering/parse/translate di tengah.
+      ttftClient: firstClientByteAt ? firstClientByteAt - requestStartTime : null,
       total: Date.now() - requestStartTime
     };
     const safeContent = contentObj?.content || "[Empty streaming response]";

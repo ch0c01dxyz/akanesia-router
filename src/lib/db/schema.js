@@ -3,7 +3,7 @@
 // pre-change safety backup in migrate.js: when the stored version is lower,
 // one lightweight DB backup is taken before applying schema changes. Forgetting
 // to bump only skips that backup — it does NOT break the additive auto-sync.
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -150,6 +150,26 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_rd_provider ON requestDetails(provider)",
       "CREATE INDEX IF NOT EXISTS idx_rd_model ON requestDetails(model)",
       "CREATE INDEX IF NOT EXISTS idx_rd_conn ON requestDetails(connectionId)",
+    ],
+  },
+  // Ide #4 "Fill-first sadar kuota": insiden kuota & error per (connection, model)
+  // untuk visibilitas dashboard. ±100–200 byte per entri. Threshold hanya mengatur
+  // visibilitas — koneksi tidak diblokir/dilewati.
+  quota_incidents: {
+    columns: {
+      connection_id: "TEXT",
+      model: "TEXT",
+      provider: "TEXT",
+      error_class: "TEXT",
+      last_error: "TEXT",
+      last_status: "INTEGER",
+      failure_count: "INTEGER",
+      first_seen: "TEXT",
+      updated_at: "TEXT",
+    },
+    primaryKey: "PRIMARY KEY (connection_id, model)",
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_qi_updated ON quota_incidents(updated_at DESC)",
     ],
   },
 };

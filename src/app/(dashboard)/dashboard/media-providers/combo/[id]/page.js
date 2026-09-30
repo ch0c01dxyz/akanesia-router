@@ -3,7 +3,7 @@
 import { useParams, notFound, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, Button, Input, Toggle, ModelSelectModal } from "@/shared/components";
+import { Card, Button, Input, Select, ModelSelectModal } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
 import { AI_PROVIDERS, MEDIA_PROVIDER_KINDS } from "@/shared/constants/providers";
 
@@ -52,7 +52,7 @@ export default function ComboDetailPage() {
   const [name, setName] = useState("");
   const [nameError, setNameError] = useState("");
   const [providers, setProviders] = useState([]);
-  const [roundRobin, setRoundRobin] = useState(false);
+  const [strategy, setStrategy] = useState("fallback");
   const [showPicker, setShowPicker] = useState(false);
   const [logs, setLogs] = useState([]);
   const [testing, setTesting] = useState(false);
@@ -84,7 +84,7 @@ export default function ComboDetailPage() {
       setName(c.name);
       setProviders(c.models || []);
       const s = settingsRes.ok ? await settingsRes.json() : {};
-      setRoundRobin(s.comboStrategies?.[c.name]?.fallbackStrategy === "round-robin");
+      setStrategy(s.comboStrategies?.[c.name]?.fallbackStrategy || "fallback");
       const allLogs = logsRes.ok ? await logsRes.json() : [];
       setLogs(allLogs.filter((l) => typeof l === "string" && l.includes(c.name)).slice(0, 50));
     } catch { /* noop */ }
@@ -149,12 +149,12 @@ export default function ComboDetailPage() {
     await saveCombo({ models: next });
   };
 
-  const handleToggleRoundRobin = async (enabled) => {
-    setRoundRobin(enabled);
+  const handleStrategyChange = async (value) => {
+    setStrategy(value);
     const settingsRes = await fetch("/api/settings", { cache: "no-store" });
     const s = settingsRes.ok ? await settingsRes.json() : {};
     const updated = { ...(s.comboStrategies || {}) };
-    if (enabled) updated[combo.name] = { fallbackStrategy: "round-robin" };
+    if (value && value !== "fallback") updated[combo.name] = { fallbackStrategy: value };
     else delete updated[combo.name];
     await fetch("/api/settings", {
       method: "PATCH",
@@ -268,12 +268,21 @@ export default function ComboDetailPage() {
             <Input label="Combo Name" value={name} onChange={(e) => { setName(e.target.value); validateName(e.target.value); }} onBlur={handleSaveName} error={nameError} />
             <p className="text-[10px] text-text-muted mt-0.5">Only letters, numbers, -, _ and .</p>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium">Round Robin</p>
-              <p className="text-xs text-text-muted">Rotate providers across requests instead of strict fallback order.</p>
+              <p className="text-sm font-medium">Strategy</p>
+              <p className="text-xs text-text-muted">How providers are picked across requests.</p>
             </div>
-            <Toggle checked={roundRobin} onChange={handleToggleRoundRobin} />
+            <Select
+              value={strategy}
+              onChange={(e) => handleStrategyChange(e.target.value)}
+              options={[
+                { value: "fallback", label: "Fallback — try in order" },
+                { value: "round-robin", label: "Round Robin — rotate" },
+                { value: "fill-first", label: "Fill First — exhaust in order" },
+              ]}
+              className="w-44 sm:w-56 shrink-0"
+            />
           </div>
         </div>
       </Card>
@@ -283,7 +292,7 @@ export default function ComboDetailPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
           <div>
             <h2 className="text-lg font-semibold">Providers</h2>
-            <p className="text-xs text-text-muted">Tried in order (top-down) or rotated when round-robin is on.</p>
+            <p className="text-xs text-text-muted">Tried in order (top-down), rotated, or filled-first depending on strategy.</p>
           </div>
           <Button size="sm" icon="add" onClick={() => setShowPicker(true)}>Add Provider</Button>
         </div>

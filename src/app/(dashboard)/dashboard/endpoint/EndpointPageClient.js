@@ -18,6 +18,24 @@ import EndpointRow from "./components/EndpointRow";
 import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
+
+// Ide #4 "Fill-first sadar kuota": warna dot insiden kuota & error.
+// Dipetakan dari errorClass; lastStatus dipakai sebagai fallback bila errorClass kosong.
+// (Kelas warna ditulis literal agar terdeteksi Tailwind.)
+function quotaIncidentDotColor(incident) {
+  const cls = (incident.errorClass || "").toLowerCase();
+  const status = incident.lastStatus;
+  if (cls === "quota_exhausted") return "bg-purple-500";
+  if (cls === "auth_error") return "bg-red-500";
+  if (cls === "server_error") return "bg-orange-500";
+  if (cls === "rate_limited" || cls === "overloaded") return "bg-yellow-500";
+  // Fallback dari HTTP status
+  if (status === 401 || status === 403 || status === 402) return "bg-red-500";
+  if (status === 429 || status === 503 || status === 529) return "bg-yellow-500";
+  if (status === 500 || status === 502 || status === 504) return "bg-orange-500";
+  return "bg-gray-500";
+}
+
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +43,15 @@ export default function APIPageClient({ machineId }) {
   const [newKeyName, setNewKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+
+  // Ide #4 "Fill-first sadar kuota": daftar insiden kuota & error untuk dashboard.
+  // Threshold hanya mengatur VISIBILITAS — koneksi tidak diblokir/dilewati.
+  const [quotaIncidents, setQuotaIncidents] = useState([]);
+  const [quotaIncidentsLoading, setQuotaIncidentsLoading] = useState(true);
+
+  // Ide #2 "Warming koneksi fill-first": toggle + status warmup.
+  const [fillFirstWarmup, setFillFirstWarmup] = useState(true);
+  const [warmupStatus, setWarmupStatus] = useState(null);
 
   const [requireApiKey, setRequireApiKey] = useState(false);
   const [requireLogin, setRequireLogin] = useState(true);
@@ -98,9 +125,39 @@ export default function APIPageClient({ machineId }) {
     if (tsLogRef.current) tsLogRef.current.scrollTop = tsLogRef.current.scrollHeight;
   }, [tsInstallLog]);
 
+  // Ide #4: ambil daftar insiden kuota & error saat halaman di-mount.
+  // Pola fetch-on-mount di useEffect disengaja (lihat AGENTS.md) — jangan di-refactor.
+  const fetchQuotaIncidents = async () => {
+    try {
+      const res = await fetch("/api/quota-incidents");
+      if (!res.ok) return;
+      const data = await res.json();
+      setQuotaIncidents(data.incidents || []);
+    } catch (error) {
+      console.log("Error fetching quota incidents:", error);
+    } finally {
+      setQuotaIncidentsLoading(false);
+    }
+  };
+
+  // Status warming dari endpoint health internal (ide #2).
+  const fetchWarmupStatus = async () => {
+    try {
+      const res = await fetch("/api/health", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setWarmupStatus(data.warming || null);
+    } catch (error) {
+      console.log("Error fetching warmup status:", error);
+    }
+  };
+
   useEffect(() => {
     fetchData();
     loadSettings();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: fetch awal saat halaman dibuka; jangan di-refactor
+    fetchQuotaIncidents();
+    fetchWarmupStatus();
   }, []);
 
   // Status poll: only while degraded (not yet reachable). Stop once healthy to avoid spam.
@@ -204,6 +261,8 @@ export default function APIPageClient({ machineId }) {
         setRequireLogin(settingsData.requireLogin !== false);
         setHasPassword(settingsData.hasPassword || false);
         setTunnelDashboardAccess(settingsData.tunnelDashboardAccess || false);
+        // Ide #2: default ON bila key belum ada.
+        setFillFirstWarmup(settingsData.fillFirstWarmupEnabled !== false);
       }
       if (statusRes.ok) {
         const data = await statusRes.json();
@@ -242,6 +301,16 @@ export default function APIPageClient({ machineId }) {
       if (updated) setRequireApiKey(value);
     } catch (error) {
       console.log("Error updating requireApiKey:", error);
+    }
+  };
+
+  // Ide #2 "Warming koneksi fill-first": toggle ON/OFF (default ON).
+  const handleFillFirstWarmup = async (value) => {
+    try {
+      const updated = await useSettingsStore.getState().patchSettings({ fillFirstWarmupEnabled: value });
+      if (updated) setFillFirstWarmup(value);
+    } catch (error) {
+      console.log("Error updating fillFirstWarmupEnabled:", error);
     }
   };
 
@@ -1068,6 +1137,163 @@ export default function APIPageClient({ machineId }) {
         )}
       </Card>
 
+      {/* Insiden Kuota & Error (ide #4 "Fill-first sadar kuota") */}
+      <Card>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary">error</span>
+            Insiden Kuota &amp; Error
+          </h2>
+          <Button size="sm" variant="ghost" icon="refresh" onClick={fetchQuotaIncidents}>
+            Refresh
+          </Button>
+        </div>
+        <p className="text-sm text-text-muted mb-4">
+          Model yang baru-baru ini gagal atau kena limit kuota. Threshold hanya mengatur
+          visibilitas daftar ini — koneksi tidak diblokir dan tetap digunakan.
+        </p>
+
+        {quotaIncidentsLoading ? (
+          <p className="text-sm text-text-muted flex items-center gap-2 py-6">
+            <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+            Memuat insiden...
+          </p>
+        ) : quotaIncidents.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 text-green-500 mb-4">
+              <span className="material-symbols-outlined text-[32px]">check_circle</span>
+            </div>
+            <p className="text-text-main font-medium mb-1">Belum ada insiden kuota/error tercatat</p>
+            <p className="text-sm text-text-muted">Semua koneksi dan model berjalan normal.</p>
+          </div>
+        ) : (
+          <>
+            {/* Legenda warna */}
+            <div className="flex flex-wrap gap-x-5 gap-y-1.5 mb-4 text-xs text-text-muted">
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-yellow-500" />
+                429/503/529 — Rate limited / overload
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-red-500" />
+                401/403/402 — Auth error
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-orange-500" />
+                500/502/504 — Server error
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-purple-500" />
+                Kuota habis
+              </span>
+            </div>
+
+            {/* Tabel insiden */}
+            <div className="overflow-x-auto">
+              <div className="min-w-[640px]">
+                <div className="grid grid-cols-12 gap-x-4 px-3 py-2 text-xs font-medium uppercase text-text-muted border-b border-border">
+                  <div className="col-span-2">Provider</div>
+                  <div className="col-span-4">Model</div>
+                  <div className="col-span-4">Error terakhir</div>
+                  <div className="col-span-2">Tanggal/Waktu</div>
+                </div>
+                {quotaIncidents.map((inc) => (
+                  <div
+                    key={`${inc.connectionId}|${inc.model}`}
+                    className="grid grid-cols-12 gap-x-4 px-3 py-3 border-b border-black/[0.03] dark:border-white/[0.03] last:border-b-0 items-center"
+                  >
+                    <div className="col-span-2 text-sm font-medium truncate" title={inc.provider || ""}>
+                      {inc.provider || "—"}
+                    </div>
+                    <div className="col-span-4 text-sm font-mono truncate" title={inc.model || ""}>
+                      {inc.model || "—"}
+                    </div>
+                    <div className="col-span-4 text-sm min-w-0">
+                      <span className="flex items-center gap-2">
+                        <span className={`size-2 rounded-full shrink-0 ${quotaIncidentDotColor(inc)}`} />
+                        <span className="truncate text-text-muted" title={inc.lastError || inc.errorClass || ""}>
+                          {inc.lastError || inc.errorClass || "—"}
+                        </span>
+                        {inc.failureCount > 1 && (
+                          <span className="text-xs text-text-muted shrink-0">×{inc.failureCount}</span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="col-span-2 text-xs text-text-muted whitespace-nowrap">
+                      {inc.updatedAt ? new Date(inc.updatedAt).toLocaleString() : "—"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </Card>
+
+      {/* Warming koneksi fill-first (ide #2) */}
+      <Card>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary">local_fire_department</span>
+            Warming Koneksi
+          </h2>
+          <Button size="sm" variant="ghost" icon="refresh" onClick={fetchWarmupStatus}>
+            Refresh
+          </Button>
+        </div>
+        <p className="text-sm text-text-muted mb-4">
+          Ping ringan tanpa auth ke provider aktif setelah server menyala, agar
+          request pertama tidak membayar penalti TLS penuh. Hanya provider yang
+          punya koneksi aktif dan dipakai 7 hari terakhir.
+        </p>
+
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
+          <div>
+            <p className="font-medium">Warming koneksi fill-first</p>
+            <p className="text-sm text-text-muted">
+              OFF = tidak ada traffic warmup sama sekali
+            </p>
+          </div>
+          <Toggle
+            checked={fillFirstWarmup}
+            onChange={handleFillFirstWarmup}
+          />
+        </div>
+
+        {warmupStatus ? (
+          <div className="text-sm space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-text-muted">Status:</span>
+              <span className="font-medium">
+                {warmupStatus.state === "berjalan" ? "Berjalan…" :
+                 warmupStatus.state === "selesai" ? "Selesai" :
+                 warmupStatus.state === "dimatikan" ? "Dimatikan" : "Menunggu"}
+              </span>
+              {warmupStatus.durationMs != null && (
+                <span className="text-xs text-text-muted">({warmupStatus.durationMs} ms)</span>
+              )}
+            </div>
+            {warmupStatus.warmedProviders?.length > 0 && (
+              <div className="flex items-start gap-2">
+                <span className="text-text-muted shrink-0">Ter-warm:</span>
+                <span className="text-text-main">{warmupStatus.warmedProviders.join(", ")}</span>
+              </div>
+            )}
+            {warmupStatus.failedProviders?.length > 0 && (
+              <div className="flex items-start gap-2">
+                <span className="text-text-muted shrink-0">Gagal:</span>
+                <span className="text-amber-500">{warmupStatus.failedProviders.join(", ")}</span>
+              </div>
+            )}
+            {warmupStatus.state === "idle" && (
+              <p className="text-xs text-text-muted">Warmup berjalan otomatis setelah server menyala.</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-text-muted">Memuat status warmup…</p>
+        )}
+      </Card>
+
       {/* Add Key Modal */}
       <Modal
         isOpen={showAddModal}
@@ -1152,7 +1378,7 @@ export default function APIPageClient({ machineId }) {
                   Cloudflare Tunnel
                 </p>
                 <p className="text-sm text-text-muted">
-                  Expose your local 9Router to the internet. No port forwarding, no static IP needed. Share endpoint URL with your team or use it in Cursor, Cline, and other AI tools from anywhere.
+                  Expose your local Akanesia-Gateway to the internet. No port forwarding, no static IP needed. Share endpoint URL with your team or use it in Cursor, Cline, and other AI tools from anywhere.
                 </p>
               </div>
             </div>

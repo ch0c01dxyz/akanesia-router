@@ -14,6 +14,27 @@ const DEFAULT_SETTINGS = {
   stickyRoundRobinLimit: 3,
   providerStrategies: {},
   quotaVisibility: {},
+  // Ambang kegagalan beruntun sebelum sebuah insiden kuota/error ditampilkan di
+  // dashboard "Insiden Kuota & Error" (rentang valid 1–10; validasi di titik konsumsi).
+  // Catatan: ini hanya mengatur VISIBILITAS dashboard — koneksi tidak diblokir/dilewati.
+  quotaFailureThreshold: 3,
+  // Batas kedalaman fallback dalam satu request: jumlah maksimum koneksi/model
+  // cadangan yang dicoba sebelum request dinyatakan gagal.
+  quotaMaxFallbacks: 5,
+  // TTL cache hasil "Check Models" (detik). 0 = cache mati total (bypass).
+  checkModelsTtlSeconds: 3600,
+  // Daftar providerId yang Auto Sync-nya ON (ide #6): modelnya di-refresh
+  // otomatis tiap interval checkModelsTtlSeconds oleh scheduler server.
+  autoSyncProviderIds: [],
+  // Kapasitas maksimum buffer Replay request (byte). Entry lama dibuang
+  // otomatis (drop-oldest); default 5 MB (ide #7).
+  replayLogMaxBytes: 5 * 1024 * 1024,
+  // Warming koneksi fill-first (ide #2): ping ringan provider aktif setelah
+  // server listen agar request pertama tidak membayar penalti TLS penuh.
+  // Default ON; OFF = tidak ada traffic warmup sama sekali.
+  fillFirstWarmupEnabled: true,
+  // Probe identitas model / LLM fingerprinting (ide #5c).
+  probeEnabled: true,
   comboStrategy: "fallback",
   comboStickyRoundRobinLimit: 1,
   comboStrategies: {},

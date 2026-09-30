@@ -6,6 +6,10 @@ export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
 // Fetch timeout for remote media.
 export const FETCH_TIMEOUT_MS = 10000;
 
+// Batas konkurensi unduhan gambar paralel pada prefetch (jalur TTFT).
+// 4–6 aman untuk memori/koneksi; dipilih 4 (worst-case in-flight 4×10MB).
+export const PREFETCH_CONCURRENCY = 4;
+
 // Magic-byte signatures -> mime. Each entry: { sig:[bytes], offset, mime }.
 // offset>0 for containers where the signature is not at byte 0 (e.g. webp).
 export const IMAGE_SIGNATURES = [

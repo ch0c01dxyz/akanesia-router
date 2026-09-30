@@ -1,0 +1,181 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Acuan statistik untuk probe P5 (password) dan P6 (satu-token). File dengan placeholder:true dianggap 'tanpa referensi' oleh loader.",
+  "properties": {
+    "cells": {
+      "description": "Distribusi jawaban ternormalisasi per cell.",
+      "patternProperties": {
+        "^[a-zA-Z0-9._:-]+$": {
+          "properties": {
+            "counts": {
+              "additionalProperties": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "description": "Map jawaban ternormalisasi → jumlah kemunculan.",
+              "type": "object"
+            },
+            "totalSamples": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "counts",
+            "totalSamples"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "collectedAt": {
+      "description": "Waktu pengumpulan (ISO 8601).",
+      "format": "date-time",
+      "type": "string"
+    },
+    "cutoff": {
+      "description": "Knowledge cutoff saat pengumpulan (hasil P2), mis. '2024-10'.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "identity": {
+      "description": "Hasil P1 saat pengumpulan.",
+      "properties": {
+        "family": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "model": {
+      "description": "Nama model persis seperti yang dikembalikan endpoint resmi saat pengumpulan.",
+      "type": "string"
+    },
+    "note": {
+      "description": "Catatan bebas (Bahasa Indonesia).",
+      "type": "string"
+    },
+    "passwordProfile": {
+      "description": "Profil n-gram password P5: { orders: { '1': {...}, '2': {...}, '3': {...} }, pos0: {...} } — hasil ngramProfile(passwordReferensi). pos0 = distribusi karakter pertama password.",
+      "properties": {
+        "orders": {
+          "properties": {
+            "1": {
+              "additionalProperties": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "2": {
+              "additionalProperties": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "3": {
+              "additionalProperties": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "pos0": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "Distribusi karakter pertama password.",
+          "type": "object"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "placeholder": {
+      "description": "true = contoh/belum ada data; loader mengembalikan null.",
+      "type": "boolean"
+    },
+    "protocol": {
+      "description": "Protokol pengumpulan — WAJIB cocok dengan PROBE.offline.probes.p6.",
+      "properties": {
+        "cells": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "samplesPerCell": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "systemPrompt": {
+          "type": "string"
+        },
+        "temperature": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "systemPrompt",
+        "temperature",
+        "cells",
+        "samplesPerCell"
+      ],
+      "type": "object"
+    },
+    "schema": {
+      "description": "Versi skema fingerprint, mis. 'probe-fingerprint/1'.",
+      "type": "string"
+    },
+    "splitHalfJsd": {
+      "description": "Split-half JSD per cell saat pengumpulan; baseline deteksi backend_rotation.",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "thresholds": {
+      "description": "Ambang kalibrasi yang dipakai saat fingerprint ini dibuat (dokumentatif).",
+      "properties": {
+        "jsdMatchMax": {
+          "type": "number"
+        },
+        "jsdUncertainMax": {
+          "type": "number"
+        }
+      },
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "model",
+    "collectedAt",
+    "protocol",
+    "cells"
+  ],
+  "title": "Fingerprint referensi Probe LLM (ide #5c offline)",
+  "type": "object"
+}

@@ -19,6 +19,7 @@ import {
   KIMCHI_CONFIG,
 } from "@/lib/oauth/constants/oauth";
 import { buildClineHeaders } from "@/shared/utils/clineAuth";
+import { recordSuccess } from "@/sse/services/quotaIncidents.js";
 
 // OAuth provider test endpoints
 const OAUTH_TEST_CONFIG = {
@@ -54,7 +55,7 @@ const OAUTH_TEST_CONFIG = {
     method: "GET",
     authHeader: "Authorization",
     authPrefix: "Bearer ",
-    extraHeaders: { "User-Agent": "9Router", "Accept": "application/vnd.github+json" },
+    extraHeaders: { "User-Agent": "Akanesia-Gateway", "Accept": "application/vnd.github+json" },
   },
   iflow: {
     // iFlow getUserInfo requires accessToken as query param, not header
@@ -918,6 +919,12 @@ export async function testSingleConnection(id) {
   }
 
   await updateProviderConnection(id, updateData);
+
+  // Ide #4: test sukses berarti koneksi sehat lagi — bersihkan semua insiden
+  // kuota dashboard untuk koneksi ini (test tidak terikat satu model).
+  if (result.valid) {
+    await recordSuccess(id);
+  }
 
   return { valid: result.valid, error: result.error, refreshed: !!result.refreshed, latencyMs, testedAt: new Date().toISOString() };
 }

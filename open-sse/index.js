@@ -24,7 +24,10 @@ export {
   translateResponse, 
   needsTranslation, 
   initState, 
-  initTranslators 
+  initTranslators,
+  ensureTranslatorsFor,
+  ensureTranslatorsForRequest,
+  isTranslatorLoaded
 } from "./translator/index.js";
 
 // Services
@@ -68,7 +71,7 @@ export { handleChatCore, isTokenExpiringSoon } from "./handlers/chatCore.js";
 export { createStreamController, pipeWithDisconnect, createDisconnectAwareStream } from "./utils/streamHandler.js";
 
 // Executors
-export { getExecutor, hasSpecializedExecutor } from "./executors/index.js";
+export { getAdapter, getExecutor, hasSpecializedExecutor } from "./executors/index.js";
 
 // Utils
 export { errorResponse, formatProviderError } from "./utils/error.js";

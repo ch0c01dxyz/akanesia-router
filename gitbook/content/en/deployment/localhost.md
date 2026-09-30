@@ -1,12 +1,12 @@
 # 🏠 Localhost Deployment
 
-Run 9Router on your local machine for development and personal use.
+Run Akanesia-Gateway on your local machine for development and personal use.
 
 ---
 
 ## 📦 Installation
 
-Install 9Router globally via npm:
+Install Akanesia-Gateway globally via npm:
 
 ```bash
 npm install -g 9router
@@ -20,7 +20,7 @@ npm install -g 9router
 
 ## 🚀 Starting the Server
 
-Start 9Router with a single command:
+Start Akanesia-Gateway with a single command:
 
 ```bash
 9router
@@ -53,7 +53,7 @@ The API port (20128) and dashboard port (3000) are configured in the application
 
 ## 🛑 Stopping the Server
 
-Press `Ctrl+C` in the terminal where 9Router is running.
+Press `Ctrl+C` in the terminal where Akanesia-Gateway is running.
 
 ```bash
 # In the terminal running 9router
@@ -76,7 +76,7 @@ All your configurations, API keys, and combos are preserved in the data director
 
 ---
 
-## 📊 Updating 9Router
+## 📊 Updating Akanesia-Gateway
 
 Update to the latest version:
 

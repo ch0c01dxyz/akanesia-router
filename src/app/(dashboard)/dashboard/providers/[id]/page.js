@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { getProviderIconSrc, markProviderIconMissing } from "@/shared/utils/providerIcon";
-import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, IFlowCookieModal, GitLabAuthModal, Toggle, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal } from "@/shared/components";
+import { Card, Button, Badge, Input, Modal, CardSkeleton, OAuthModal, KiroOAuthWrapper, CursorAuthModal, ZedAuthModal, XiaomiMimoAuthModal, IFlowCookieModal, GitLabAuthModal, Select, EditConnectionModal, NoAuthProxyCard, ConfirmModal } from "@/shared/components";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, getProviderAlias, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, AI_PROVIDERS } from "@/shared/constants/providers";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
@@ -17,6 +17,7 @@ import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels"
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
+import PlaygroundSection from "./PlaygroundSection";
 import ConnectionRow from "./ConnectionRow";
 import AddApiKeyModal from "./AddApiKeyModal";
 import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
@@ -69,6 +70,9 @@ export default function ProviderDetailPage() {
   const [providerStickyLimit, setProviderStickyLimit] = useState("");
   const [thinkingMode, setThinkingMode] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {} });
+  // Auto Sync Check Models (ide #6): true bila providerId ada di
+  // settings.autoSyncProviderIds.
+  const [autoSyncOn, setAutoSyncOn] = useState(false);
   const [suggestedModels, setSuggestedModels] = useState([]);
   const [liveModels, setLiveModels] = useState([]);
   // Live-catalog fetch warning/error (surfaced for zed only; cursor behavior unchanged).
@@ -85,6 +89,8 @@ export default function ProviderDetailPage() {
   const stopOneByOneRef = useRef(false);
   const [importingQoderModels, setImportingQoderModels] = useState(false);
   const [importingClineModels, setImportingClineModels] = useState(false);
+  const [checkingProviderModels, setCheckingProviderModels] = useState(false);
+  const [providerModelCheck, setProviderModelCheck] = useState(null);
   const { copied, copy } = useCopyToClipboard();
 
   const AG_RISK_STORAGE_KEY = "ag_risk_confirmed";
@@ -330,6 +336,9 @@ export default function ProviderDetailPage() {
       const autoPingSettingsKey = AUTO_PING_SETTINGS_KEYS[providerId];
       const apCfg = autoPingSettingsKey ? settingsData[autoPingSettingsKey] || {} : {};
       setAutoPing({ enabled: apCfg.enabled === true, connections: apCfg.connections || {} });
+      // Auto Sync Check Models (ide #6)
+      const autoSyncIds = Array.isArray(settingsData.autoSyncProviderIds) ? settingsData.autoSyncProviderIds : [];
+      setAutoSyncOn(autoSyncIds.includes(providerId));
       if (nodesRes.ok) {
         let node = (nodesData.nodes || []).find((entry) => entry.id === providerId) || null;
 
@@ -403,10 +412,12 @@ export default function ProviderDetailPage() {
     }
   };
 
-  const handleRoundRobinToggle = (enabled) => {
-    const strategy = enabled ? "round-robin" : null;
-    const sticky = enabled ? (providerStickyLimit || "1") : providerStickyLimit;
-    if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
+  const handleStrategyChange = (value) => {
+    // value: "" (none) | "round-robin" | "fill-first"
+    // none = no per-provider override, falls back to global setting
+    const strategy = value || null;
+    const sticky = strategy === "round-robin" ? (providerStickyLimit || "1") : providerStickyLimit;
+    if (strategy === "round-robin" && !providerStickyLimit) setProviderStickyLimit("1");
     setProviderStrategy(strategy);
     saveProviderStrategy(strategy, sticky);
   };
@@ -460,6 +471,32 @@ export default function ProviderDetailPage() {
 
   const handleAutoPingConnection = (connectionId, on) => {
     saveAutoPing({ ...autoPing, connections: { ...autoPing.connections, [connectionId]: on } });
+  };
+
+  // Auto Sync Check Models (ide #6): ON = providerId masuk
+  // settings.autoSyncProviderIds; OFF = dikeluarkan. Scheduler membaca
+  // settings fresh tiap tick, jadi tidak perlu restart.
+  const saveAutoSync = async (on) => {
+    setAutoSyncOn(on);
+    try {
+      const settingsRes = await fetch("/api/settings", { cache: "no-store" });
+      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      const current = Array.isArray(settingsData.autoSyncProviderIds) ? settingsData.autoSyncProviderIds : [];
+      const updated = on
+        ? (current.includes(providerId) ? current : [...current, providerId])
+        : current.filter((id) => id !== providerId);
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoSyncProviderIds: updated }),
+      });
+    } catch (error) {
+      console.log("Error saving auto-sync config:", error);
+    }
+  };
+
+  const handleAutoSyncChange = (on) => {
+    saveAutoSync(on);
   };
 
   useEffect(() => {
@@ -685,6 +722,26 @@ export default function ProviderDetailPage() {
       alert(translate("Error fetching models") + ": " + error.message);
     } finally {
       setImportingClineModels(false);
+    }
+  };
+
+  // Check available models for this provider via /api/providers/check-models.
+  const handleCheckProviderModels = async () => {
+    if (checkingProviderModels) return;
+    setCheckingProviderModels(true);
+    setProviderModelCheck(null);
+    try {
+      const res = await fetch("/api/providers/check-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "provider", providerId, forceRefresh: true }),
+      });
+      const data = await res.json();
+      setProviderModelCheck(data);
+    } catch (error) {
+      setProviderModelCheck({ error: error?.message || "Model check request failed" });
+    } finally {
+      setCheckingProviderModels(false);
     }
   };
 
@@ -1151,6 +1208,7 @@ export default function ProviderDetailPage() {
     if (isCompatible) {
       return (
         <CompatibleModelsSection
+          providerId={providerId}
           providerStorageAlias={providerStorageAlias}
           providerDisplayAlias={providerDisplayAlias}
           modelAliases={modelAliases}
@@ -1275,6 +1333,19 @@ export default function ProviderDetailPage() {
             {importingClineModels ? translate("Fetching...") : translate("Import from /models")}
           </button>
         )}
+
+        {/* Check models button — verify this provider's /models endpoint */}
+        <button
+          onClick={handleCheckProviderModels}
+          disabled={checkingProviderModels}
+          title={translate("Check available models for this provider")}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-emerald-500/40 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400 transition-colors hover:border-emerald-500 hover:bg-emerald-500/5 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="material-symbols-outlined text-sm" style={checkingProviderModels ? { animation: "spin 1s linear infinite" } : undefined}>
+            {checkingProviderModels ? "progress_activity" : "fact_check"}
+          </span>
+          {checkingProviderModels ? translate("Checking...") : translate("Check Models")}
+        </button>
 
         {/* Suggested models from provider API — show only models not yet added */}
         {suggestedModels.length > 0 && (() => {
@@ -1559,13 +1630,18 @@ export default function ProviderDetailPage() {
                   )}
                 </>
               )}
-              {/* Round Robin toggle */}
+              {/* Routing strategy select */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-text-muted font-medium">Round Robin</span>
-                <Toggle
-                  checked={providerStrategy === "round-robin"}
-                  onChange={handleRoundRobinToggle}
-                />
+                <span className="text-xs text-text-muted font-medium">Strategy</span>
+                <select
+                  value={providerStrategy || ""}
+                  onChange={(e) => handleStrategyChange(e.target.value)}
+                  className="rounded-md border border-border bg-background px-2 py-1 text-xs focus:border-primary focus:outline-none"
+                >
+                  <option value="">None</option>
+                  <option value="round-robin">Round Robin</option>
+                  <option value="fill-first">Fill First</option>
+                </select>
                 {providerStrategy === "round-robin" && (
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-text-muted">Sticky:</span>
@@ -1763,7 +1839,32 @@ export default function ProviderDetailPage() {
               </select>
             )}
           </div>
-          {!isCompatible && (() => {
+          <div className="flex items-center gap-3">
+            {/* Auto Sync Check Models (ide #6): ON/OFF per provider */}
+            <div className="flex items-center gap-2" role="radiogroup" aria-label={translate("Auto Sync")}>
+              <span className="text-xs text-text-muted">{translate("Auto Sync")}</span>
+              <label className="flex items-center gap-1 text-xs cursor-pointer">
+                <input
+                  type="radio"
+                  name={`autosync-${providerId}`}
+                  checked={autoSyncOn}
+                  onChange={() => handleAutoSyncChange(true)}
+                  className="w-3.5 h-3.5 accent-primary cursor-pointer"
+                />
+                {translate("ON")}
+              </label>
+              <label className="flex items-center gap-1 text-xs cursor-pointer">
+                <input
+                  type="radio"
+                  name={`autosync-${providerId}`}
+                  checked={!autoSyncOn}
+                  onChange={() => handleAutoSyncChange(false)}
+                  className="w-3.5 h-3.5 accent-primary cursor-pointer"
+                />
+                {translate("OFF")}
+              </label>
+            </div>
+            {!isCompatible && (() => {
             const allIds = [
               ...models,
               ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
@@ -1784,6 +1885,7 @@ export default function ProviderDetailPage() {
               </div>
             );
           })()}
+          </div>
         </div>
         {!!modelsTestError && (
           <div className="mb-3">
@@ -1820,7 +1922,24 @@ export default function ProviderDetailPage() {
         {renderModelsSection()}
       </Card>
 
+      {/* Playground — test chat with this provider's models */}
+      <PlaygroundSection
+        providerId={providerId}
+        providerAlias={providerStorageAlias}
+        models={models}
+        customModels={customModels}
+        disabledModelIds={disabledModelIds}
+        connections={connections}
+      />
+
       {bulkActionModal}
+
+      {/* Model check result modal */}
+      {providerModelCheck && (
+        <Modal isOpen={!!providerModelCheck} onClose={() => setProviderModelCheck(null)} title={translate("Check Models")}>
+          <ProviderModelCheckResult result={providerModelCheck} />
+        </Modal>
+      )}
 
       {/* Modals */}
       {providerId === "kiro" ? (
@@ -1960,6 +2079,52 @@ export default function ProviderDetailPage() {
         message={confirmState?.message}
         variant="danger"
       />
+    </div>
+  );
+}
+
+function ProviderModelCheckResult({ result }) {
+  const item = (result?.results || [])[0];
+  if (result?.error && !item) {
+    return (
+      <div className="text-center py-6">
+        <span className="material-symbols-outlined text-red-500 text-[32px] mb-2 block">error</span>
+        <p className="text-sm text-red-400">{result.error}</p>
+      </div>
+    );
+  }
+  if (!item) {
+    return <p className="text-sm text-text-muted text-center py-4">No result returned.</p>;
+  }
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-black/[0.03] px-3 py-2 text-xs dark:bg-white/[0.03]">
+        <span className={`material-symbols-outlined text-[18px] ${item.ok ? "text-emerald-500" : item.skipped ? "text-amber-500" : "text-red-500"}`}>
+          {item.ok ? "check_circle" : item.skipped ? "pause_circle" : "error"}
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="block font-medium">{item.name || item.provider}</span>
+          {!item.ok && !item.skipped && item.error && (
+            <span className="block truncate text-red-400">{item.error}</span>
+          )}
+          {item.skipped && item.reason && (
+            <span className="block truncate text-amber-400/80">{item.reason}</span>
+          )}
+        </div>
+        {item.latencyMs !== undefined && (
+          <span className="shrink-0 text-text-muted font-mono tabular-nums">{item.latencyMs}ms</span>
+        )}
+        <span className={`shrink-0 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${item.ok ? "bg-emerald-500/15 text-emerald-400" : item.skipped ? "bg-amber-500/15 text-amber-400" : "bg-red-500/15 text-red-400"}`}>
+          {item.ok ? `${item.modelCount ?? 0} models` : item.skipped ? "skipped" : "error"}
+        </span>
+      </div>
+      {item.ok && item.models && item.models.length > 0 && (
+        <div className="max-h-64 overflow-y-auto rounded-lg border border-border p-2">
+          {item.models.map((m) => (
+            <code key={m} className="block truncate px-2 py-1 text-xs font-mono text-text-muted hover:text-text-main">{m}</code>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

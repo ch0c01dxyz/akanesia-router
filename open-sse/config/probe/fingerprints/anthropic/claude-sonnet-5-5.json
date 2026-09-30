@@ -1,0 +1,145 @@
+{
+  "schema": "probe-fingerprint/1",
+  "model": "claude-sonnet-5-5",
+  "collectedAt": "2026-09-29T12:09:23.384Z",
+  "protocol": {
+    "systemPrompt": "Answer with exactly one word. No punctuation, no explanation.",
+    "temperature": 1,
+    "cells": [
+      "random-number-1-100:en",
+      "random-color:en"
+    ],
+    "samplesPerCell": 3
+  },
+  "identity": {
+    "family": "anthropic",
+    "model": "claude-sonnet-5-5",
+    "provider": "anthropic",
+    "p1Answer": "I'm Claude, made by Anthropic. I don't know which specific version of Claude I am."
+  },
+  "cutoff": "2025-01 (model menjawab: \"best guess is 2025-01\", tidak yakin exact)",
+  "passwordProfile": {
+    "orders": {
+      "1": {
+        "2": 3,
+        "4": 3,
+        "7": 3,
+        "9": 3,
+        "q": 1,
+        "#": 3,
+        "L": 2,
+        "m": 3,
+        "$": 3,
+        "V": 1,
+        "x": 2,
+        "!": 3,
+        "R": 3,
+        "k": 3,
+        "b": 1,
+        "X": 1,
+        "p": 2,
+        "v": 2,
+        "Q": 2,
+        "z": 1
+      },
+      "2": {
+        "q7": 1,
+        "7#": 3,
+        "#L": 1,
+        "Lm": 1,
+        "m2": 3,
+        "2$": 3,
+        "$V": 1,
+        "Vx": 1,
+        "x9": 2,
+        "9!": 3,
+        "!R": 1,
+        "Rk": 1,
+        "k4": 1,
+        "4b": 1,
+        "k7": 2,
+        "#R": 2,
+        "Rm": 2,
+        "$X": 1,
+        "Xp": 1,
+        "p9": 1,
+        "!v": 1,
+        "vQ": 2,
+        "Qz": 1,
+        "z4": 1,
+        "$v": 1,
+        "Qx": 1,
+        "!L": 1,
+        "Lp": 1,
+        "p4": 1
+      },
+      "3": {
+        "q7#": 1,
+        "7#L": 1,
+        "#Lm": 1,
+        "Lm2": 1,
+        "m2$": 3,
+        "2$V": 1,
+        "$Vx": 1,
+        "Vx9": 1,
+        "x9!": 2,
+        "9!R": 1,
+        "!Rk": 1,
+        "Rk4": 1,
+        "k4b": 1,
+        "k7#": 2,
+        "7#R": 2,
+        "#Rm": 2,
+        "Rm2": 2,
+        "2$X": 1,
+        "$Xp": 1,
+        "Xp9": 1,
+        "p9!": 1,
+        "9!v": 1,
+        "!vQ": 1,
+        "vQz": 1,
+        "Qz4": 1,
+        "2$v": 1,
+        "$vQ": 1,
+        "vQx": 1,
+        "Qx9": 1,
+        "9!L": 1,
+        "!Lp": 1,
+        "Lp4": 1
+      }
+    },
+    "pos0": {
+      "q": 1,
+      "k": 2
+    },
+    "count": 3
+  },
+  "passwordSamples": [
+    "q7#Lm2$Vx9!Rk4b",
+    "k7#Rm2$Xp9!vQz4",
+    "k7#Rm2$vQx9!Lp4"
+  ],
+  "cells": {
+    "random-number-1-100:en": {
+      "counts": {
+        "answer must be exactly one word, so a number as a word: \"forty-two\" hyphenated could be one word. maybe pick \"thirty-seven\"? hyphen is punctuation. cho": 1
+      },
+      "totalSamples": 3
+    },
+    "random-color:en": {
+      "counts": {
+        "teal": 3
+      },
+      "totalSamples": 3
+    }
+  },
+  "splitHalfJsd": {
+    "random-number-1-100:en": 0,
+    "random-color:en": 0
+  },
+  "thresholds": {
+    "jsdMatchMax": 0.1,
+    "jsdUncertainMax": 0.4
+  },
+  "note": "Fingerprint RESMI dari endpoint api.anthropic.com, run live 2026-09-29. Kalibrasi awal, bukan baseline final. P2 diambil terpisah dengan max_tokens 512 karena thinking menghabiskan budget token."
+}

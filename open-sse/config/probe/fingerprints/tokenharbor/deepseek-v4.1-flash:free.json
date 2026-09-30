@@ -1,0 +1,107 @@
+{
+  "schema": "probe-fingerprint/1",
+  "model": "deepseek-v4.1-flash:free",
+  "collectedAt": "2026-09-29T11:31:16.492Z",
+  "protocol": {
+    "systemPrompt": "Answer with exactly one word. No punctuation, no explanation.",
+    "temperature": 1,
+    "cells": [
+      "random-number-1-100:en",
+      "random-color:en"
+    ],
+    "samplesPerCell": 3
+  },
+  "identity": {
+    "family": "unknown",
+    "model": "deepseek-v4.1-flash:free",
+    "provider": "tokenharbor",
+    "p1Answer": "We need answer exact model name and provider only. Need comply. We are an AI assistant accessed via API. The system prompt says \"You are an AI assistant accessed via an API.\" We need answer exact model name and provider only. What is exact model name? I am likely DeepSeek? Need identify. The prompt:"
+  },
+  "cutoff": "We need answer date only. Need know cutoff. As AI model? The question asks \"What is your knowledge cutoff date? Answer with the date only, e.g. 2024-10.\" I am DeepSeek? The environment says? We need a",
+  "passwordProfile": {
+    "orders": {
+      "1": {
+        "2": 3,
+        "4": 3,
+        "7": 3,
+        "9": 3,
+        "v": 3,
+        "K": 3,
+        "$": 3,
+        "m": 3,
+        "Q": 3,
+        "!": 3,
+        "p": 3,
+        "L": 3,
+        "z": 3,
+        "@": 3,
+        "x": 3
+      },
+      "2": {
+        "v7": 3,
+        "7K": 3,
+        "K$": 3,
+        "$2": 3,
+        "2m": 3,
+        "mQ": 3,
+        "Q!": 3,
+        "!9": 3,
+        "9p": 3,
+        "pL": 3,
+        "Lz": 3,
+        "z@": 3,
+        "@4": 3,
+        "4x": 3
+      },
+      "3": {
+        "v7K": 3,
+        "7K$": 3,
+        "K$2": 3,
+        "$2m": 3,
+        "2mQ": 3,
+        "mQ!": 3,
+        "Q!9": 3,
+        "!9p": 3,
+        "9pL": 3,
+        "pLz": 3,
+        "Lz@": 3,
+        "z@4": 3,
+        "@4x": 3
+      }
+    },
+    "pos0": {
+      "v": 3
+    },
+    "count": 3
+  },
+  "passwordSamples": [
+    "v7K$2mQ!9pLz@4x",
+    "v7K$2mQ!9pLz@4x",
+    "v7K$2mQ!9pLz@4x"
+  ],
+  "cells": {
+    "random-number-1-100:en": {
+      "counts": {
+        "42": 2,
+        "73": 1
+      },
+      "totalSamples": 3
+    },
+    "random-color:en": {
+      "counts": {
+        "blue": 2,
+        "teal": 1
+      },
+      "totalSamples": 3
+    }
+  },
+  "splitHalfJsd": {
+    "random-number-1-100:en": 0.31127812445624753,
+    "random-color:en": 0.31127812445624753
+  },
+  "thresholds": {
+    "jsdMatchMax": 0.1,
+    "jsdUncertainMax": 0.4
+  },
+  "note": "Fingerprint empiris dari run live 2026-09-29 via https://tokenharbor.ai/v1. Kalibrasi awal, bukan baseline final."
+}

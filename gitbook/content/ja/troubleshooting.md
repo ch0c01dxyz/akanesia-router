@@ -1,6 +1,6 @@
 # トラブルシューティング
 
-9Router利用時の一般的な問題と解決策。
+Akanesia-Gateway利用時の一般的な問題と解決策。
 
 ---
 
@@ -78,7 +78,7 @@
 **解決策:**
 
 1. **自動更新(デフォルト):**
-   9Routerは自動的にトークンを更新します。30秒待ってから再試行。
+   Akanesia-Gatewayは自動的にトークンを更新します。30秒待ってから再試行。
 
 2. **手動で再接続:**
    ```
@@ -135,13 +135,13 @@
 **問題:** 「ECONNREFUSED」または「Cannot connect to localhost:20128」。
 
 **原因:**
-- 9Routerが起動していない
+- Akanesia-Gatewayが起動していない
 - ポート20128がブロックされている
 - ファイアウォールが接続をブロック
 
 **解決策:**
 
-1. **9Routerを起動:**
+1. **Akanesia-Gatewayを起動:**
    ```bash
    9router
    ```
@@ -175,12 +175,12 @@
 
 **原因:**
 - ポート3000がすでに使用中
-- 9Routerがクラッシュした
+- Akanesia-Gatewayがクラッシュした
 - ブラウザキャッシュの問題
 
 **解決策:**
 
-1. **9Routerが実行中か確認:**
+1. **Akanesia-Gatewayが実行中か確認:**
    ```bash
    # プロセスを確認
    ps aux | grep 9router
@@ -199,7 +199,7 @@
    taskkill /PID <PID> /F
    ```
 
-3. **9Routerを再起動:**
+3. **Akanesia-Gatewayを再起動:**
    ```bash
    # 停止
    pkill -f 9router
@@ -346,6 +346,6 @@
 
 ## さらにヘルプが必要?
 
-- **GitHub Issues:** [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub Issues:** [github.com/ch0c01dxyz/akanesia-router/issues](https://github.com/ch0c01dxyz/akanesia-router/issues)
 - **ドキュメント:** [9router.com/docs](https://9router.com/docs)
 - **FAQ:** [faq.md](faq.md)

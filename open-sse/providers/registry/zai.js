@@ -1,0 +1,51 @@
+export default {
+  id: "zai",
+  priority: 50,
+  alias: "zai",
+  display: {
+    name: "Zai",
+    icon: "smart_toy",
+    color: "#4F46E5",
+    textIcon: "ZA",
+  },
+  category: "apikey",
+  authType: "apikey",
+  transport: {
+    baseUrl: "https://api.z.ai/api/anthropic/v1/messages",
+    format: "claude",
+    headers: {
+      "Anthropic-Version": "2023-06-01",
+    },
+    auth: { combined: true, header: "x-api-key", scheme: "raw" },
+  },
+  models: [
+    {
+      id: "glm-5.3",
+      name: "GLM 5.3",
+      contextLength: 1000000,
+      maxOutputTokens: 131072,
+      toolCalling: true,
+      supportsReasoning: true,
+      supportedThinkingEfforts: ["low","high","max"],
+      targetFormat: "openai",
+    },
+    {
+      id: "glm-5.3-flash",
+      name: "GLM 5.3 Flash",
+      contextLength: 1000000,
+      maxOutputTokens: 131072,
+      toolCalling: true,
+      supportsReasoning: true,
+      supportedThinkingEfforts: ["low","high","max"],
+      supportsVision: true,
+      targetFormat: "openai",
+    },
+    { id: "glm-5.2", name: "GLM 5.2" },
+    { id: "glm-5.1", name: "GLM 5.1" },
+    { id: "glm-5", name: "GLM 5" },
+    { id: "glm-5-turbo", name: "GLM 5 Turbo" },
+    { id: "glm-4.7-flash", name: "GLM 4.7 Flash" },
+    { id: "glm-4.7", name: "GLM 4.7" },
+  ],
+};
+

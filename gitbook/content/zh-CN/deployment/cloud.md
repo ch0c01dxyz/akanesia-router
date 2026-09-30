@@ -1,6 +1,6 @@
 # ☁️ 云端部署
 
-将 9Router 部署到 VPS 或 Docker,实现远程访问和生产使用。
+将 Akanesia-Gateway 部署到 VPS 或 Docker,实现远程访问和生产使用。
 
 ---
 
@@ -16,7 +16,7 @@
 ### 步骤 1:克隆仓库
 
 ```bash
-git clone https://github.com/decolua/9router.git
+git clone https://github.com/ch0c01dxyz/akanesia-router.git
 cd 9router/app
 ```
 
@@ -74,7 +74,7 @@ PM2 让应用持续运行,崩溃时自动重启:
 # 全局安装 PM2
 npm install -g pm2
 
-# 用 PM2 启动 9Router
+# 用 PM2 启动 Akanesia-Gateway
 pm2 start npm --name 9router -- start
 
 # 保存 PM2 配置
@@ -247,7 +247,7 @@ server {
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
 
-    # Proxy to 9Router
+    # Proxy to Akanesia-Gateway
     location / {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
@@ -333,7 +333,7 @@ sudo ufw allow 22/tcp
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 
-# 若不使用反向代理,放开 9Router 端口
+# 若不使用反向代理,放开 Akanesia-Gateway 端口
 sudo ufw allow 3000/tcp
 sudo ufw allow 20128/tcp
 
@@ -363,7 +363,7 @@ ssh -L 3000:localhost:3000 user@your-server.com
 # 更新系统包
 sudo apt update && sudo apt upgrade -y
 
-# 更新 9Router
+# 更新 Akanesia-Gateway
 cd /path/to/9router/app
 git pull
 npm install
@@ -442,7 +442,7 @@ pm2 env 9router
 ### Nginx 502 Bad Gateway
 
 ```bash
-# 检查 9Router 是否运行
+# 检查 Akanesia-Gateway 是否运行
 pm2 status
 
 # 查看 Nginx 错误日志

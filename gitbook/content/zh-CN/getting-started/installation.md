@@ -1,6 +1,6 @@
 # 安装
 
-9Router 的详细安装指南,附故障排除技巧。
+Akanesia-Gateway 的详细安装指南,附故障排除技巧。
 
 ---
 
@@ -37,7 +37,7 @@ npm --version
 npm install -g 9router
 ```
 
-**启动 9Router:**
+**启动 Akanesia-Gateway:**
 
 ```bash
 9router
@@ -58,7 +58,7 @@ cd my-9router
 npm install 9router
 ```
 
-**启动 9Router:**
+**启动 Akanesia-Gateway:**
 
 ```bash
 npx 9router
@@ -74,7 +74,7 @@ npx 9router
 从 GitHub 克隆并构建:
 
 ```bash
-git clone https://github.com/decolua/9router.git
+git clone https://github.com/ch0c01dxyz/akanesia-router.git
 cd 9router/app
 npm install
 npm run build
@@ -345,7 +345,7 @@ ping google.com
 
 ### 内存占用过高
 
-**问题:** 9Router 占用过多 RAM
+**问题:** Akanesia-Gateway 占用过多 RAM
 
 **方案:重启服务器**
 
@@ -474,5 +474,5 @@ nano ~/.bashrc  # 或 ~/.zshrc
 ## 需要帮助?
 
 - **网站**: [9router.com](https://9router.com)
-- **GitHub**: [github.com/decolua/9router](https://github.com/decolua/9router)
-- **Issues**: [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub**: [github.com/ch0c01dxyz/akanesia-router](https://github.com/ch0c01dxyz/akanesia-router)
+- **Issues**: [github.com/ch0c01dxyz/akanesia-router/issues](https://github.com/ch0c01dxyz/akanesia-router/issues)

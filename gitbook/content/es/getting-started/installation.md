@@ -1,6 +1,6 @@
 # Instalación
 
-Guía detallada de instalación de 9Router con consejos de solución de problemas.
+Guía detallada de instalación de Akanesia-Gateway con consejos de solución de problemas.
 
 ---
 
@@ -31,13 +31,13 @@ npm --version
 
 ### Método 1: Instalación global (Recomendado)
 
-Instala 9Router globalmente para usar desde cualquier lugar:
+Instala Akanesia-Gateway globalmente para usar desde cualquier lugar:
 
 ```bash
 npm install -g 9router
 ```
 
-**Iniciar 9Router:**
+**Iniciar Akanesia-Gateway:**
 
 ```bash
 9router
@@ -58,7 +58,7 @@ cd my-9router
 npm install 9router
 ```
 
-**Iniciar 9Router:**
+**Iniciar Akanesia-Gateway:**
 
 ```bash
 npx 9router
@@ -74,7 +74,7 @@ npx 9router
 Clona y compila desde GitHub:
 
 ```bash
-git clone https://github.com/decolua/9router.git
+git clone https://github.com/ch0c01dxyz/akanesia-router.git
 cd 9router/app
 npm install
 npm run build
@@ -345,7 +345,7 @@ Dashboard → Provider → Disconnect → Reconnect
 
 ### Uso alto de memoria
 
-**Problema:** 9Router usa demasiada RAM
+**Problema:** Akanesia-Gateway usa demasiada RAM
 
 **Solución: Reinicia el servidor**
 
@@ -474,5 +474,5 @@ nano ~/.bashrc  # o ~/.zshrc
 ## ¿Necesitas ayuda?
 
 - **Sitio web**: [9router.com](https://9router.com)
-- **GitHub**: [github.com/decolua/9router](https://github.com/decolua/9router)
-- **Issues**: [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub**: [github.com/ch0c01dxyz/akanesia-router](https://github.com/ch0c01dxyz/akanesia-router)
+- **Issues**: [github.com/ch0c01dxyz/akanesia-router/issues](https://github.com/ch0c01dxyz/akanesia-router/issues)

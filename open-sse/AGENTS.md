@@ -23,7 +23,7 @@ Provider-agnostic SSE engine: one OpenAI-style request → any provider (LLM cha
 
 - Config-driven, DRY, camelCase. NEVER hardcode values, models, or block/role strings — use `config/` + `schema/` constants.
 - Translator pipeline pivots through OpenAI as the intermediate format. A translator registered on the exact `source:target` pair (e.g. `claude:kiro`) runs as a **direct route**, skipping the lossy double-hop.
-- Translators self-register via `register(from, to, reqFn, resFn)` as an import side-effect — new files MUST be imported in `translator/index.js`.
+- Translators self-register via `register(from, to, reqFn, resFn)` as an import side-effect, tetapi di-load LAZY via manifest `TRANSLATOR_MANIFEST` di `translator/index.js` — file baru WAJIB didaftarkan di manifest (bukan static import). Entry point async wajib memanggil `ensureTranslatorsForRequest(source, target)` sebelum translate/stream.
 
 ## How to add
 

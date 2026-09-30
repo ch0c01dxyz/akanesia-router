@@ -1,0 +1,150 @@
+{
+  "schema": "probe-fingerprint/1",
+  "model": "gpt-5.6-luna",
+  "collectedAt": "2026-09-29T11:53:13.374Z",
+  "protocol": {
+    "systemPrompt": "Answer with exactly one word. No punctuation, no explanation.",
+    "temperature": 1,
+    "cells": [
+      "random-number-1-100:en",
+      "random-color:en"
+    ],
+    "samplesPerCell": 3
+  },
+  "identity": {
+    "family": "unknown",
+    "model": "gpt-5.6-luna",
+    "provider": "aipixel",
+    "p1Answer": "OpenAI o3 OpenAI"
+  },
+  "cutoff": "2024-06",
+  "passwordProfile": {
+    "orders": {
+      "1": {
+        "2": 3,
+        "4": 2,
+        "5": 1,
+        "7": 3,
+        "8": 1,
+        "9": 2,
+        "G": 3,
+        "!": 3,
+        "m": 1,
+        "Q": 1,
+        "#": 3,
+        "v": 3,
+        "L": 3,
+        "@": 3,
+        "x": 2,
+        "R": 2,
+        "p": 1,
+        "q": 2,
+        "N": 2,
+        "$": 2,
+        "r": 1,
+        "T": 1
+      },
+      "2": {
+        "G7": 3,
+        "7!": 2,
+        "!m": 1,
+        "mQ": 1,
+        "Q2": 1,
+        "2#": 2,
+        "#v": 2,
+        "vL": 1,
+        "L9": 1,
+        "9@": 2,
+        "@x": 2,
+        "xR": 2,
+        "R4": 2,
+        "4p": 1,
+        "!q": 1,
+        "qL": 2,
+        "L2": 2,
+        "vN": 2,
+        "N9": 1,
+        "4$": 1,
+        "7#": 1,
+        "#q": 1,
+        "2!": 1,
+        "!v": 1,
+        "N8": 1,
+        "8@": 1,
+        "@r": 1,
+        "rT": 1,
+        "T5": 1,
+        "5$": 1
+      },
+      "3": {
+        "G7!": 2,
+        "7!m": 1,
+        "!mQ": 1,
+        "mQ2": 1,
+        "Q2#": 1,
+        "2#v": 2,
+        "#vL": 1,
+        "vL9": 1,
+        "L9@": 1,
+        "9@x": 2,
+        "@xR": 2,
+        "xR4": 2,
+        "R4p": 1,
+        "7!q": 1,
+        "!qL": 1,
+        "qL2": 2,
+        "L2#": 1,
+        "#vN": 1,
+        "vN9": 1,
+        "N9@": 1,
+        "R4$": 1,
+        "G7#": 1,
+        "7#q": 1,
+        "#qL": 1,
+        "L2!": 1,
+        "2!v": 1,
+        "!vN": 1,
+        "vN8": 1,
+        "N8@": 1,
+        "8@r": 1,
+        "@rT": 1,
+        "rT5": 1,
+        "T5$": 1
+      }
+    },
+    "pos0": {
+      "G": 3
+    },
+    "count": 3
+  },
+  "passwordSamples": [
+    "G7!mQ2#vL9@xR4p",
+    "G7!qL2#vN9@xR4$",
+    "G7#qL2!vN8@rT5$"
+  ],
+  "cells": {
+    "random-number-1-100:en": {
+      "counts": {
+        "47": 1,
+        "73": 2
+      },
+      "totalSamples": 3
+    },
+    "random-color:en": {
+      "counts": {
+        "teal": 2,
+        "cerulean": 1
+      },
+      "totalSamples": 3
+    }
+  },
+  "splitHalfJsd": {
+    "random-number-1-100:en": 0.31127812445624753,
+    "random-color:en": 0.31127812445624753
+  },
+  "thresholds": {
+    "jsdMatchMax": 0.1,
+    "jsdUncertainMax": 0.4
+  },
+  "note": "Fingerprint empiris dari run live 2026-09-29 via https://ai-pixel.online/v1. Kalibrasi awal, bukan baseline final."
+}

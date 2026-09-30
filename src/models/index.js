@@ -35,4 +35,7 @@ export {
   deleteApiKey,
   validateApiKey,
   isCloudEnabled,
+  upsertIncident,
+  removeIncident,
+  listIncidents,
 } from "@/lib/localDb";

@@ -1,6 +1,6 @@
 # 故障排除
 
-使用 9Router 时常见的问题与解决方案。
+使用 Akanesia-Gateway 时常见的问题与解决方案。
 
 ---
 
@@ -78,7 +78,7 @@
 **解决方案:**
 
 1. **自动刷新(默认):**
-   9Router 会自动刷新 token。等待 30 秒后重试。
+   Akanesia-Gateway 会自动刷新 token。等待 30 秒后重试。
 
 2. **手动重连:**
    ```
@@ -135,13 +135,13 @@
 **问题:** 出现 "ECONNREFUSED" 或 "Cannot connect to localhost:20128"。
 
 **原因:**
-- 9Router 未运行
+- Akanesia-Gateway 未运行
 - 端口 20128 被阻止
 - 防火墙拦截连接
 
 **解决方案:**
 
-1. **启动 9Router:**
+1. **启动 Akanesia-Gateway:**
    ```bash
    9router
    ```
@@ -175,12 +175,12 @@
 
 **原因:**
 - 端口 3000 被占用
-- 9Router 崩溃
+- Akanesia-Gateway 崩溃
 - 浏览器缓存问题
 
 **解决方案:**
 
-1. **确认 9Router 是否运行:**
+1. **确认 Akanesia-Gateway 是否运行:**
    ```bash
    # 检查进程
    ps aux | grep 9router
@@ -199,7 +199,7 @@
    taskkill /PID <PID> /F
    ```
 
-3. **重启 9Router:**
+3. **重启 Akanesia-Gateway:**
    ```bash
    # 停止
    pkill -f 9router
@@ -346,6 +346,6 @@
 
 ## 需要更多帮助?
 
-- **GitHub Issues:** [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub Issues:** [github.com/ch0c01dxyz/akanesia-router/issues](https://github.com/ch0c01dxyz/akanesia-router/issues)
 - **文档:** [9router.com/docs](https://9router.com/docs)
 - **常见问题:** [faq.md](faq.md)

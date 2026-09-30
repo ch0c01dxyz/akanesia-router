@@ -1,7 +1,7 @@
 {
-  "name": "9router-app",
-  "version": "0.5.91",
-  "description": "9Router web dashboard",
+  "name": "akanesia-router",
+  "version": "1.5.0",
+  "description": "Akanesia-Gateway web dashboard",
   "private": true,
   "scripts": {
     "dev": "next dev --port 20127",
@@ -49,6 +49,7 @@
     "sql.js": "^1.14.1",
     "undici": "^7.19.2",
     "uuid": "^13.0.0",
+    "ws": "^8.22.0",
     "zustand": "^5.0.10"
   },
   "optionalDependencies": {

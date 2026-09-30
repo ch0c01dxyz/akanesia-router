@@ -1,5 +1,5 @@
 import { detectFormat, getTargetFormat, resolveTransport } from "../services/provider.js";
-import { translateRequest } from "../translator/index.js";
+import { translateRequest, ensureTranslatorsFor, ensureTranslatorsForRequest } from "../translator/index.js";
 import { applyThinking, extractThinking, stripThinkingSuffix } from "../translator/concerns/thinkingUnified.js";
 import { FORMATS } from "../translator/formats.js";
 import { normalizeClaudePassthrough, anchorClaudeCache } from "../translator/formats/claude.js";
@@ -9,11 +9,13 @@ import { createRequestLogger } from "../utils/requestLogger.js";
 import { getModelTargetFormat, getModelSupportedFormats, getModelStrip, getModelUpstreamId, getModelType, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.js";
 import { PROVIDERS } from "../config/providers.js";
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
+import { redactCustomHeaders } from "@/shared/utils/customHeaders.js";
 import { upstreamResponseHeaders } from "../utils/upstreamHeaders.js";
 import { HTTP_STATUS, TOKEN_SAVER_HEADER } from "../config/runtimeConfig.js";
 import { handleBypassRequest } from "../utils/bypassHandler.js";
 import { trackPendingRequest, appendRequestLog, saveRequestDetail } from "@/lib/usageDb.js";
 import { getExecutor } from "../executors/index.js";
+import { captureReplayEntry, kumpulkanSecretValues } from "@/lib/requestReplayBuffer.js";
 import { supportsGrokCliReasoningEffort } from "../config/grokCli.js";
 import { buildRequestDetail, extractRequestConfig } from "./chatCore/requestDetail.js";
 import { handleForcedSSEToJson } from "./chatCore/sseToJsonHandler.js";
@@ -74,6 +76,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const reqTag = log?.tagForSession ? log.tagForSession(sessionSeed) : (log?.nextTag ? log.nextTag() : "");
 
   const sourceFormat = sourceFormatOverride || detectFormat(body);
+
+  // Translator di-load on-demand (lazy). Bypass memakai translateResponse
+  // openai→source, jadi pastikan pasangan response-nya siap sebelum dipanggil.
+  await ensureTranslatorsFor([`openai:${sourceFormat}`], "response");
 
   // Check for bypass patterns (warmup, skip, cc naming)
   const bypassResponse = handleBypassRequest(body, model, userAgent, ccFilterNaming);
@@ -203,6 +209,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     // Normalize newer Cowork/CC beta shapes (adaptive thinking, mid-conversation system) the API rejects
     if (clientTool === "claude") normalizeClaudePassthrough(translatedBody, translatedBody.model);
   } else {
+    // Pastikan semua translator request+response untuk pasangan format ini
+    // sudah ter-load (lazy, cached) sebelum translateRequest sinkron dipakai
+    // dan sebelum stream SSE dibuat di bawah.
+    await ensureTranslatorsForRequest(sourceFormat, targetFormat);
     translatedBody = translateRequest(sourceFormat, targetFormat, upstreamModel, body, stream, credentials, provider, reqLogger, stripList, connectionId, clientTool);
     if (!translatedBody) {
       trackPendingRequest(model, provider, connectionId, false, true);
@@ -317,7 +327,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // system/tools/messages, and a stale anchor costs a full prefix rewrite.
   if (passthrough && clientTool === "claude") anchorClaudeCache(translatedBody);
 
-  const executor = getExecutor(provider);
+  const executor = await getExecutor(provider);
   trackPendingRequest(model, provider, connectionId, true);
   appendRequestLog({ model, provider, connectionId, status: "PENDING" }).catch(() => { });
 
@@ -392,7 +402,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     if (renamedToolNames?.size) {
       toolNameMap = new Map([...(toolNameMap || []), ...renamedToolNames]);
     }
-    reqLogger.logTargetRequest(providerUrl, providerHeaders, finalBody);
+    // Ide #8: redact value custom header di request log (jangan bocorkan secret).
+    // Masking standar requestLogger memang dimatikan untuk testing, tapi custom
+    // header tetap wajib di-redact karena value-nya bisa berisi API key.
+    reqLogger.logTargetRequest(providerUrl, redactCustomHeaders(providerHeaders, credentials), finalBody);
   } catch (error) {
     trackPendingRequest(model, provider, connectionId, false, true);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => { });
@@ -406,6 +419,28 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       pxpipe: pxpipeSummary,
       status: "error"
     })).catch(() => { });
+
+    // Ide #7: simpan request upstream yang gagal ke replay buffer.
+    // Fail-open: kegagalan capture tidak boleh mengganggu request.
+    // Abort klien (499) bukan kegagalan upstream -> tidak di-capture.
+    if (error.name !== "AbortError") {
+      try {
+        captureReplayEntry({
+          provider, model, connectionId,
+          method: "POST",
+          url: providerUrl,
+          status: HTTP_STATUS.BAD_GATEWAY,
+          latencyMs: Date.now() - requestStartTime,
+          // Redact custom header ide #8 dulu (buffer juga me-redact header
+          // standar sebagai lapis kedua).
+          requestHeaders: redactCustomHeaders(providerHeaders, credentials),
+          requestBody: translatedBody,
+          error: error.message || String(error),
+          // Redact nilai secret aktual bila muncul di free-text.
+          secretValues: kumpulkanSecretValues(credentials),
+        });
+      } catch { /* abaikan: capture tidak boleh mengganggu request */ }
+    }
 
     if (error.name === "AbortError") {
       streamController.handleError(error);
@@ -480,6 +515,25 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       pxpipe: pxpipeSummary,
       status: "error"
     })).catch(() => { });
+
+    // Ide #7: simpan request upstream yang gagal ke replay buffer (fail-open).
+    try {
+      captureReplayEntry({
+        provider, model, connectionId,
+        method: "POST",
+        url: providerUrl,
+        status: statusCode,
+        latencyMs: Date.now() - requestStartTime,
+        // Redact custom header ide #8 dulu (buffer juga me-redact header
+        // standar sebagai lapis kedua).
+        requestHeaders: redactCustomHeaders(providerHeaders, credentials),
+        requestBody: translatedBody,
+        responseText: message,
+        error: message,
+        // Redact nilai secret aktual bila muncul di free-text.
+        secretValues: kumpulkanSecretValues(credentials),
+      });
+    } catch { /* abaikan: capture tidak boleh mengganggu request */ }
 
     const errMsg = formatProviderError(new Error(message), provider, model, statusCode);
     if (log?.errorLine) {

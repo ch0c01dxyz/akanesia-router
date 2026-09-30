@@ -303,8 +303,8 @@ function buildPromptText(messages) {
 // ─── DevinCliExecutor ─────────────────────────────────────────────────────────
 
 export class DevinCliExecutor extends BaseExecutor {
-  constructor() {
-    super("devin-cli", { id: "devin-cli", baseUrl: "devin://acp/stdio" });
+  constructor(provider = "devin-cli") {
+    super(provider, { id: provider, baseUrl: "devin://acp/stdio" });
   }
 
   buildUrl() {

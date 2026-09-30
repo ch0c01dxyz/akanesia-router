@@ -56,3 +56,17 @@ describe("combo round-robin routing", () => {
     expect(getRotatedModels(models, "code-xhigh", "fallback", 2)).toEqual(models);
   });
 });
+
+describe("combo fill-first routing", () => {
+  beforeEach(() => {
+    resetComboRotation();
+  });
+
+  it("keeps models in order (fill-first = coba berurutan dari atas)", () => {
+    const models = ["provider/model-a", "provider/model-b", "provider/model-c"];
+
+    // Fill-first untuk combo: tidak ada rotasi, urutan prioritas dipakai apa adanya.
+    expect(getRotatedModels(models, "fill-combo", "fill-first")).toEqual(models);
+    expect(getRotatedModels(models, "fill-combo", "fill-first")[0]).toBe("provider/model-a");
+  });
+});

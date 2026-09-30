@@ -1,109 +1,142 @@
-import { AntigravityExecutor } from "./antigravity.js";
-import { AzureExecutor } from "./azure.js";
-import { GeminiCLIExecutor } from "./gemini-cli.js";
-import { GithubExecutor } from "./github.js";
-import { IFlowExecutor } from "./iflow.js";
-import { QoderExecutor } from "./qoder.js";
-import { KiroExecutor } from "./kiro.js";
-import { KimchiExecutor } from "./kimchi.js";
-import { CodexExecutor } from "./codex.js";
-import { CursorExecutor } from "./cursor.js";
-import { VertexExecutor } from "./vertex.js";
-import { OpenCodeExecutor } from "./opencode.js";
-import { OpenCodeGoExecutor } from "./opencode-go.js";
-import { OpenCodeZenExecutor } from "./opencode-zen.js";
-import { GrokWebExecutor } from "./grok-web.js";
-import { GrokCliExecutor } from "./grok-cli.js";
-import { PerplexityWebExecutor } from "./perplexity-web.js";
-import { OllamaLocalExecutor } from "./ollama-local.js";
-import { CommandCodeExecutor } from "./commandcode.js";
-import { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
-import { XiaomiMimoExecutor } from "./xiaomi-mimo.js";
-import { MimoFreeExecutor } from "./mimo-free.js";
-import { CodeBuddyExecutor } from "./codebuddy-cn.js";
-import { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
-import TraeExecutor from "./trae.js";
-import ZedExecutor from "./zed.js";
-import WindsurfExecutor from "./windsurf.js";
-import { DefaultExecutor } from "./default.js";
-import { DevinCliExecutor } from "./devin-cli.js";
+/**
+ * Lazy-load executor (ide #1).
+ *
+ * Dulu: semua file executor di-import eager + di-instantiate di module scope,
+ * sehingga me-load 9router berarti mengeksekusi ±70 modul upstream sekaligus.
+ * Sekarang: hanya manifest ringan (adapters.manifest.js, hasil generate) yang
+ * di-import eager; file adapter di-load on-demand via dynamic import.
+ *
+ * - getAdapter(id): async, cache Map + dedupe promise in-flight (singleflight).
+ *   Banyak request konkuren ke adapter yang sama berbagi satu Promise.
+ *   Rejection TIDAK di-cache agar request berikutnya bisa retry.
+ *   Satu adapter gagal di-load ≠ registry mati (error terisolasi per-adapter).
+ * - getExecutor(provider): async, wrapper fail-open — bila adapter spesialis
+ *   gagal di-load, fallback ke DefaultExecutor (kontrak lama).
+ * - hasSpecializedExecutor(provider): sync, cek tabel definisi saja.
+ *
+ * Adapter tetap di disk, di luar bundle: dynamic import memakai file URL
+ * (pathToFileURL, bukan path mentah; ekstensi wajib) + escape hatch
+ * webpackIgnore/turbopackIgnore. Daftar executor baru di adapterDefs.js
+ * (bukan di sini), lalu regen: node scripts/generate-registry-index.mjs
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { ADAPTER_DEFS } from "./adapterDefs.js";
+import { ADAPTER_MANIFEST } from "./adapters.manifest.js";
 
-const executors = {
-  antigravity: new AntigravityExecutor(),
-  azure: new AzureExecutor(),
-  "gemini-cli": new GeminiCLIExecutor(),
-  github: new GithubExecutor(),
-  iflow: new IFlowExecutor(),
-  qoder: new QoderExecutor(),
-  "qoder-cn": new QoderExecutor("qoder-cn"),
-  kiro: new KiroExecutor(),
-  kimchi: new KimchiExecutor(),
-  codex: new CodexExecutor(),
-  cursor: new CursorExecutor(),
-  cu: new CursorExecutor(), // Alias for cursor
-  vertex: new VertexExecutor("vertex"),
-  "vertex-partner": new VertexExecutor("vertex-partner"),
-  opencode: new OpenCodeExecutor(),
-  "opencode-go": new OpenCodeGoExecutor(),
-  "opencode-zen": new OpenCodeZenExecutor(),
-  "grok-web": new GrokWebExecutor(),
-  "grok-cli": new GrokCliExecutor(),
-  gcli: new GrokCliExecutor(), // Alias
-  gb: new GrokCliExecutor(), // Alias (Grok Build)
-  "perplexity-web": new PerplexityWebExecutor(),
-  "ollama-local": new OllamaLocalExecutor(),
-  commandcode: new CommandCodeExecutor(),
-  "xiaomi-tokenplan": new XiaomiTokenplanExecutor(),
-  "xiaomi-mimo": new XiaomiMimoExecutor(),
-  "mimo-free": new MimoFreeExecutor(),
-  mmf: new MimoFreeExecutor(), // Alias for mimo-free
-  "codebuddy-cn": new CodeBuddyExecutor(),
-  "codebuddy-intl": new CodeBuddyIntlExecutor(),
-  trae: new TraeExecutor(),
-  zed: new ZedExecutor(),
-  windsurf: new WindsurfExecutor(),
-  "devin-cli": new DevinCliExecutor(),
-};
-
-const defaultCache = new Map();
-
-export function getExecutor(provider) {
-  if (executors[provider]) return executors[provider];
-  if (!defaultCache.has(provider)) defaultCache.set(provider, new DefaultExecutor(provider));
-  return defaultCache.get(provider);
+// Direktori fisik adapter di runtime. Urutan: checkout repo (dev,
+// custom-server, vitest) dulu, lalu hasil trace standalone Next.js.
+function cariDirektoriExecutors() {
+  const kandidat = [
+    path.join(process.cwd(), "open-sse", "executors"),
+    path.join(process.cwd(), ".next", "standalone", "open-sse", "executors"),
+  ];
+  for (const dir of kandidat) {
+    try {
+      if (fs.existsSync(dir) && fs.statSync(dir).isDirectory()) return dir;
+    } catch {
+      // abaikan kandidat yang tidak bisa dibaca, lanjut ke berikutnya
+    }
+  }
+  return kandidat[0]; // biar error import-nya jelas bila dua-duanya hilang
 }
+
+const EXECUTORS_DIR = cariDirektoriExecutors();
+
+/**
+ * Pabrik loader adapter. `manifest`: id → { file, exportName, args }.
+ * `toFileUrl`: file relatif → string file URL. `importModule`: (url) => Promise<mod>.
+ * Dipisah agar logika murni (cache, singleflight, isolasi error) bisa diuji
+ * tanpa network / tanpa menyentuh disk (tests/unit/executor-lazy-load.test.js).
+ */
+export function createAdapterLoader({ manifest, toFileUrl, importModule }) {
+  const instances = new Map(); // id → instance yang sudah berhasil di-load
+  const inflight = new Map(); // id → Promise<instance> yang sedang berjalan
+
+  function definisiUntuk(id, paksaDefault) {
+    if (!paksaDefault && manifest[id]) return manifest[id];
+    // Provider tanpa adapter spesialis (atau fallback darurat): DefaultExecutor.
+    return { file: "./default.js", exportName: "DefaultExecutor", args: [id] };
+  }
+
+  async function muatInstance(id, paksaDefault = false) {
+    const def = definisiUntuk(id, paksaDefault);
+    const url = toFileUrl(def.file);
+    let mod;
+    try {
+      mod = await importModule(url);
+    } catch (err) {
+      throw new Error(`[executors] gagal me-load adapter "${id}" dari ${def.file}: ${err?.message || err}`);
+    }
+    const Cls = def.exportName === "default" ? mod.default : mod[def.exportName];
+    if (typeof Cls !== "function") {
+      throw new Error(`[executors] export "${def.exportName}" tidak ditemukan di ${def.file} (adapter "${id}")`);
+    }
+    return new Cls(...(def.args || []));
+  }
+
+  async function getAdapterInternal(id, paksaDefault = false) {
+    const key = paksaDefault ? `default:${id}` : String(id);
+    if (instances.has(key)) return instances.get(key);
+    if (inflight.has(key)) return inflight.get(key); // singleflight
+    const p = muatInstance(String(id), paksaDefault).then(
+      (inst) => {
+        instances.set(key, inst);
+        inflight.delete(key);
+        return inst;
+      },
+      (err) => {
+        inflight.delete(key); // rejection TIDAK di-cache → bisa retry
+        throw err;
+      }
+    );
+    inflight.set(key, p);
+    return p;
+  }
+
+  // API utama ide #1: akses adapter secara lazy.
+  async function getAdapter(id) {
+    return getAdapterInternal(id, false);
+  }
+
+  // Kontrak lama: async, fail-open ke DefaultExecutor bila adapter spesialis rusak.
+  async function getExecutor(provider) {
+    try {
+      return await getAdapterInternal(provider, false);
+    } catch (err) {
+      console.warn(`[executors] adapter "${provider}" gagal, fallback ke DefaultExecutor: ${err?.message || err}`);
+      return getAdapterInternal(provider, true);
+    }
+  }
+
+  function sudahDiLoad(id) {
+    return instances.has(String(id));
+  }
+
+  function resetCache() {
+    instances.clear();
+    inflight.clear();
+  }
+
+  return { getAdapter, getExecutor, sudahDiLoad, resetCache };
+}
+
+const loader = createAdapterLoader({
+  manifest: ADAPTER_MANIFEST,
+  toFileUrl: (file) => pathToFileURL(path.join(EXECUTORS_DIR, file)).href,
+  // Escape hatch: adapter tetap di disk, di luar bundle webpack/turbopack.
+  importModule: (url) => import(/* webpackIgnore: true */ /* turbopackIgnore: true */ url),
+});
+
+export const getAdapter = (id) => loader.getAdapter(id);
+export const getExecutor = (provider) => loader.getExecutor(provider);
 
 export function hasSpecializedExecutor(provider) {
-  return !!executors[provider];
+  return !!ADAPTER_DEFS[provider];
 }
 
+// Re-export ringan untuk kompatibilitas (base.js tidak punya dependensi berat).
 export { BaseExecutor } from "./base.js";
-export { AntigravityExecutor } from "./antigravity.js";
-export { AzureExecutor } from "./azure.js";
-export { GeminiCLIExecutor } from "./gemini-cli.js";
-export { GithubExecutor } from "./github.js";
-export { IFlowExecutor } from "./iflow.js";
-export { QoderExecutor } from "./qoder.js";
-export { KiroExecutor } from "./kiro.js";
-export { KimchiExecutor } from "./kimchi.js";
-export { CodexExecutor } from "./codex.js";
-export { CursorExecutor } from "./cursor.js";
-export { VertexExecutor } from "./vertex.js";
-export { DefaultExecutor } from "./default.js";
-export { OpenCodeExecutor } from "./opencode.js";
-export { OpenCodeGoExecutor } from "./opencode-go.js";
-export { OpenCodeZenExecutor } from "./opencode-zen.js";
-export { GrokWebExecutor } from "./grok-web.js";
-export { GrokCliExecutor } from "./grok-cli.js";
-export { PerplexityWebExecutor } from "./perplexity-web.js";
-export { OllamaLocalExecutor } from "./ollama-local.js";
-export { CommandCodeExecutor } from "./commandcode.js";
-export { XiaomiTokenplanExecutor } from "./xiaomi-tokenplan.js";
-export { XiaomiMimoExecutor } from "./xiaomi-mimo.js";
-export { MimoFreeExecutor } from "./mimo-free.js";
-export { CodeBuddyExecutor } from "./codebuddy-cn.js";
-export { CodeBuddyIntlExecutor } from "./codebuddy-intl.js";
-export { default as TraeExecutor } from "./trae.js";
-export { default as ZedExecutor } from "./zed.js";
-export { default as WindsurfExecutor } from "./windsurf.js";
-export { DevinCliExecutor } from "./devin-cli.js";
+export { ADAPTER_DEFS } from "./adapterDefs.js";
+export { ADAPTER_MANIFEST, ADAPTER_IDS, ADAPTER_FILES } from "./adapters.manifest.js";

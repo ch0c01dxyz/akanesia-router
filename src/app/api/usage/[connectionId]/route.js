@@ -21,7 +21,7 @@ function isAuthExpiredMessage(usage) {
  * @returns Promise<{ connection, refreshed: boolean }>
  */
 export async function refreshAndUpdateCredentials(connection, force = false, proxyOptions = null) {
-  const executor = getExecutor(connection.provider);
+  const executor = await getExecutor(connection.provider);
 
   // Build credentials object from connection
   const credentials = {

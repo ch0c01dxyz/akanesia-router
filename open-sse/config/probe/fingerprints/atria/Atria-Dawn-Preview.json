@@ -1,0 +1,60 @@
+{
+  "schema": "probe-fingerprint/1",
+  "model": "Atria-Dawn-Preview",
+  "collectedAt": "2026-09-29T11:24:25.570Z",
+  "protocol": {
+    "systemPrompt": "Answer with exactly one word. No punctuation, no explanation.",
+    "temperature": 1,
+    "cells": [
+      "random-number-1-100:en",
+      "random-color:en"
+    ],
+    "samplesPerCell": 3
+  },
+  "identity": {
+    "family": "unknown",
+    "model": "Atria-Dawn-Preview",
+    "provider": "atria",
+    "p1Answer": "Atria by Shanghai Artificial Intelligence Laboratory."
+  },
+  "cutoff": "",
+  "passwordProfile": {
+    "orders": {
+      "1": {},
+      "2": {},
+      "3": {}
+    },
+    "pos0": {},
+    "count": 0
+  },
+  "passwordSamples": [
+    "",
+    "",
+    ""
+  ],
+  "cells": {
+    "random-number-1-100:en": {
+      "counts": {
+        "42": 2,
+        "the user wants a random number from 1 to 100. i need to answer with exactly one word, no punctuation, no explanation. i'll pick a number randomly. let me think of a number... i'll go with 42, or maybe something less cliché. let's pick 73. actually": 1
+      },
+      "totalSamples": 3
+    },
+    "random-color:en": {
+      "counts": {
+        "azure": 1,
+        "blue": 1
+      },
+      "totalSamples": 3
+    }
+  },
+  "splitHalfJsd": {
+    "random-number-1-100:en": 0.31127812445624753,
+    "random-color:en": 0.9999999999971146
+  },
+  "thresholds": {
+    "jsdMatchMax": 0.1,
+    "jsdUncertainMax": 0.4
+  },
+  "note": "Fingerprint empiris dari run live 2026-09-29 via https://api.atria-asi.ai/v1. Kalibrasi awal, bukan baseline final."
+}

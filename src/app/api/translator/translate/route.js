@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { detectFormat, getTargetFormat } from "open-sse/services/provider.js";
-import { translateRequest } from "open-sse/translator/index.js";
+import { translateRequest, ensureTranslatorsFor } from "open-sse/translator/index.js";
 import { FORMATS } from "open-sse/translator/formats.js";
 import { getModelInfo } from "@/sse/services/model.js";
 import { getProviderConnections } from "@/lib/localDb.js";
@@ -33,6 +33,8 @@ export async function POST(request) {
         const stream = clientBody.stream !== false;
 
         // translateRequest(source, OPENAI) = only the first half
+        // Translator di-load on-demand — pastikan pasangan request-nya siap.
+        await ensureTranslatorsFor([`${sourceFormat}:${FORMATS.OPENAI}`], "request");
         const result = translateRequest(sourceFormat, FORMATS.OPENAI, model, clientBody, stream, null, provider);
         delete result._toolNameMap;
 
@@ -53,6 +55,8 @@ export async function POST(request) {
         const stream = openaiBody.stream !== false;
 
         // translateRequest(OPENAI, target) = second half of pipeline
+        // Translator di-load on-demand — pastikan pasangan request-nya siap.
+        await ensureTranslatorsFor([`${FORMATS.OPENAI}:${targetFormat}`], "request");
         const translated = translateRequest(FORMATS.OPENAI, targetFormat, model, openaiBody, stream, null, provider);
         delete translated._toolNameMap;
 
@@ -72,7 +76,7 @@ export async function POST(request) {
           providerSpecificData: connection.providerSpecificData
         };
 
-        const executor = getExecutor(provider);
+        const executor = await getExecutor(provider);
         const url = executor.buildUrl(model, stream, 0, credentials);
         const headers = executor.buildHeaders(credentials, stream);
         const finalBody = executor.transformRequest(model, translated, stream, credentials);

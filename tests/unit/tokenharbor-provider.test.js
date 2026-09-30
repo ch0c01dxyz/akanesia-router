@@ -47,8 +47,8 @@ describe("Token Harbor provider", () => {
     expect(ids.every((id) => !id.includes("/"))).toBe(true);
   });
 
-  it("routes through the shared DefaultExecutor (no custom adapter)", () => {
-    expect(getExecutor("tokenharbor")).toBeInstanceOf(DefaultExecutor);
+  it("routes through the shared DefaultExecutor (no custom adapter)", async () => {
+    expect(await getExecutor("tokenharbor")).toBeInstanceOf(DefaultExecutor);
   });
 
   it("resolves per-model capabilities from the shared tables", () => {

@@ -547,7 +547,8 @@ export default function TokenSaverClient() {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-text-muted">
                 Compression extras
-                {headroomExtras.version ? ` · v${headroomExtras.version}` : ""}:
+                {headroomExtras.version ? ` · v${headroomExtras.version}` : ""}
+                {headroomExtras.via ? ` · via ${headroomExtras.via}` : ""}:
               </span>
               {headroomExtras.available.map((extra) => {
                 const installed = !!headroomExtras.extras[extra];
@@ -957,7 +958,7 @@ export default function TokenSaverClient() {
               </Button>
               <p className="text-xs text-text-muted">
                 Installs the npm package <code className="font-mono">pxpipe-proxy</code> into
-                the 9Router data directory. May take a few minutes.
+                the Akanesia-Gateway data directory. May take a few minutes.
               </p>
             </div>
           ) : (

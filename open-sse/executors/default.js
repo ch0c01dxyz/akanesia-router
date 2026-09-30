@@ -8,6 +8,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { stripUnsupportedParams } from "../translator/concerns/paramSupport.js";
 import { extractClaudeSessionIdFromUserId } from "../utils/claudeCloaking.js";
+import { applyCustomHeaders } from "../../src/shared/utils/customHeaders.js";
 
 // Auth header descriptors — derived from registry transport.auth, fallback to hardcoded defaults.
 const BEARER = { combined: true, header: "Authorization", scheme: "bearer" };
@@ -216,6 +217,12 @@ export class DefaultExecutor extends BaseExecutor {
     }
 
     if (stream) headers["Accept"] = "text/event-stream";
+
+    // Ide #8: custom headers per provider node (Advanced Option). Diterapkan
+    // PALING AKHIR agar menang atas header default 9router jika nama sama.
+    // Mendukung placeholder {{key}} → API key koneksi ini.
+    applyCustomHeaders(headers, credentials);
+
     return headers;
   }
 

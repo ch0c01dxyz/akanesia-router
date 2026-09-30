@@ -14,8 +14,8 @@ describe("xiaomi-mimo executor", () => {
     ex = new XiaomiMimoExecutor();
   });
 
-  it("is registered for xiaomi-mimo", () => {
-    expect(getExecutor("xiaomi-mimo")).toBeInstanceOf(XiaomiMimoExecutor);
+  it("is registered for xiaomi-mimo", async () => {
+    expect(await getExecutor("xiaomi-mimo")).toBeInstanceOf(XiaomiMimoExecutor);
   });
 
   it("keeps the sourceFormat-matched endpoint for cloud models", () => {

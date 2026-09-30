@@ -258,7 +258,31 @@ function comboMatchesKinds(combo, kindFilter) {
  * Build OpenAI-format models list filtered by service kinds.
  * @param {string[]} kindFilter - List of service kinds to include (e.g. ["llm"], ["webSearch","webFetch"]).
  */
+// Cache singkat hasil buildModelsList (temuan pengujian 2026-09-30):
+// membangun katalog full (5 query DB berurutan + iterasi 320 provider)
+// butuh ~0,5–1 dtk — terlalu mahal untuk setiap request, termasuk lookup
+// satu model di [...model]/route.js yang berujung 404. TTL 30 dtk:
+// klien OpenAI umumnya me-cache /v1/models sendiri, jadi staleness
+// singkat dapat diterima.
+const MODELS_CACHE_TTL_MS = 30_000;
+const modelsCache = new Map(); // key -> { data, expiresAt }
+
+function modelsCacheKey(kindFilter, skipDynamicFetch) {
+  const kinds = Array.isArray(kindFilter) ? [...kindFilter].sort().join(",") : "";
+  return `${kinds}|${skipDynamicFetch ? 1 : 0}`;
+}
+
 export async function buildModelsList(kindFilter, options = {}) {
+  const skipDynamicFetch = options.skipDynamicFetch === true;
+  const key = modelsCacheKey(kindFilter, skipDynamicFetch);
+  const hit = modelsCache.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.data;
+  const data = await buildModelsListUncached(kindFilter, options);
+  modelsCache.set(key, { data, expiresAt: Date.now() + MODELS_CACHE_TTL_MS });
+  return data;
+}
+
+async function buildModelsListUncached(kindFilter, options = {}) {
   // When this header is present, the /v1/models request came from another
   // 9router instance's fetchCompatibleModelIds — skip dynamic fetch to break
   // cross-instance recursive loops.

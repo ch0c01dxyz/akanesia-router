@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { deleteProviderConnectionsByProvider, deleteProviderNode, getProviderConnections, getProviderNodeById, updateProviderConnection, updateProviderNode } from "@/models";
+import { sanitizeCustomHeaders } from "@/shared/utils/customHeaders.js";
 
 // PUT /api/provider-nodes/[id] - Update provider node
 export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, prefix, apiType, baseUrl } = body;
+    const { name, prefix, apiType, baseUrl, customHeaders } = body;
     const node = await getProviderNodeById(id);
 
     if (!node) {
@@ -54,6 +55,15 @@ export async function PUT(request, { params }) {
       baseUrl: sanitizedBaseUrl,
     };
 
+    // Ide #8: custom headers per node (Advanced Option)
+    if (customHeaders !== undefined) {
+      const sanitized = sanitizeCustomHeaders(customHeaders);
+      if (sanitized.error) {
+        return NextResponse.json({ error: sanitized.error }, { status: 400 });
+      }
+      updates.customHeaders = sanitized.headers;
+    }
+
     if (node.type === "openai-compatible") {
       updates.apiType = apiType;
     }
@@ -69,6 +79,8 @@ export async function PUT(request, { params }) {
           apiType: node.type === "openai-compatible" ? apiType : undefined,
           baseUrl: sanitizedBaseUrl,
           nodeName: updated.name,
+          // Propagasi custom headers ke semua koneksi node ini
+          ...(updates.customHeaders !== undefined ? { customHeaders: updates.customHeaders } : {}),
         }
       })
     )));

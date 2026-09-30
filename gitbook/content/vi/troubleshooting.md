@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Các vấn đề và giải pháp phổ biến khi dùng 9Router.
+Các vấn đề và giải pháp phổ biến khi dùng Akanesia-Gateway.
 
 ---
 
@@ -78,7 +78,7 @@ Các vấn đề và giải pháp phổ biến khi dùng 9Router.
 **Giải pháp:**
 
 1. **Auto-refresh (mặc định):**
-   9Router tự refresh tokens. Đợi 30 giây rồi thử lại.
+   Akanesia-Gateway tự refresh tokens. Đợi 30 giây rồi thử lại.
 
 2. **Kết nối lại thủ công:**
    ```
@@ -135,13 +135,13 @@ Các vấn đề và giải pháp phổ biến khi dùng 9Router.
 **Vấn đề:** Lỗi "ECONNREFUSED" hoặc "Cannot connect to localhost:20128".
 
 **Nguyên nhân:**
-- 9Router không chạy
+- Akanesia-Gateway không chạy
 - Port 20128 bị chặn
 - Firewall chặn kết nối
 
 **Giải pháp:**
 
-1. **Khởi động 9Router:**
+1. **Khởi động Akanesia-Gateway:**
    ```bash
    9router
    ```
@@ -175,12 +175,12 @@ Các vấn đề và giải pháp phổ biến khi dùng 9Router.
 
 **Nguyên nhân:**
 - Port 3000 đã được dùng
-- 9Router bị crash
+- Akanesia-Gateway bị crash
 - Vấn đề cache browser
 
 **Giải pháp:**
 
-1. **Kiểm tra 9Router có chạy không:**
+1. **Kiểm tra Akanesia-Gateway có chạy không:**
    ```bash
    # Check process
    ps aux | grep 9router
@@ -199,7 +199,7 @@ Các vấn đề và giải pháp phổ biến khi dùng 9Router.
    taskkill /PID <PID> /F
    ```
 
-3. **Khởi động lại 9Router:**
+3. **Khởi động lại Akanesia-Gateway:**
    ```bash
    # Stop
    pkill -f 9router
@@ -346,6 +346,6 @@ Các vấn đề và giải pháp phổ biến khi dùng 9Router.
 
 ## Cần trợ giúp thêm?
 
-- **GitHub Issues:** [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub Issues:** [github.com/ch0c01dxyz/akanesia-router/issues](https://github.com/ch0c01dxyz/akanesia-router/issues)
 - **Documentation:** [9router.com/docs](https://9router.com/docs)
 - **FAQ:** [faq.md](faq.md)

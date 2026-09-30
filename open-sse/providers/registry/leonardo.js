@@ -1,0 +1,21 @@
+export default {
+  id: "leonardo",
+  priority: 50,
+  alias: "leo",
+  display: {
+    name: "Leonardo",
+    icon: "smart_toy",
+    color: "#D97706",
+    textIcon: "LE",
+  },
+  category: "apikey",
+  authType: "apikey",
+  transport: {
+    baseUrl: "https://cloud.leonardo.ai/api/rest/v1",
+  },
+  models: [
+    { id: "phoenix", name: "Phoenix" },
+    { id: "sdxl", name: "SDXL" },
+  ],
+};
+

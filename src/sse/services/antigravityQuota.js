@@ -6,6 +6,7 @@
 
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { getAntigravityUsage } from "open-sse/services/usage/google.js";
+import { recordFailure } from "./quotaIncidents.js";
 import * as log from "../utils/logger.js";
 
 // In-memory cache: connectionId → { [modelId]: { remainingPercentage, resetAt } }
@@ -131,6 +132,20 @@ async function _doRefresh(connectionId, accessToken, providerSpecificData, now) 
 }
 
 /**
+ * Ide #4 "Fill-first sadar kuota": catat insiden kuota Antigravity ke dashboard.
+ * Dipanggil saat pasangan connection|model diblokir (strike 15 menit atau
+ * upstream exhausted). Fail-open: kegagalan pencatatan tidak boleh mengganggu
+ * alur quota. recordFailure sendiri juga fail-open.
+ */
+async function recordAntigravityIncident(connectionId, model, status, errorText) {
+  try {
+    await recordFailure({ connectionId, model, provider: "antigravity", status, errorText });
+  } catch (e) {
+    log.warn("AG_QUOTA", `recordFailure gagal: ${e?.message || e}`);
+  }
+}
+
+/**
  * Handle Antigravity 409/429 — refresh RAM cache and return model resetAt when exhausted.
  * Called from chat handler error path.
  * @returns {number|null} resetAt timestamp ms (for resetsAtMs passthrough) or null
@@ -170,6 +185,10 @@ export async function handleAntigravityQuotaError(connectionId, status, model, a
       cached[model] = { remainingPercentage: 0, resetAt: new Date(blockedUntil).toISOString() };
       quotaCache.set(connectionId, cached);
       strikeBlocks.set(key, blockedUntil);
+      // Ide #4: pasangan dianggap tidak sehat → tampil di dashboard
+      // (kelas quota_exhausted, langsung tanpa tunggu threshold).
+      await recordAntigravityIncident(connectionId, model, status,
+        `Antigravity quota strike ${count}x ${status} — model diblokir 15 menit (sisa kuota terbaca ${reading})`);
       return blockedUntil;
     }
     return null;
@@ -183,5 +202,8 @@ export async function handleAntigravityQuotaError(connectionId, status, model, a
   if (resetMs <= Date.now()) return null;
 
   log.warn("AG_QUOTA", `${connectionId.slice(0, 8)} | UPSTREAM_${status} ${model} — quota exhausted; CACHE_BLOCK until ${quota.resetAt}`);
+  // Ide #4: kuota upstream habis → tampil di dashboard (quota_exhausted).
+  await recordAntigravityIncident(connectionId, model, status,
+    `Antigravity quota exhausted (${status}) — reset ${quota.resetAt}`);
   return resetMs;
 }

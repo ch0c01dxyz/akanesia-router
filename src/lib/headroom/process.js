@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import { DATA_DIR } from "@/lib/dataDir.js";
-import { findHeadroomBinary, findPython310, HEADROOM_COMPRESSION_EXTRAS, EXTRA_MARKERS, getInstalledHeadroomExtras } from "./detect.js";
+import { findHeadroomBinary, findPython310, findUvBinary, findUvToolPython, getHeadroomInstallKind, HEADROOM_COMPRESSION_EXTRAS, EXTRA_MARKERS, getInstalledHeadroomExtras } from "./detect.js";
 
 const HEADROOM_DIR = path.join(DATA_DIR, "headroom");
 const PID_FILE = path.join(HEADROOM_DIR, "proxy.pid");
@@ -163,24 +163,30 @@ export function getHeadroomLogTail(maxLines = 200) {
 // is rejected to keep the install surface predictable. Always installs the
 // `proxy` base + whatever extras the user picked, regardless of what is
 // already present.
+//
+// The installer matches how headroom-ai was originally installed:
+// - uv-managed (`uv tool install "headroom-ai[all]"`) → `uv tool install --force`
+// - pip-managed → `python -m pip install --upgrade`
+// - fresh install → prefers `uv` when available, falls back to pip.
 export async function installHeadroomExtras(extras = []) {
   const requested = Array.isArray(extras) ? extras.filter((e) => HEADROOM_COMPRESSION_EXTRAS.includes(e)) : [];
-  const py = findPython310();
-  if (!py) {
-    const err = new Error("Python >= 3.10 not found");
-    err.code = "NO_PYTHON";
-    throw err;
-  }
-  if (!findHeadroomBinary()) {
-    const err = new Error("headroom-ai not installed (run `pip install headroom-ai[proxy]` first)");
-    err.code = "NOT_INSTALLED";
-    throw err;
-  }
   // pip install string is built from a closed set (HEADROOM_COMPRESSION_EXTRAS),
   // so it cannot be poisoned by caller input — the comma-list is a fixed
   // ['proxy', ...requested]. No shell interpolation.
   const extrasList = ["proxy", ...requested].join(",");
   const spec = `headroom-ai[${extrasList}]`;
+
+  const kind = getHeadroomInstallKind();
+  if (kind === "uv" || (!kind && findUvBinary())) {
+    return runUvToolInstall(spec, requested);
+  }
+
+  const py = findPython310();
+  if (!py) {
+    const err = new Error("Python >= 3.10 not found and `uv` is not available");
+    err.code = "NO_PYTHON";
+    throw err;
+  }
   const args = ["-m", "pip", "install", "--upgrade", spec];
 
   ensureDir();
@@ -198,7 +204,7 @@ export async function installHeadroomExtras(extras = []) {
       fs.closeSync(outFd);
       if (code === 0) {
         const status = getInstalledHeadroomExtras(py);
-        resolve({ success: true, code, spec, extras: requested, ...status });
+        resolve({ success: true, code, spec, extras: requested, via: "pip", ...status });
       } else {
         const err = new Error(`pip install exited with code=${code} — see headroom/install.log`);
         err.code = "INSTALL_FAILED";
@@ -208,10 +214,55 @@ export async function installHeadroomExtras(extras = []) {
   });
 }
 
+// `uv tool install` is atomic per tool: reinstalling with `--force` and the
+// desired extras set is the supported way to add/remove extras.
+function runUvToolInstall(spec, requested) {
+  const uv = findUvBinary();
+  if (!uv) {
+    const err = new Error("`uv` not found");
+    err.code = "NO_UV";
+    throw err;
+  }
+  const args = ["tool", "install", "--force", spec];
+
+  ensureDir();
+  const outFd = fs.openSync(INSTALL_LOG_FILE, "w");
+  const child = spawn(uv, args, {
+    stdio: ["ignore", outFd, outFd],
+    windowsHide: true,
+    env: { ...process.env },
+  });
+
+  return new Promise((resolve, reject) => {
+    child.once("error", (e) => { fs.closeSync(outFd); reject(e); });
+    child.once("exit", (code) => {
+      fs.closeSync(outFd);
+      if (code === 0) {
+        const status = getInstalledHeadroomExtras(findUvToolPython());
+        resolve({ success: true, code, spec, extras: requested, via: "uv", ...status });
+      } else {
+        const err = new Error(`uv tool install exited with code=${code} — see headroom/install.log`);
+        err.code = "INSTALL_FAILED";
+        reject(err);
+      }
+    });
+  });
+}
+
 // Uninstall the marker packages that back a single extra (e.g. `ml` → torch,
 // huggingface-hub). `headroom-ai` base and the `proxy` extra are never removed.
+//
+// For uv-managed installs this reinstalls the tool without the removed extras
+// (`uv tool install` is atomic — individual packages can't be uninstalled).
 export async function uninstallHeadroomExtras(extras = []) {
   const requested = Array.isArray(extras) ? extras.filter((e) => HEADROOM_COMPRESSION_EXTRAS.includes(e)) : [];
+  const kind = getHeadroomInstallKind();
+  if (kind === "uv") {
+    const current = getInstalledHeadroomExtras(findUvToolPython());
+    const keep = HEADROOM_COMPRESSION_EXTRAS.filter((e) => current.extras?.[e] && !requested.includes(e));
+    const extrasList = ["proxy", ...keep].join(",");
+    return runUvToolInstall(`headroom-ai[${extrasList}]`, keep);
+  }
   const py = findPython310();
   if (!py) {
     const err = new Error("Python >= 3.10 not found");

@@ -22,6 +22,115 @@ const STREAM_MODE = {
   PASSTHROUGH: "passthrough" // No translation, normalize output, extract usage
 };
 
+// ---------------------------------------------------------------------------
+// Fast path passthrough (temuan audit #9).
+//
+// Saat format identik (mode passthrough), jalur normalisasi di bawah tetap
+// memanggil JSON.parse + aneka pemeriksaan per baris SSE — padahal untuk baris
+// "bersih" output-nya sama persis dengan baris mentah (paling banter dinor-
+// malisasi spasi "data:"). Fast path meneruskan baris mentah TANPA parse/
+// re-encode bila baris terbukti bersih; bila ada keraguan sedikit pun,
+// kembalikan null agar jalur lama yang menangani.
+//
+// Syarat "bersih" (konservatif — semua harus terpenuhi):
+// - Bukan baris data: (komentar ": ...", "event:", baris kosong) → jalur lama
+//   meneruskannya sebagai (line + "\n") apa adanya.
+// - "data: [DONE]" → diteruskan mentah; streamDoneSent TIDAK diubah (persis
+//   seperti jalur lama, termasuk quirk duplikasi [DONE] di flush).
+// - Baris "data:" berisi JSON object dengan "choices" (chat chunk OpenAI).
+// - id valid: tidak memicu fixInvalidId ("chat"/"completion"/panjang < 8).
+// - Ada "object" dan "created" (tidak memicu injeksi field Letta-compat).
+// - Tanpa field Azure (prompt_filter_results, content_filter_results).
+// - Tanpa "tool_calls" sama sekali (array kosong di-strip jalur lama; yang
+//   non-kosong membuat ekstraksi konten via regex menjadi ambigu).
+// - Tanpa "usage" (memicu ekstraksi/injeksi usage di jalur lama).
+// - Tanpa "type"/"response" (memicu deteksi terminal Responses API).
+// - finish_reason: tidak ada, atau null (non-null memicu injeksi usage).
+// - Terbukti punya konten berharga (tidak akan di-drop oleh hasValuableContent):
+//   content/reasoning_content string non-kosong, atau delta.role non-kosong.
+//
+// Efek samping yang direplikasi agar identik dengan jalur lama:
+// - totalContentLength / accumulatedContent / accumulatedThinking diakumulasi
+//   dari content/reasoning_content (di-unescape via JSON.parse atas literal
+//   string-nya saja — jauh lebih murah daripada parse seluruh baris).
+// - reqLogger.appendConvertedChunk tetap dipanggil dengan output yang sama.
+//
+// @returns {{output:string, content:string, thinking:string}|null}
+// ---------------------------------------------------------------------------
+const RE_ID_BERSIH = /"id"\s*:\s*"([^"]*)"/;
+const RE_FINISH_REASON = /"finish_reason"\s*:\s*(null|"[^"]*")/;
+const RE_TOOL_CALLS_KOSONG = /"tool_calls"\s*:\s*\[\s*\]/;
+const RE_CONTENT = /"content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+const RE_REASONING = /"reasoning_content"\s*:\s*"((?:[^"\\]|\\.)*)"/;
+const RE_ROLE = /"role"\s*:\s*"[^"]+"/;
+
+// Normalisasi spasi "data:" — replika persis cabang output jalur lama.
+function normalisasiBarisCepat(line) {
+  if (line.startsWith("data:") && !line.startsWith("data: ")) {
+    return "data: " + line.slice(5) + "\n";
+  }
+  return line + "\n";
+}
+
+function cobaFastPathPassthrough(line, trimmed) {
+  // Bukan baris data: → jalur lama meneruskan mentah (line + "\n").
+  if (!trimmed.startsWith("data:")) {
+    return { output: line + "\n", content: "", thinking: "" };
+  }
+  const payload = trimmed.slice(5).trim();
+  // Sentinel [DONE] → diteruskan mentah, streamDoneSent tidak diubah.
+  if (payload === "[DONE]") {
+    return { output: normalisasiBarisCepat(line), content: "", thinking: "" };
+  }
+  // Bukan JSON object → jalur lama me-skip baris ini; jangan teruskan.
+  if (!payload.startsWith("{")) return null;
+  // Fast path hanya untuk chat chunk OpenAI.
+  if (!payload.includes("\"choices\"")) return null;
+  // Pemicu mutasi pada jalur lama → serahkan ke jalur lama:
+  if (payload.includes("prompt_filter_results")) return null;  // strip field Azure
+  if (payload.includes("content_filter_results")) return null;  // strip field Azure
+  if (RE_TOOL_CALLS_KOSONG.test(payload)) return null;          // strip array kosong
+  if (payload.includes("\"tool_calls\"")) return null;         // ekstraksi konten ambigu
+  if (payload.includes("\"usage\"")) return null;              // ekstraksi/injeksi usage
+  if (payload.includes("\"type\"")) return null;               // deteksi terminal Responses
+  if (payload.includes("\"response\"")) return null;           // deteksi terminal Responses
+  if (!payload.includes("\"object\"") || !payload.includes("\"created\"")) return null; // injeksi field
+  // finish_reason non-null → injeksi estimated usage → jalur lama.
+  if (payload.includes("\"finish_reason\"")) {
+    const m = payload.match(RE_FINISH_REASON);
+    if (!m || m[1] !== "null") return null;
+  }
+  // fixInvalidId: id generik/terlalu pendek → jalur lama.
+  const idM = payload.match(RE_ID_BERSIH);
+  if (idM) {
+    const id = idM[1];
+    if (id.length < 8 || id === "chat" || id === "completion") return null;
+  }
+  // Buktikan konten berharga (hasValuableContent) agar tidak di-drop jalur lama.
+  // Catatan: kunci JSON di konten string selalu ter-escape (\"...\"), sehingga
+  // pencarian literal "\"content\"" tidak tertipu isi teks.
+  let content = "";
+  let thinking = "";
+  const mc = payload.match(RE_CONTENT);
+  if (mc) {
+    try {
+      content = JSON.parse(`"${mc[1]}"`);
+    } catch {
+      return null; // JSON tidak valid → jalur lama akan skip baris ini
+    }
+  }
+  const mr = payload.match(RE_REASONING);
+  if (mr) {
+    try {
+      thinking = JSON.parse(`"${mr[1]}"`);
+    } catch {
+      return null;
+    }
+  }
+  if (content === "" && thinking === "" && !RE_ROLE.test(payload)) return null;
+  return { output: normalisasiBarisCepat(line), content, thinking };
+}
+
 /**
  * Create unified SSE transform stream
  * @param {object} options
@@ -33,7 +142,10 @@ const STREAM_MODE = {
  * @param {string} options.model - Model name
  * @param {string} options.connectionId - Connection ID for usage tracking
  * @param {object} options.body - Request body (for input token estimation)
- * @param {function} options.onStreamComplete - Callback when stream completes (content, usage)
+ * @param {function} options.onStreamComplete - Callback when stream completes
+ *   (content, usage, ttftAt, firstClientByteAt). ttftAt = timestamp byte pertama
+ *   dari upstream; firstClientByteAt = timestamp payload pertama ke klien
+ *   (null bila tidak ada byte terkirim).
  * @param {string} options.apiKey - API key for usage tracking
  */
 export function createSSEStream(options = {}) {
@@ -73,6 +185,17 @@ export function createSSEStream(options = {}) {
   let accumulatedContent = "";
   let accumulatedThinking = "";
   let ttftAt = null;
+  // Waktu payload pertama yang benar-benar dikirim ke klien (enqueue pertama
+  // ke controller). Berbeda dengan ttftAt yang mengukur byte pertama dari
+  // upstream — di antaranya ada buffering/parse/translate. Keduanya dilaporkan
+  // via onStreamComplete sebagai dua metrik terpisah (temuan audit #8).
+  let firstClientByteAt = null;
+  // Pembungkus enqueue: catat timestamp kirim-pertama-ke-klien tepat di titik
+  // byte pertama keluar, bukan saat chunk tiba dari upstream.
+  const enqueueKeKlien = (ctrl, bytes) => {
+    if (!firstClientByteAt) firstClientByteAt = Date.now();
+    ctrl.enqueue(bytes);
+  };
   let sseLineCount = 0;
   let sseEmittedCount = 0;
   const eventTypeCounts = {};
@@ -105,10 +228,13 @@ export function createSSEStream(options = {}) {
     }
 
     if (onStreamComplete) {
+      // Argumen ke-4 (firstClientByteAt) bersifat opsional & backward-compatible:
+      // callback lama dengan 3 parameter tetap jalan; yang baru bisa memakai
+      // metrik "payload pertama ke klien" di samping ttftAt (byte pertama upstream).
       onStreamComplete({
         content: accumulatedContent,
         thinking: accumulatedThinking
-      }, finalUsage, ttftAt);
+      }, finalUsage, ttftAt, firstClientByteAt);
     }
   };
 
@@ -139,6 +265,23 @@ export function createSSEStream(options = {}) {
 
         // Passthrough mode: normalize and forward
         if (mode === STREAM_MODE.PASSTHROUGH) {
+          // Fast path (audit #9): baris "bersih" diteruskan mentah tanpa
+          // JSON.parse/re-encode — output byte-identik dengan jalur normalisasi
+          // di bawah. Kembalikan null bila ragu → jalur lama yang menangani.
+          // (Sengaja hanya di mode passthrough: jalur translate dengan format
+          //  identik seperti keepsOpenAIResponsesFormat butuh framing event +
+          //  sintesis terminal Responses API sehingga tidak aman di-raw-kan.)
+          const cepat = cobaFastPathPassthrough(line, trimmed);
+          if (cepat) {
+            // Replikasi efek samping jalur lama untuk logging/estimasi usage.
+            totalContentLength += cepat.content.length + cepat.thinking.length;
+            accumulatedContent += cepat.content;
+            accumulatedThinking += cepat.thinking;
+            reqLogger?.appendConvertedChunk?.(cepat.output);
+            enqueueKeKlien(controller, sharedEncoder.encode(cepat.output));
+            continue;
+          }
+
           let output;
           let injectedUsage = false;
           let responsesTerminal = false;
@@ -240,7 +383,7 @@ export function createSSEStream(options = {}) {
           }
 
           reqLogger?.appendConvertedChunk?.(output);
-          controller.enqueue(sharedEncoder.encode(output));
+          enqueueKeKlien(controller, sharedEncoder.encode(output));
           // Responses clients (codex CLI) close on response.completed instead of [DONE]
           if (responsesTerminal) finalizeStream();
           continue;
@@ -270,7 +413,7 @@ export function createSSEStream(options = {}) {
           if (keepsOpenAIResponsesFormat && !openAIResponsesTerminalSeen) {
             const failedOutput = formatIncompleteOpenAIResponsesStreamFailure();
             reqLogger?.appendConvertedChunk?.(failedOutput);
-            controller.enqueue(sharedEncoder.encode(failedOutput));
+            enqueueKeKlien(controller, sharedEncoder.encode(failedOutput));
             openAIResponsesTerminalSeen = true;
             sseEmittedCount++;
           }
@@ -278,7 +421,7 @@ export function createSSEStream(options = {}) {
           if (keepsOpenAIResponsesFormat && !streamDoneSent) {
             const doneOutput = "data: [DONE]\n\n";
             reqLogger?.appendConvertedChunk?.(doneOutput);
-            controller.enqueue(sharedEncoder.encode(doneOutput));
+            enqueueKeKlien(controller, sharedEncoder.encode(doneOutput));
           }
           streamDoneSent = true;
           if (keepsOpenAIResponsesFormat) openAIResponsesDoneSent = true;
@@ -330,7 +473,7 @@ export function createSSEStream(options = {}) {
         if (keepsOpenAIResponsesFormat && openAIResponsesEventName) {
           const output = formatSSE({ event: openAIResponsesEventName, data: parsed }, sourceFormat);
           reqLogger?.appendConvertedChunk?.(output);
-          controller.enqueue(sharedEncoder.encode(output));
+          enqueueKeKlien(controller, sharedEncoder.encode(output));
           currentOpenAIResponsesEvent = null;
           sseEmittedCount++;
           // Responses clients (codex) close on response.completed instead of [DONE]
@@ -373,7 +516,7 @@ export function createSSEStream(options = {}) {
 
             const output = formatSSE(item, sourceFormat);
             reqLogger?.appendConvertedChunk?.(output);
-            controller.enqueue(sharedEncoder.encode(output));
+            enqueueKeKlien(controller, sharedEncoder.encode(output));
             sseEmittedCount++;
           }
         }
@@ -395,7 +538,7 @@ export function createSSEStream(options = {}) {
               output = "data: " + buffer.slice(5);
             }
             reqLogger?.appendConvertedChunk?.(output);
-            controller.enqueue(sharedEncoder.encode(output));
+            enqueueKeKlien(controller, sharedEncoder.encode(output));
           }
 
           // IMPORTANT: In passthrough mode we still must terminate the SSE stream.
@@ -407,7 +550,7 @@ export function createSSEStream(options = {}) {
           if (!streamDoneSent && !isGeminiFamily) {
             const doneOutput = "data: [DONE]\n\n";
             reqLogger?.appendConvertedChunk?.(doneOutput);
-            controller.enqueue(sharedEncoder.encode(doneOutput));
+            enqueueKeKlien(controller, sharedEncoder.encode(doneOutput));
           }
 
           finalizeStream();
@@ -444,7 +587,7 @@ export function createSSEStream(options = {}) {
                 if (item === null || item === undefined) continue;
                 const output = formatSSE(item, sourceFormat);
                 reqLogger?.appendConvertedChunk?.(output);
-                controller.enqueue(sharedEncoder.encode(output));
+                enqueueKeKlien(controller, sharedEncoder.encode(output));
               }
             }
           }
@@ -464,7 +607,7 @@ export function createSSEStream(options = {}) {
             if (item === null || item === undefined) continue;
             const output = formatSSE(item, sourceFormat);
             reqLogger?.appendConvertedChunk?.(output);
-            controller.enqueue(sharedEncoder.encode(output));
+            enqueueKeKlien(controller, sharedEncoder.encode(output));
           }
         }
 
@@ -473,14 +616,14 @@ export function createSSEStream(options = {}) {
         if (keepsOpenAIResponsesFormat && !openAIResponsesTerminalSeen) {
           const failedOutput = formatIncompleteOpenAIResponsesStreamFailure();
           reqLogger?.appendConvertedChunk?.(failedOutput);
-          controller.enqueue(sharedEncoder.encode(failedOutput));
+          enqueueKeKlien(controller, sharedEncoder.encode(failedOutput));
           openAIResponsesTerminalSeen = true;
         }
 
         if (keepsOpenAIResponsesFormat && !openAIResponsesDoneSent && !streamDoneSent) {
           const doneOutput = "data: [DONE]\n\n";
           reqLogger?.appendConvertedChunk?.(doneOutput);
-          controller.enqueue(sharedEncoder.encode(doneOutput));
+          enqueueKeKlien(controller, sharedEncoder.encode(doneOutput));
           openAIResponsesDoneSent = true;
           streamDoneSent = true;
         }

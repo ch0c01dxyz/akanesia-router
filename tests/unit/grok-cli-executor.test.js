@@ -68,11 +68,11 @@ describe("GrokCliExecutor", () => {
     executor = new GrokCliExecutor();
   });
 
-  it("is registered on executor map (id + aliases)", () => {
+  it("is registered on executor map (id + aliases)", async () => {
     expect(hasSpecializedExecutor("grok-cli")).toBe(true);
-    expect(getExecutor("grok-cli")).toBeInstanceOf(GrokCliExecutor);
-    expect(getExecutor("gcli")).toBeInstanceOf(GrokCliExecutor);
-    expect(getExecutor("gb")).toBeInstanceOf(GrokCliExecutor);
+    expect(await getExecutor("grok-cli")).toBeInstanceOf(GrokCliExecutor);
+    expect(await getExecutor("gcli")).toBeInstanceOf(GrokCliExecutor);
+    expect(await getExecutor("gb")).toBeInstanceOf(GrokCliExecutor);
   });
 
   it("buildUrl points at cli-chat-proxy responses", () => {

@@ -28,6 +28,7 @@ export const MEMORY_CONFIG = {
   sessionTtlMs: 2 * 60 * 60 * 1000,
   sessionCleanupIntervalMs: 30 * 60 * 1000,
   dnsCacheTtlMs: 5 * 60 * 1000,
+  dnsCacheMaxSize: 500, // batas entri DNS cache (eviksi LRU) — cegah tumbuh tanpa batas
   proxyDispatchersMaxSize: 20,
 };
 

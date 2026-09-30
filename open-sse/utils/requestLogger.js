@@ -20,6 +20,244 @@ async function ensureNodeModules() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Buffered async chunk writer — pengganti fs.appendFileSync per chunk.
+//
+// Masalah lama: tiap chunk SSE memanggil fs.appendFileSync (buka+tulis+tutup
+// file), terukur ~17 µs dan memblokir event loop; di hot loop streaming bisa
+// 3x per token-chunk. Writer ini menampung chunk di antrean memori lalu
+// menulis via satu fs.WriteStream per file (async, non-blocking).
+//
+// Flush dipicu bila salah satu terpenuhi:
+//   - antrean >= 64 KB, atau
+//   - antrean >= 100 potong, atau
+//   - 1 detik sejak tulis terakhir tanpa flush (timer di-unref).
+// Stream yang menganggur > 60 detik ditutup otomatis agar file descriptor
+// tidak menumpuk pada server long-running.
+//
+// Fail-open: semua jalur dibungkus try/catch — logging TIDAK PERNAH melempar
+// error ke hot path streaming; bila stream rusak, sisa log di-drop diam-diam.
+// ---------------------------------------------------------------------------
+const CHUNK_FLUSH_BYTES = 64 * 1024;
+const CHUNK_FLUSH_COUNT = 100;
+const CHUNK_FLUSH_INTERVAL_MS = 1000;
+// Tutup stream yang tidak menerima chunk selama ini (hindari kebocoran fd).
+const CHUNK_IDLE_CLOSE_MS = 60 * 1000;
+
+// Writer yang masih hidup — dipakai untuk flush saat proses exit.
+const penulisChunkAktif = new Set();
+let penanganExitTerpasang = false;
+
+function flushSemuaPenulisChunk() {
+  for (const w of Array.from(penulisChunkAktif)) {
+    try { w.flushAkhir(); } catch { /* abaikan */ }
+  }
+}
+
+function flushSemuaPenulisChunkSinkron() {
+  for (const w of Array.from(penulisChunkAktif)) {
+    try { w.flushSinkronDarurat(); } catch { /* abaikan */ }
+  }
+}
+
+// Daftarkan sekali saja, dan hanya saat writer pertama dibuat (lazy) —
+// tidak ada efek samping saat modul di-import (penting untuk konteks Next.js).
+function pasangPenanganExitSekali() {
+  if (penanganExitTerpasang) return;
+  penanganExitTerpasang = true;
+  if (!isNode || typeof process === "undefined" || typeof process.on !== "function") return;
+  try {
+    // beforeExit boleh async: event loop ditahan sampai flush selesai.
+    process.on("beforeExit", flushSemuaPenulisChunk);
+    for (const sinyal of ["SIGINT", "SIGTERM"]) {
+      const penangan = () => {
+        // Best-effort sinkron untuk sinyal: tulis sisa antrean sekaligus,
+        // lalu kembalikan perilaku default agar shutdown tetap normal.
+        flushSemuaPenulisChunkSinkron();
+        try { process.removeListener(sinyal, penangan); } catch { /* abaikan */ }
+        try { process.kill(process.pid, sinyal); } catch { /* abaikan */ }
+      };
+      process.on(sinyal, penangan);
+    }
+  } catch { /* fail-open */ }
+}
+
+class BufferedChunkWriter {
+  constructor(filePath) {
+    this.filePath = filePath;
+    this.antrean = [];
+    this.byteAntrean = 0;
+    this.stream = null;
+    this.rusak = false;
+    this.ditutup = false; // true permanen hanya via jalur exit
+    this.menulis = false;
+    this.timer = null;
+    this.terakhirTulis = Date.now();
+    penulisChunkAktif.add(this);
+    pasangPenanganExitSekali();
+  }
+
+  // Dipanggil dari hot loop streaming — tidak boleh throw, tidak boleh blokir.
+  tambah(chunk) {
+    if (this.rusak || this.ditutup) return;
+    try {
+      const s = typeof chunk === "string" ? chunk : String(chunk ?? "");
+      if (!s) return;
+      penulisChunkAktif.add(this);
+      this.antrean.push(s);
+      this.byteAntrean += s.length;
+      this.terakhirTulis = Date.now();
+      if (this.byteAntrean >= CHUNK_FLUSH_BYTES || this.antrean.length >= CHUNK_FLUSH_COUNT) {
+        this.flushSegera();
+      } else {
+        this.pastikanTimer();
+      }
+    } catch { /* fail-open: jangan ganggu streaming */ }
+  }
+
+  pastikanStream() {
+    if (this.stream || this.rusak || this.ditutup) return this.stream;
+    try {
+      const st = fs.createWriteStream(this.filePath, { flags: "a", encoding: "utf8" });
+      st.on("error", () => this.tandaiRusak());
+      this.stream = st;
+    } catch {
+      this.tandaiRusak();
+    }
+    return this.stream;
+  }
+
+  pastikanTimer() {
+    if (this.timer || this.rusak || this.ditutup) return;
+    try {
+      this.timer = setTimeout(() => {
+        this.timer = null;
+        if (this.ditutup || this.rusak) return;
+        if (this.antrean.length > 0) {
+          this.flush();
+          this.pastikanTimer();
+        } else if (this.stream && Date.now() - this.terakhirTulis > CHUNK_IDLE_CLOSE_MS) {
+          // Tidak ada data 60 detik: tutup stream, buka lagi secara lazy bila ada chunk baru.
+          this.tutupIdle();
+        } else if (this.stream) {
+          this.pastikanTimer();
+        }
+        // Tanpa stream & tanpa antrean: timer berhenti; tambah() akan mempersenjatai lagi.
+      }, CHUNK_FLUSH_INTERVAL_MS);
+      if (this.timer && typeof this.timer.unref === "function") this.timer.unref();
+    } catch { /* abaikan */ }
+  }
+
+  hapusTimer() {
+    try {
+      if (this.timer) clearTimeout(this.timer);
+    } catch { /* abaikan */ }
+    this.timer = null;
+  }
+
+  // Jadwalkan flush di luar hot path (hindari tulis di dalam loop streaming).
+  flushSegera() {
+    try {
+      setImmediate(() => this.flush());
+    } catch {
+      this.flush();
+    }
+  }
+
+  flush() {
+    if (this.menulis || this.rusak || this.ditutup || this.antrean.length === 0) return;
+    let stream = null;
+    try {
+      stream = this.pastikanStream();
+    } catch { /* abaikan */ }
+    if (!stream) return;
+    const data = this.antrean.join("");
+    this.antrean = [];
+    this.byteAntrean = 0;
+    this.menulis = true;
+    try {
+      stream.write(data, (err) => {
+        this.menulis = false;
+        if (err) {
+          this.tandaiRusak();
+          return;
+        }
+        if (this.antrean.length > 0) this.flushSegera();
+      });
+    } catch {
+      this.menulis = false;
+      this.tandaiRusak();
+    }
+  }
+
+  // Flush terakhir saat proses exit (boleh async — beforeExit menahan loop).
+  flushAkhir() {
+    this.ditutup = true;
+    this.hapusTimer();
+    if (this.rusak) {
+      penulisChunkAktif.delete(this);
+      return;
+    }
+    try {
+      const stream = this.pastikanStream();
+      const data = this.antrean.join("");
+      this.antrean = [];
+      this.byteAntrean = 0;
+      if (stream && data) {
+        stream.end(data, () => {
+          try { penulisChunkAktif.delete(this); } catch { /* abaikan */ }
+        });
+      } else {
+        try { stream?.end(); } catch { /* abaikan */ }
+        penulisChunkAktif.delete(this);
+      }
+    } catch {
+      this.tandaiRusak();
+    }
+  }
+
+  // Darurat sinkron untuk SIGINT/SIGTERM — best-effort, sekali jalan.
+  // Catatan: data yang masih di buffer internal stream (bukan antrean) adalah
+  // best-effort; ini log debug, bukan data transaksional.
+  flushSinkronDarurat() {
+    this.ditutup = true;
+    this.hapusTimer();
+    try {
+      if (!this.rusak && this.antrean.length > 0) {
+        fs.appendFileSync(this.filePath, this.antrean.join(""));
+      }
+    } catch { /* abaikan */ }
+    this.antrean = [];
+    this.byteAntrean = 0;
+    try { this.stream?.destroy(); } catch { /* abaikan */ }
+    this.stream = null;
+    penulisChunkAktif.delete(this);
+  }
+
+  // Tutup stream menganggur; dibuka lagi secara lazy saat chunk baru tiba.
+  tutupIdle() {
+    this.hapusTimer();
+    const s = this.stream;
+    this.stream = null;
+    try {
+      if (s) s.end(() => { try { penulisChunkAktif.delete(this); } catch { /* abaikan */ } });
+      else penulisChunkAktif.delete(this);
+    } catch {
+      try { penulisChunkAktif.delete(this); } catch { /* abaikan */ }
+    }
+  }
+
+  tandaiRusak() {
+    this.rusak = true;
+    this.antrean = [];
+    this.byteAntrean = 0;
+    this.hapusTimer();
+    try { this.stream?.destroy(); } catch { /* abaikan */ }
+    this.stream = null;
+    penulisChunkAktif.delete(this);
+  }
+}
+
 // Format timestamp for folder name: 20251228_143045_123
 function formatTimestamp(date = new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -107,6 +345,17 @@ function createNoOpLogger() {
   };
 }
 
+// Buat writer buffered untuk satu file chunk — lazy: stream dibuka saat
+// chunk pertama tiba, jadi sesi non-streaming tidak membuka file sama sekali.
+function buatPenulisChunk(sessionPath, namaFile) {
+  if (!fs || !sessionPath) return null;
+  try {
+    return new BufferedChunkWriter(path.join(sessionPath, namaFile));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Create a new log session and return logger functions
  * @param {string} sourceFormat - Source format from client (claude, openai, etc.)
@@ -122,6 +371,11 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
   
   // Wait for session to be created before returning logger
   const sessionPath = await createLogSession(sourceFormat, targetFormat, model);
+  
+  // Writer buffered per file chunk (dibuat lazy saat chunk pertama).
+  let penulisProvider = null;
+  let penulisOpenAI = null;
+  let penulisKlien = null;
   
   return {
     get sessionPath() { return sessionPath; },
@@ -175,25 +429,23 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
       });
     },
     
-    // 5. Append streaming chunk to provider response
+    // 5. Append streaming chunk ke respons provider (hot path — buffered, non-blocking)
     appendProviderChunk(chunk) {
-      if (!fs || !sessionPath) return;
       try {
-        const filePath = path.join(sessionPath, "5_res_provider.txt");
-        fs.appendFileSync(filePath, chunk);
-      } catch (err) {
-        // Ignore append errors
+        if (!penulisProvider) penulisProvider = buatPenulisChunk(sessionPath, "5_res_provider.txt");
+        penulisProvider?.tambah(chunk);
+      } catch {
+        // Fail-open: logging tidak boleh mengganggu streaming
       }
     },
     
-    // 6. Append OpenAI intermediate chunks (target → openai)
+    // 6. Append chunk OpenAI intermediate (target → openai, hot path — buffered)
     appendOpenAIChunk(chunk) {
-      if (!fs || !sessionPath) return;
       try {
-        const filePath = path.join(sessionPath, "6_res_openai.txt");
-        fs.appendFileSync(filePath, chunk);
-      } catch (err) {
-        // Ignore append errors
+        if (!penulisOpenAI) penulisOpenAI = buatPenulisChunk(sessionPath, "6_res_openai.txt");
+        penulisOpenAI?.tambah(chunk);
+      } catch {
+        // Fail-open: logging tidak boleh mengganggu streaming
       }
     },
     
@@ -205,14 +457,13 @@ export async function createRequestLogger(sourceFormat, targetFormat, model) {
       });
     },
     
-    // 7. Append streaming chunk to converted response
+    // 7. Append streaming chunk ke respons klien (hot path — buffered, non-blocking)
     appendConvertedChunk(chunk) {
-      if (!fs || !sessionPath) return;
       try {
-        const filePath = path.join(sessionPath, "7_res_client.txt");
-        fs.appendFileSync(filePath, chunk);
-      } catch (err) {
-        // Ignore append errors
+        if (!penulisKlien) penulisKlien = buatPenulisChunk(sessionPath, "7_res_client.txt");
+        penulisKlien?.tambah(chunk);
+      } catch {
+        // Fail-open: logging tidak boleh mengganggu streaming
       }
     },
     

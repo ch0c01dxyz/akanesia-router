@@ -19,7 +19,7 @@ const VALID_NAME_REGEX = /^[a-zA-Z0-9_.\-]+$/;
 const CAPACITY_ADAPTER_CAPS = [
   { key: "vision", label: "Vision", icon: "visibility", desc: "images (png, jpg, webp, …)" },
   // pdf, videoInput temporarily hidden — no translator support yet for those blocks.
-  { key: "audioInput", label: "Audio", icon: "graphic_eq", desc: "audio input" },
+  { key: "audioInput", label: "Audio", icon: "graphic_eq", desc: "audio input/output (STT/TTS)" },
 ];
 const DEFAULT_FALLBACK_MODEL = "oc/mimo-v2.6-flash-free";
 const EMPTY_CAP_ENTRY = { enabled: true, roundRobin: false, models: [] };
@@ -49,6 +49,7 @@ function normalizeCapEntry(entry) {
 const STRATEGY_OPTIONS = [
   { value: "fallback", label: "Fallback — try in order" },
   { value: "round-robin", label: "Round Robin — rotate" },
+  { value: "fill-first", label: "Fill First — exhaust in order" },
   { value: "fusion", label: "Fusion — panel + judge" },
 ];
 
@@ -67,13 +68,45 @@ export default function CombosPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const { copied, copy } = useCopyToClipboard();
 
+  const fetchData = async () => {
+    try {
+      const [combosRes, providersRes, settingsRes] = await Promise.all([
+        fetch("/api/combos"),
+        fetch("/api/providers"),
+        fetch("/api/settings"),
+      ]);
+      const combosData = await combosRes.json();
+      const providersData = await providersRes.json();
+      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+
+      // Only LLM combos here - webSearch/webFetch combos belong to media-providers/web
+      if (combosRes.ok) setCombos((combosData.combos || []).filter(c => !c.kind || c.kind === "llm"));
+      if (providersRes.ok) {
+        setActiveProviders(providersData.connections || []);
+      }
+      setComboStrategies(settingsData.comboStrategies || {});
+      const rawAdapter = settingsData.capacityAdapter || {};
+      const normalized = {};
+      for (const cap of CAPACITY_ADAPTER_CAPS) {
+        normalized[cap.key] = normalizeCapEntry(rawAdapter[cap.key]);
+      }
+      setCapacityAdapter(normalized);
+    } catch (error) {
+      console.log("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
+// eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: fetch awal saat halaman dibuka; jangan di-refactor
     fetchData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Drop stale selection when the combo list changes (delete / refresh).
   useEffect(() => {
     const alive = new Set(combos.map((c) => c.id));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: sinkronisasi seleksi mengikuti daftar combo; jangan di-refactor
     setSelectedIds((prev) => prev.filter((id) => alive.has(id)));
   }, [combos]);
 
@@ -150,36 +183,6 @@ export default function CombosPage() {
       alert(`Failed to preview ${label}`);
     } finally {
       setPresetLoading(null);
-    }
-  };
-
-  const fetchData = async () => {
-    try {
-      const [combosRes, providersRes, settingsRes] = await Promise.all([
-        fetch("/api/combos"),
-        fetch("/api/providers"),
-        fetch("/api/settings"),
-      ]);
-      const combosData = await combosRes.json();
-      const providersData = await providersRes.json();
-      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
-
-      // Only LLM combos here - webSearch/webFetch combos belong to media-providers/web
-      if (combosRes.ok) setCombos((combosData.combos || []).filter(c => !c.kind || c.kind === "llm"));
-      if (providersRes.ok) {
-        setActiveProviders(providersData.connections || []);
-      }
-      setComboStrategies(settingsData.comboStrategies || {});
-      const rawAdapter = settingsData.capacityAdapter || {};
-      const normalized = {};
-      for (const cap of CAPACITY_ADAPTER_CAPS) {
-        normalized[cap.key] = normalizeCapEntry(rawAdapter[cap.key]);
-      }
-      setCapacityAdapter(normalized);
-    } catch (error) {
-      console.log("Error fetching data:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -744,13 +747,15 @@ function CapacityAdapterCap({ cap, entry, onChange, activeProviders, getCaps }) 
 
   const handleDeselect = (model) => {
     const value = model?.value || model?.name || model;
-    const next = models.filter((m) => m !== value);
-    patch({ models: next.length === 0 ? [DEFAULT_FALLBACK_MODEL] : next });
+    // Empty pool is allowed: the UI shows an explicit empty state and the
+    // runtime (getCapacityAdapterConfig) implicitly falls back to
+    // DEFAULT_FALLBACK_MODEL, so never re-inject it here.
+    patch({ models: models.filter((m) => m !== value) });
   };
 
   const handleRemove = (index) => {
-    const next = models.filter((_, i) => i !== index);
-    patch({ models: next.length === 0 ? [DEFAULT_FALLBACK_MODEL] : next });
+    // See handleDeselect: an emptied pool stays empty.
+    patch({ models: models.filter((_, i) => i !== index) });
   };
 
   const handleMove = (index, delta) => {
@@ -1046,6 +1051,7 @@ function ComboFormModal({ isOpen, combo, onClose, onSave, activeProviders, kindF
   };
 
   useEffect(() => {
+// eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: fetch ulang setiap modal dibuka; jangan di-refactor
     if (isOpen) fetchModalData();
   }, [isOpen]);
 

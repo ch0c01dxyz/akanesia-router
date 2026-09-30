@@ -60,8 +60,8 @@ describe.each(BATCH)("$id provider", (p) => {
     expect(entry.display?.textIcon).toBeTruthy();
   });
 
-  it("routes through the shared DefaultExecutor", () => {
-    expect(getExecutor(p.id)).toBeInstanceOf(DefaultExecutor);
+  it("routes through the shared DefaultExecutor", async () => {
+    expect(await getExecutor(p.id)).toBeInstanceOf(DefaultExecutor);
   });
 
   it("accepts arbitrary model ids via passthrough", () => {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createProviderNode, getProviderNodes } from "@/models";
 import { OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX, CUSTOM_EMBEDDING_PREFIX } from "@/shared/constants/providers";
 import { generateId } from "@/shared/utils";
+import { sanitizeCustomHeaders } from "@/shared/utils/customHeaders.js";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, prefix, apiType, baseUrl, type } = body;
+    const { name, prefix, apiType, baseUrl, type, customHeaders } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -40,6 +41,12 @@ export async function POST(request) {
 
     if (!prefix?.trim()) {
       return NextResponse.json({ error: "Prefix is required" }, { status: 400 });
+    }
+
+    // Ide #8: custom headers per node (Advanced Option)
+    const sanitized = sanitizeCustomHeaders(customHeaders);
+    if (sanitized.error) {
+      return NextResponse.json({ error: sanitized.error }, { status: 400 });
     }
 
     // Determine type
@@ -57,6 +64,7 @@ export async function POST(request) {
         apiType,
         baseUrl: (baseUrl || OPENAI_COMPATIBLE_DEFAULTS.baseUrl).trim(),
         name: name.trim(),
+        customHeaders: sanitized.headers,
       });
       return NextResponse.json({ node }, { status: 201 });
     }
@@ -74,6 +82,7 @@ export async function POST(request) {
         prefix: prefix.trim(),
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
+        customHeaders: sanitized.headers,
       });
       return NextResponse.json({ node }, { status: 201 });
     }
@@ -92,6 +101,7 @@ export async function POST(request) {
         prefix: prefix.trim(),
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
+        customHeaders: sanitized.headers,
       });
       return NextResponse.json({ node }, { status: 201 });
     }

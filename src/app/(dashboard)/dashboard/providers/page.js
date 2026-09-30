@@ -106,6 +106,8 @@ export default function ProvidersPage() {
     useState(false);
   const [testingMode, setTestingMode] = useState(null);
   const [testResults, setTestResults] = useState(null);
+  const [checkingModels, setCheckingModels] = useState(false);
+  const [modelCheckResults, setModelCheckResults] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const notify = useNotificationStore();
   const searchQuery = useHeaderSearchStore((s) => s.query);
@@ -263,6 +265,31 @@ export default function ProvidersPage() {
     }
   };
 
+  const handleCheckAllModels = async () => {
+    if (checkingModels) return;
+    setCheckingModels(true);
+    setModelCheckResults(null);
+    try {
+      const res = await fetch("/api/providers/check-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "all" }),
+      });
+      const data = await res.json();
+      setModelCheckResults(data);
+      if (data.summary) {
+        const { ok, failed, skipped, total } = data.summary;
+        if (failed === 0) notify.success(`Checked ${total} providers: ${ok} OK${skipped ? `, ${skipped} skipped` : ""}`);
+        else notify.warning(`${ok}/${total} providers OK, ${failed} failed${skipped ? `, ${skipped} skipped` : ""}`);
+      }
+    } catch (error) {
+      setModelCheckResults({ error: "Model check request failed" });
+      notify.error("Model check failed");
+    } finally {
+      setCheckingModels(false);
+    }
+  };
+
   const compatibleProviders = providerNodes
     .filter((node) => node.type === "openai-compatible")
     .map((node) => ({
@@ -386,7 +413,25 @@ export default function ProvidersPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6 px-1 sm:px-0">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={handleCheckAllModels}
+          disabled={checkingModels}
+          className={`flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+            checkingModels
+              ? "bg-primary/20 border-primary/40 text-primary animate-pulse"
+              : "bg-bg border-border text-text-muted hover:text-text-main hover:border-primary/40"
+          }`}
+          title="Check available models for all providers"
+          aria-label="Check all models"
+        >
+          <span
+            className={`material-symbols-outlined text-[14px]${checkingModels ? " animate-spin" : ""}`}
+          >
+            {checkingModels ? "progress_activity" : "fact_check"}
+          </span>
+          {checkingModels ? "Checking..." : "Check All Models"}
+        </button>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -685,6 +730,33 @@ export default function ProvidersPage() {
             </div>
             <div className="p-5">
               <ProviderTestResultsView results={testResults} />
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Model Check Results Modal */}
+      {modelCheckResults && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center px-3 pt-[6vh] sm:pt-[10vh]"
+          onClick={() => setModelCheckResults(null)}
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative bg-surface border border-border rounded-xl w-full max-w-[640px] max-h-[86vh] sm:max-h-[80vh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-border bg-surface/95 backdrop-blur-sm rounded-t-xl">
+              <h3 className="font-semibold">Check All Models</h3>
+              <button
+                onClick={() => setModelCheckResults(null)}
+                className="p-1 rounded-lg hover:bg-bg text-text-muted hover:text-text-main transition-colors"
+                aria-label="Close model check results"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+            <div className="p-5">
+              <CheckModelsResultsView results={modelCheckResults} />
             </div>
           </div>
         </div>
@@ -1034,6 +1106,118 @@ ProviderTestResultsView.propTypes = {
       total: PropTypes.number,
       passed: PropTypes.number,
       failed: PropTypes.number,
+    }),
+    error: PropTypes.string,
+  }).isRequired,
+};
+
+function CheckModelsResultsView({ results }) {
+  if (results.error && !results.results) {
+    return (
+      <div className="text-center py-6">
+        <span className="material-symbols-outlined text-red-500 text-[32px] mb-2 block">
+          error
+        </span>
+        <p className="text-sm text-red-400">{results.error}</p>
+      </div>
+    );
+  }
+
+  const { summary } = results;
+  const items = results.results || [];
+
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      {summary && (
+        <div className="flex flex-wrap items-center gap-2 text-xs mb-1 sm:gap-3">
+          <span className="text-text-muted">Model check</span>
+          <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium">
+            {summary.ok} OK
+          </span>
+          {summary.failed > 0 && (
+            <span className="px-2 py-0.5 rounded bg-red-500/15 text-red-400 font-medium">
+              {summary.failed} failed
+            </span>
+          )}
+          {summary.skipped > 0 && (
+            <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium">
+              {summary.skipped} skipped
+            </span>
+          )}
+          <span className="text-text-muted sm:ml-auto">
+            {summary.total} providers
+          </span>
+        </div>
+      )}
+      {items.map((r, i) => (
+        <div
+          key={r.provider || i}
+          className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg bg-black/[0.03] px-3 py-2 text-xs dark:bg-white/[0.03] sm:flex-nowrap"
+        >
+          <span
+            className={`material-symbols-outlined text-[16px] ${
+              r.ok ? "text-emerald-500" : r.skipped ? "text-amber-500" : "text-red-500"
+            }`}
+          >
+            {r.ok ? "check_circle" : r.skipped ? "pause_circle" : "error"}
+          </span>
+          <div className="min-w-0 flex-[1_1_160px]">
+            <span className="block truncate font-medium sm:inline">
+              {r.name || r.provider}
+            </span>
+            <span className="block truncate text-text-muted sm:ml-1.5 sm:inline">
+              ({r.provider}
+              {r.source === "public" ? ", public" : ""}
+              {r.connectionName ? `, ${r.connectionName}` : ""})
+            </span>
+            {r.ok && r.models && r.models.length > 0 && (
+              <span className="block truncate text-text-muted" title={r.models.join(", ")}>
+                {r.models.slice(0, 5).join(", ")}
+                {r.models.length > 5 ? ` +${r.models.length - 5} more` : ""}
+              </span>
+            )}
+            {!r.ok && !r.skipped && r.error && (
+              <span className="block truncate text-red-400">{r.error}</span>
+            )}
+            {r.skipped && r.reason && (
+              <span className="block truncate text-amber-400/80">{r.reason}</span>
+            )}
+          </div>
+          {r.latencyMs !== undefined && (
+            <span className="shrink-0 text-text-muted font-mono tabular-nums">
+              {r.latencyMs}ms
+            </span>
+          )}
+          <span
+            className={`shrink-0 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+              r.ok
+                ? "bg-emerald-500/15 text-emerald-400"
+                : r.skipped
+                  ? "bg-amber-500/15 text-amber-400"
+                  : "bg-red-500/15 text-red-400"
+            }`}
+          >
+            {r.ok ? `${r.modelCount ?? 0} models` : r.skipped ? "skipped" : "error"}
+          </span>
+        </div>
+      ))}
+      {items.length === 0 && (
+        <div className="text-center py-4 text-text-muted text-sm">
+          No providers with a models endpoint found.
+        </div>
+      )}
+    </div>
+  );
+}
+
+CheckModelsResultsView.propTypes = {
+  results: PropTypes.shape({
+    results: PropTypes.array,
+    summary: PropTypes.shape({
+      total: PropTypes.number,
+      ok: PropTypes.number,
+      failed: PropTypes.number,
+      skipped: PropTypes.number,
     }),
     error: PropTypes.string,
   }).isRequired,

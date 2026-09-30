@@ -58,12 +58,22 @@ let writeBuffer = [];
 let flushTimer = null;
 let isFlushing = false;
 
-function sanitizeHeaders(headers) {
+function sanitizeHeaders(headers, extraSensitiveNames = []) {
   if (!headers || typeof headers !== "object") return {};
   const sensitiveKeys = ["authorization", "x-api-key", "cookie", "token", "api-key"];
+  const extraLower = new Set(
+    (Array.isArray(extraSensitiveNames) ? extraSensitiveNames : []).map((n) => String(n).toLowerCase())
+  );
   const sanitized = { ...headers };
   for (const key of Object.keys(sanitized)) {
-    if (sensitiveKeys.some((s) => key.toLowerCase().includes(s))) delete sanitized[key];
+    const lower = key.toLowerCase();
+    // Ide #8: value custom header tidak boleh muncul di log — redact, bukan hapus,
+    // agar jejak bahwa header terkirim tetap terlihat tanpa membocorkan secret.
+    if (extraLower.has(lower)) {
+      sanitized[key] = "[REDACTED]";
+    } else if (sensitiveKeys.some((s) => lower.includes(s))) {
+      delete sanitized[key];
+    }
   }
   return sanitized;
 }

@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Common issues and solutions when using 9Router.
+Common issues and solutions when using Akanesia-Gateway.
 
 ---
 
@@ -78,7 +78,7 @@ Common issues and solutions when using 9Router.
 **Solutions:**
 
 1. **Auto-refresh (default):**
-   9Router automatically refreshes tokens. Wait 30 seconds and retry.
+   Akanesia-Gateway automatically refreshes tokens. Wait 30 seconds and retry.
 
 2. **Manual reconnect:**
    ```
@@ -135,13 +135,13 @@ Common issues and solutions when using 9Router.
 **Problem:** "ECONNREFUSED" or "Cannot connect to localhost:20128".
 
 **Causes:**
-- 9Router not running
+- Akanesia-Gateway not running
 - Port 20128 blocked
 - Firewall blocking connection
 
 **Solutions:**
 
-1. **Start 9Router:**
+1. **Start Akanesia-Gateway:**
    ```bash
    9router
    ```
@@ -175,12 +175,12 @@ Common issues and solutions when using 9Router.
 
 **Causes:**
 - Port 3000 already in use
-- 9Router crashed
+- Akanesia-Gateway crashed
 - Browser cache issues
 
 **Solutions:**
 
-1. **Check if 9Router is running:**
+1. **Check if Akanesia-Gateway is running:**
    ```bash
    # Check process
    ps aux | grep 9router
@@ -199,7 +199,7 @@ Common issues and solutions when using 9Router.
    taskkill /PID <PID> /F
    ```
 
-3. **Restart 9Router:**
+3. **Restart Akanesia-Gateway:**
    ```bash
    # Stop
    pkill -f 9router
@@ -346,6 +346,6 @@ Common issues and solutions when using 9Router.
 
 ## Need More Help?
 
-- **GitHub Issues:** [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub Issues:** [github.com/ch0c01dxyz/akanesia-router/issues](https://github.com/ch0c01dxyz/akanesia-router/issues)
 - **Documentation:** [9router.com/docs](https://9router.com/docs)
 - **FAQ:** [faq.md](faq.md)

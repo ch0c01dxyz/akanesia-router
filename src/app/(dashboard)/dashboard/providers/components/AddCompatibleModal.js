@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { Badge, Button, Input, Modal, Select } from "@/shared/components";
+import CustomHeadersEditor from "./CustomHeadersEditor";
 
 const VARIANT_CONFIG = {
   openai: {
@@ -41,6 +42,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
     prefix: "",
     ...(config.hasApiType ? { apiType: "chat" } : {}),
     baseUrl: config.defaultBaseUrl,
+    customHeaders: [],
   });
 
   const [formData, setFormData] = useState(initialFormData);
@@ -74,6 +76,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           ...(config.hasApiType ? { apiType: formData.apiType } : {}),
           baseUrl: formData.baseUrl,
           type: config.type,
+          customHeaders: formData.customHeaders,
         }),
       });
       const data = await res.json();
@@ -101,6 +104,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           apiKey: checkKey,
           type: config.type,
           modelId: checkModelId.trim() || undefined,
+          customHeaders: formData.customHeaders,
         }),
       });
       const data = await res.json();
@@ -164,6 +168,10 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
           onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
           placeholder={config.defaultBaseUrl}
           hint={config.baseUrlHint}
+        />
+        <CustomHeadersEditor
+          value={formData.customHeaders}
+          onChange={(customHeaders) => setFormData({ ...formData, customHeaders })}
         />
         <Input
           label="API Key (for Check)"

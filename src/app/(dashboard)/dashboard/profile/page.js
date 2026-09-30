@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Card, Button, Toggle, Input } from "@/shared/components";
+import { Card, Button, Toggle, Input, Select } from "@/shared/components";
 import Modal, { ConfirmModal } from "@/shared/components/Modal";
 import LanguageSwitcher from "@/shared/components/LanguageSwitcher";
 import { useTheme } from "@/shared/hooks/useTheme";
@@ -1479,18 +1479,24 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Combo Round Robin */}
+            {/* Combo Strategy */}
             <div className="flex items-start sm:items-center justify-between gap-4 pt-4 border-t border-border/50">
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm sm:text-base">Combo Round Robin</p>
+                <p className="font-medium text-sm sm:text-base">Combo Strategy</p>
                 <p className="text-xs sm:text-sm text-text-muted">
-                  Cycle through providers in combos instead of always starting with first
+                  How combos pick which model serves each request
                 </p>
               </div>
-              <Toggle
-                checked={settings.comboStrategy === "round-robin"}
-                onChange={() => updateComboStrategy(settings.comboStrategy === "round-robin" ? "fallback" : "round-robin")}
+              <Select
+                value={settings.comboStrategy || "fallback"}
+                onChange={(e) => updateComboStrategy(e.target.value)}
                 disabled={loading}
+                options={[
+                  { value: "fallback", label: "Fallback — try in order" },
+                  { value: "round-robin", label: "Round Robin — rotate" },
+                  { value: "fill-first", label: "Fill First — exhaust in order" },
+                ]}
+                className="w-44 sm:w-56 shrink-0"
               />
             </div>
 
@@ -1521,7 +1527,9 @@ export default function ProfilePage() {
                 : "Currently using accounts in priority order (Fill First)."}
               {settings.comboStrategy === "round-robin"
                 ? ` Combos rotate after ${settings.comboStickyRoundRobinLimit || 1} call${(settings.comboStickyRoundRobinLimit || 1) === 1 ? "" : "s"} per model.`
-                : " Combos always start with their first model."}
+                : settings.comboStrategy === "fill-first"
+                  ? " Combos stick to the first working model until it fails, then move to the next."
+                  : " Combos always start with their first model."}
             </p>
           </div>
         </Card>

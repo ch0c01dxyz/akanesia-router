@@ -4,7 +4,7 @@ import { OAUTH_ENDPOINTS, GITHUB_COPILOT } from "../config/appConstants.js";
 import { HTTP_STATUS } from "../config/runtimeConfig.js";
 import { openaiToOpenAIResponsesRequest } from "../translator/request/openai-responses.js";
 import { openaiResponsesToOpenAIResponse } from "../translator/response/openai-responses.js";
-import { initState, translateRequest, translateResponse } from "../translator/index.js";
+import { initState, translateRequest, translateResponse, ensureTranslatorsFor } from "../translator/index.js";
 import { FORMATS } from "../translator/formats.js";
 import { parseSSELine, formatSSE } from "../utils/streamHelpers.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
@@ -14,8 +14,8 @@ import { ANTHROPIC_API_VERSION } from "../providers/shared.js";
 import crypto from "crypto";
 
 export class GithubExecutor extends BaseExecutor {
-  constructor() {
-    super("github", PROVIDERS.github);
+  constructor(provider = "github", config = null) {
+    super(provider, config || PROVIDERS[provider] || PROVIDERS.github);
     this.knownCodexModels = new Set();
   }
 
@@ -252,6 +252,10 @@ export class GithubExecutor extends BaseExecutor {
   async executeWithMessagesEndpoint({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
     const url = this.config.messagesUrl;
     const headers = this.buildHeaders(credentials, stream);
+
+    // Translator di-load on-demand — pastikan pasangan openai↔claude siap
+    // (request + response) sebelum translate sinkron dipakai di bawah.
+    await ensureTranslatorsFor(["openai:claude", "claude:openai"], "both");
 
     // Force stream:true upstream regardless of client preference, same as
     // executeWithResponsesEndpoint below — chatCore.js's non-streaming handler already

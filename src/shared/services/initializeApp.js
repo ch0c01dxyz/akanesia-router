@@ -118,6 +118,20 @@ async function runHeavyStartup() {
   import("@/sse/services/backgroundTokenRefresh.js")
     .then(({ startBackgroundTokenRefresh }) => startBackgroundTokenRefresh())
     .catch((e) => console.log("[BackgroundTokenRefresh] scheduler start failed:", e.message));
+
+  // Auto-sync Check Models berkala (ide #6): refresh daftar model provider
+  // yang di-ON-kan user tiap interval TTL. Modul idempotent via singleton
+  // globalThis — aman bila dipanggil ulang (mis. HMR/dev).
+  import("@/lib/checkModelsAutoSync.js")
+    .then(({ startAutoSync }) => startAutoSync())
+    .catch((e) => console.log("[AutoSync] scheduler start failed:", e.message));
+
+  // Warming koneksi fill-first (ide #2): 1 ping ringan tanpa auth ke origin
+  // provider aktif, setelah server listen. Non-blocking (tidak di-await),
+  // idempotent via singleton globalThis, gagal diam-diam.
+  import("@/lib/fillFirstWarmup.js")
+    .then(({ startFillFirstWarmup }) => startFillFirstWarmup())
+    .catch((e) => console.log("[FillFirstWarmup] start failed:", e.message));
 }
 
 function hasQuotaAutoPingEnabled(settings) {

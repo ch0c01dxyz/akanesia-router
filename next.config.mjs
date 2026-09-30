@@ -28,6 +28,13 @@ const nextConfig = {
   outputFileTracingExcludes: {
     "*": ["./gitbook/**/*"]
   },
+  // Ide #1 (lazy-load executor): adapter di-load via dynamic import + file URL
+  // pada runtime (escape hatch webpackIgnore/turbopackIgnore), sehingga tidak
+  // terdeteksi oleh static tracing. Sertakan eksplisit agar file-nya ikut
+  // terkopi ke .next/standalone.
+  outputFileTracingIncludes: {
+    "*": ["./open-sse/executors/**/*.js", "./open-sse/translator/**/*.js"]
+  },
   images: {
     unoptimized: true
   },

@@ -118,11 +118,31 @@ function normalizeString(value) {
 }
 
 /**
+ * Simpan entri DNS dengan eviksi LRU sederhana.
+ * Map menjaga urutan insert: entri yang baru dipakai/ditulis dipindah ke
+ * posisi paling baru, dan bila penuh, entri tertua dibuang. Ini menjaga
+ * DNS_CACHE tidak tumbuh tanpa batas pada server long-running.
+ */
+function simpanDnsCache(hostname, entry) {
+  DNS_CACHE.delete(hostname);
+  DNS_CACHE.set(hostname, entry);
+  while (DNS_CACHE.size > MEMORY_CONFIG.dnsCacheMaxSize) {
+    DNS_CACHE.delete(DNS_CACHE.keys().next().value);
+  }
+}
+
+/**
  * Resolve real IP using Google DNS (bypass system DNS)
  */
 async function resolveRealIP(hostname) {
   const cached = DNS_CACHE.get(hostname);
-  if (cached && Date.now() < cached.expiry) return cached.ip;
+  if (cached) {
+    if (Date.now() < cached.expiry) {
+      simpanDnsCache(hostname, cached); // refresh urutan LRU
+      return cached.ip;
+    }
+    DNS_CACHE.delete(hostname); // kedaluwarsa — resolve ulang
+  }
 
   try {
     const dns = await import("dns");
@@ -131,7 +151,7 @@ async function resolveRealIP(hostname) {
     resolver.setServers(GOOGLE_DNS_SERVERS);
     const resolve4 = promisify(resolver.resolve4.bind(resolver));
     const addresses = await resolve4(hostname);
-    DNS_CACHE.set(hostname, { ip: addresses[0], expiry: Date.now() + MEMORY_CONFIG.dnsCacheTtlMs });
+    simpanDnsCache(hostname, { ip: addresses[0], expiry: Date.now() + MEMORY_CONFIG.dnsCacheTtlMs });
     return addresses[0];
   } catch (error) {
     console.warn(`[ProxyFetch] DNS resolve failed for ${hostname}:`, error.message);
@@ -221,9 +241,16 @@ async function getDispatcher(proxyUrl) {
   if (!normalized) return null;
 
   if (!proxyDispatchers.has(normalized)) {
-    // Evict oldest entry if max size reached
+    // Evict oldest entry if max size reached — tutup dispatcher yang
+    // di-evict agar socket/timer undici dilepas (hindari kebocoran fd
+    // pada server long-running). Kegagalan close tidak boleh mengganggu request.
     if (proxyDispatchers.size >= MEMORY_CONFIG.proxyDispatchersMaxSize) {
-      proxyDispatchers.delete(proxyDispatchers.keys().next().value);
+      const oldestKey = proxyDispatchers.keys().next().value;
+      const oldest = proxyDispatchers.get(oldestKey);
+      proxyDispatchers.delete(oldestKey);
+      try {
+        await oldest?.close?.();
+      } catch { /* abaikan */ }
     }
     const { ProxyAgent } = await import("undici");
     proxyDispatchers.set(normalized, new ProxyAgent({ uri: normalized }));
@@ -232,10 +259,61 @@ async function getDispatcher(proxyUrl) {
   return proxyDispatchers.get(normalized);
 }
 
+// ─── MITM-bypass connection pooling ─────────────────────────────────────
+// Temuan #6: implementasi lama membuka socket + TLS handshake BARU per
+// request (mahal: DNS + TCP + TLS setiap kali). Sekarang satu undici Agent
+// di-cache dan dipakai ulang untuk semua origin bypass; logika DNS-bypass
+// dipindah ke fungsi `lookup` kustom sehingga koneksi tetap di-pool.
+//
+// Keamanan dipertahankan: SNI (servername) dan validasi sertifikat tetap
+// memakai hostname asli dari URL (perilaku default undici) — TIDAK ADA
+// rejectUnauthorized: false. `lookup` hanya mengganti IP tujuan koneksi.
+let bypassAgent = null;
+let bypassAgentGagal = false;
+
 /**
- * Create HTTPS request with manual socket connection (bypass DNS)
+ * Custom DNS lookup untuk bypass MITM: resolve via Google DNS (bukan DNS
+ * sistem), lalu kembalikan IP-nya ke socket. Dipakai sebagai
+ * `connect.lookup` pada undici Agent.
  */
-async function createBypassRequest(parsedUrl, realIP, options) {
+function bypassLookup(hostname, _options, callback) {
+  resolveRealIP(hostname).then(
+    (ip) => {
+      if (!ip) {
+        callback(new Error(`[ProxyFetch] DNS bypass gagal resolve ${hostname}`));
+        return;
+      }
+      // undici/Node memanggil lookup dengan options.all=true → callback
+      // harus menerima array [{ address, family }], bukan argumen tunggal.
+      if (_options && _options.all) callback(null, [{ address: ip, family: 4 }]);
+      else callback(null, ip, 4);
+    },
+    (err) => callback(err instanceof Error ? err : new Error(String(err)))
+  );
+}
+
+async function getBypassAgent() {
+  if (bypassAgent) return bypassAgent;
+  if (bypassAgentGagal) throw new Error("[ProxyFetch] bypass agent gagal dibuat sebelumnya");
+  try {
+    const { Agent } = await import("undici");
+    bypassAgent = new Agent({
+      // lookup kustom → koneksi ke IP hasil Google DNS, tapi TLS tetap
+      // memverifikasi sertifikat terhadap hostname asli (SNI otomatis).
+      connect: { lookup: bypassLookup },
+    });
+    return bypassAgent;
+  } catch (err) {
+    bypassAgentGagal = true;
+    throw err;
+  }
+}
+
+/**
+ * Implementasi lama (satu koneksi per request) — dipertahankan sebagai
+ * fallback bila pembuatan pool gagal, agar tidak ada regresi konektivitas.
+ */
+async function createBypassRequestLegacy(parsedUrl, realIP, options) {
   const httpsModule = await import("https");
   const netModule = await import("net");
   // CJS modules expose exports via .default in ESM dynamic import context
@@ -289,6 +367,50 @@ async function createBypassRequest(parsedUrl, realIP, options) {
 
     socket.on("error", reject);
   });
+}
+
+/**
+ * HTTPS request via pooled undici Agent dengan DNS-bypass (perilaku dan
+ * signature identik dengan implementasi lama dari sudut pandang pemanggil).
+ */
+async function createBypassRequest(parsedUrl, realIP, options) {
+  let agent;
+  try {
+    agent = await getBypassAgent();
+  } catch (err) {
+    console.warn(`[ProxyFetch] Bypass pool gagal dibuat, fallback ke koneksi langsung: ${err.message}`);
+    return createBypassRequestLegacy(parsedUrl, realIP, options);
+  }
+
+  // Hostname asli tetap di URL → SNI + validasi sertifikat tidak berubah.
+  const targetUrl = `${parsedUrl.protocol}//${parsedUrl.hostname}${parsedUrl.port ? `:${parsedUrl.port}` : ""}${parsedUrl.pathname}${parsedUrl.search}`;
+  const body = options.body == null
+    ? undefined
+    : (typeof options.body === "string" ? options.body : JSON.stringify(options.body));
+
+  const res = await originalFetch(targetUrl, {
+    method: options.method || "POST",
+    headers: {
+      ...options.headers,
+      Host: parsedUrl.hostname,
+    },
+    body,
+    signal: options.signal,
+    // redirect manual: samakan perilaku lama (https.request tidak follow redirect)
+    redirect: "manual",
+    dispatcher: agent,
+  });
+
+  // Bentuk respons dipertahankan identik dengan implementasi lama.
+  return {
+    ok: res.ok,
+    status: res.status,
+    statusText: res.statusText,
+    headers: new Map(res.headers.entries()),
+    body: res.body,
+    text: () => res.text(),
+    json: () => res.json(),
+  };
 }
 
 export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {

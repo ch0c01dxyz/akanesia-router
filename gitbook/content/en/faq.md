@@ -1,12 +1,12 @@
 # Frequently Asked Questions
 
-Common questions about 9Router.
+Common questions about Akanesia-Gateway.
 
 ---
 
-## What is 9Router?
+## What is Akanesia-Gateway?
 
-**9Router is an AI model router that maximizes your subscription value and minimizes costs.**
+**Akanesia-Gateway is an AI model router that maximizes your subscription value and minimizes costs.**
 
 It intelligently routes requests across multiple AI providers using a 3-tier fallback system:
 1. **Subscription tier** - Maximize Claude Code, Codex, Gemini quotas you already pay for
@@ -23,7 +23,7 @@ It intelligently routes requests across multiple AI providers using a 3-tier fal
 
 ## How does pricing work?
 
-**9Router uses a 3-tier pricing strategy:**
+**Akanesia-Gateway uses a 3-tier pricing strategy:**
 
 ### Tier 1: Subscription (Maximize First)
 - **Claude Code** (Pro/Max): $20-100/month - 5-hour + weekly quota
@@ -50,9 +50,9 @@ It intelligently routes requests across multiple AI providers using a 3-tier fal
 
 ---
 
-## Is 9Router free?
+## Is Akanesia-Gateway free?
 
-**Yes, 9Router itself is 100% free and open source.**
+**Yes, Akanesia-Gateway itself is 100% free and open source.**
 
 **Free tier providers available:**
 - **Gemini CLI** - 180K completions/month (FREE Google account)
@@ -96,7 +96,7 @@ See [providers documentation](providers/subscription.md) for details.
 
 ## Can I use multiple providers?
 
-**Yes! This is 9Router's core feature.**
+**Yes! This is Akanesia-Gateway's core feature.**
 
 **Combos allow you to chain multiple providers with automatic fallback:**
 
@@ -129,7 +129,7 @@ See [combos documentation](features/combos.md) for examples.
 
 ## How does quota tracking work?
 
-**9Router tracks quota in real-time for all providers:**
+**Akanesia-Gateway tracks quota in real-time for all providers:**
 
 **Features:**
 - **Token consumption** - Input/output tokens per request
@@ -154,13 +154,13 @@ See [quota tracking documentation](features/quota-tracking.md) for details.
 
 ---
 
-## Does 9Router work with Cursor?
+## Does Akanesia-Gateway work with Cursor?
 
 **Yes, but Cursor requires a cloud endpoint.**
 
 **Problem:** Cursor IDE doesn't support localhost endpoints.
 
-**Solution:** Use 9Router cloud deployment:
+**Solution:** Use Akanesia-Gateway cloud deployment:
 
 ```
 Cursor Settings → Models → Advanced:
@@ -172,7 +172,7 @@ Cursor Settings → Models → Advanced:
 **Alternative:** Self-host on VPS with public domain:
 ```bash
 # Deploy to VPS
-git clone https://github.com/decolua/9router.git
+git clone https://github.com/ch0c01dxyz/akanesia-router.git
 cd 9router/app
 npm install && npm run build
 npm start
@@ -192,9 +192,9 @@ See [Cursor integration guide](integration/cursor.md) for details.
 
 ---
 
-## Can I self-host 9Router?
+## Can I self-host Akanesia-Gateway?
 
-**Yes! 9Router supports multiple deployment options:**
+**Yes! Akanesia-Gateway supports multiple deployment options:**
 
 ### Localhost (Default)
 ```bash
@@ -206,7 +206,7 @@ npm install -g 9router
 
 ### VPS/Cloud
 ```bash
-git clone https://github.com/decolua/9router.git
+git clone https://github.com/ch0c01dxyz/akanesia-router.git
 cd 9router/app
 npm install && npm run build
 
@@ -245,11 +245,11 @@ See [deployment guide](getting-started/installation.md#deployment) for details.
 
 ## Is my data secure?
 
-**Yes, 9Router prioritizes security and privacy:**
+**Yes, Akanesia-Gateway prioritizes security and privacy:**
 
 **Local storage:**
 - All data stored locally in `~/.9router` (or custom `DATA_DIR`)
-- No data sent to 9Router servers
+- No data sent to Akanesia-Gateway servers
 - OAuth tokens encrypted with JWT
 
 **No telemetry:**
@@ -268,20 +268,20 @@ See [deployment guide](getting-started/installation.md#deployment) for details.
 - Enable HTTPS for cloud deployments
 - Rotate API keys regularly
 
-**What 9Router stores:**
+**What Akanesia-Gateway stores:**
 - Provider OAuth tokens (encrypted)
 - API keys (encrypted)
 - Usage statistics (local only)
 - Combo configurations
 
-**What 9Router does NOT store:**
+**What Akanesia-Gateway does NOT store:**
 - Your prompts or responses
 - Code you generate
 - Personal information
 
 ---
 
-## How do I update 9Router?
+## How do I update Akanesia-Gateway?
 
 **Update methods depend on installation type:**
 
@@ -316,7 +316,7 @@ docker run -d \
 ```
 
 **Breaking changes:**
-- Check [CHANGELOG.md](https://github.com/decolua/9router/blob/main/CHANGELOG.md)
+- Check [CHANGELOG.md](https://github.com/ch0c01dxyz/akanesia-router/blob/main/CHANGELOG.md)
 - Backup `~/.9router` before major updates
 - Review migration guides for major versions
 
@@ -329,11 +329,11 @@ docker run -d \
 ### Ways to contribute:
 
 1. **Report bugs:**
-   - [GitHub Issues](https://github.com/decolua/9router/issues)
+   - [GitHub Issues](https://github.com/ch0c01dxyz/akanesia-router/issues)
    - Include error logs, steps to reproduce
 
 2. **Request features:**
-   - [GitHub Discussions](https://github.com/decolua/9router/discussions)
+   - [GitHub Discussions](https://github.com/ch0c01dxyz/akanesia-router/discussions)
    - Describe use case and benefits
 
 3. **Submit code:**
@@ -375,13 +375,13 @@ docker run -d \
 - Update documentation
 - Keep commits atomic and descriptive
 
-See [CONTRIBUTING.md](https://github.com/decolua/9router/blob/main/CONTRIBUTING.md) for details.
+See [CONTRIBUTING.md](https://github.com/ch0c01dxyz/akanesia-router/blob/main/CONTRIBUTING.md) for details.
 
 ---
 
 ## Need More Help?
 
 - **Documentation:** [9router.com/docs](https://9router.com/docs)
-- **GitHub:** [github.com/decolua/9router](https://github.com/decolua/9router)
-- **Issues:** [github.com/decolua/9router/issues](https://github.com/decolua/9router/issues)
+- **GitHub:** [github.com/ch0c01dxyz/akanesia-router](https://github.com/ch0c01dxyz/akanesia-router)
+- **Issues:** [github.com/ch0c01dxyz/akanesia-router/issues](https://github.com/ch0c01dxyz/akanesia-router/issues)
 - **Troubleshooting:** [troubleshooting.md](troubleshooting.md)

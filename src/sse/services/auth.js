@@ -44,7 +44,8 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
 
     // Inject a virtual connection for no-auth free providers (with optional proxy pool from settings)
     if (FREE_PROVIDERS[providerId]?.noAuth) {
-      const settings = await getSettings();
+      // Settings diteruskan via options bila tersedia (dibaca sekali per request).
+      const settings = options?.settings || await getSettings();
       const override = (settings.providerStrategies || {})[providerId] || {};
       const strategy = override.rotateStrategy || "none";
       let pickedId = override.proxyPoolId || null;
@@ -133,7 +134,8 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
       return null;
     }
 
-    const settings = await getSettings();
+    // Settings diteruskan via options bila tersedia (dibaca sekali per request).
+    const settings = options?.settings || await getSettings();
     // Per-provider strategy overrides global setting
     const providerOverride = (settings.providerStrategies || {})[providerId] || {};
     const strategy = providerOverride.fallbackStrategy || settings.fallbackStrategy || "fill-first";
@@ -237,6 +239,10 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
  * @returns {{ shouldFallback: boolean, cooldownMs: number }}
  */
 export async function markAccountUnavailable(connectionId, status, errorText, provider = null, model = null, resetsAtMs = null) {
+  // Ide #4: catat insiden kuota (dashboard-only; tidak mengubah retry/fallback).
+  // Hook wajib di baris pertama — recordFailure no-op untuk koneksi noauth.
+  await recordFailure({ connectionId, model, provider, status, errorText });
+
   if (!connectionId || connectionId === "noauth") return { shouldFallback: false, cooldownMs: 0 };
   const connections = await getProviderConnections({ provider });
   const conn = connections.find(c => c.id === connectionId);
@@ -296,6 +302,10 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
  * @param {string|null} model - model that succeeded
  */
 export async function clearAccountError(connectionId, currentConnection, model = null) {
+  // Ide #4: sukses → reset counter & hapus entri dashboard pasangan ini.
+  // Hook wajib di baris pertama — recordSuccess no-op untuk koneksi noauth.
+  await recordSuccess(connectionId, model);
+
   if (!connectionId || connectionId === "noauth") return;
   const conn = currentConnection._connection || currentConnection;
   const now = Date.now();

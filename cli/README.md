@@ -1,22 +1,22 @@
-# 9Router - FREE AI Router & Token Saver
+# Akanesia-Gateway - FREE AI Router & Token Saver
 
 **Never stop coding. Save 20-40% tokens with RTK + auto-fallback to FREE & cheap AI models.**
 
 **Connect All AI Code Tools (Claude Code, Cursor, Antigravity, Copilot, Codex, Gemini, OpenCode, Cline, OpenClaw...) to 40+ AI Providers & 100+ Models.**
 
-[![npm](https://img.shields.io/npm/v/9router.svg)](https://www.npmjs.com/package/9router)
-[![Downloads](https://img.shields.io/npm/dm/9router.svg)](https://www.npmjs.com/package/9router)
-[![Docker Pulls](https://img.shields.io/docker/pulls/decolua/9router.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/decolua/9router)
-[![GHCR](https://img.shields.io/badge/GHCR-decolua%2F9router-blue?logo=github)](https://github.com/decolua/9router/pkgs/container/9router)
-[![License](https://img.shields.io/npm/l/9router.svg)](https://github.com/decolua/9router/blob/main/LICENSE)
+[![npm](https://img.shields.io/npm/v/akanesia-router.svg)](https://www.npmjs.com/package/akanesia-router)
+[![Downloads](https://img.shields.io/npm/dm/akanesia-router.svg)](https://www.npmjs.com/package/akanesia-router)
+[![Docker Pulls](https://img.shields.io/docker/pulls/ch0c01dxyz/akanesia-router.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/ch0c01dxyz/akanesia-router)
+[![GHCR](https://img.shields.io/badge/GHCR-decolua%2F9router-blue?logo=github)](https://github.com/ch0c01dxyz/akanesia-router/pkgs/container/9router)
+[![License](https://img.shields.io/npm/l/akanesia-router.svg)](https://github.com/ch0c01dxyz/akanesia-router/blob/main/LICENSE)
 
 <a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="decolua%2F9router | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
-[🌐 Website](https://9router.com) • [📖 Full Docs](https://github.com/decolua/9router)
+[🌐 Website](https://9router.com) • [📖 Full Docs](https://github.com/ch0c01dxyz/akanesia-router)
 
 ---
 
-## 🤔 Why 9Router?
+## 🤔 Why Akanesia-Gateway?
 
 **Stop wasting money, tokens and hitting limits:**
 
@@ -25,7 +25,7 @@
 - ❌ Tool outputs (git diff, grep, ls...) burn tokens fast
 - ❌ Expensive APIs ($20-50/month per provider)
 
-**9Router solves this:**
+**Akanesia-Gateway solves this:**
 
 - ✅ **RTK Token Saver** - Auto-compress tool_result, save 20-40% tokens
 - ✅ **Maximize subscriptions** - Track quota, use every bit before reset
@@ -44,7 +44,7 @@ npm install -g 9router
 9router
 
 # Or run directly with npx
-npx 9router
+npx akanesia-router
 ```
 
 **Option 2 — Docker (server/VPS):**
@@ -52,10 +52,10 @@ npx 9router
 ```bash
 docker run -d --name 9router -p 20128:20128 \
   -v "$HOME/.9router:/app/data" -e DATA_DIR=/app/data \
-  decolua/9router:latest
+  ch0c01dxyz/akanesia-router:latest
 ```
 
-Published images: [Docker Hub](https://hub.docker.com/r/decolua/9router) • [GHCR](https://github.com/decolua/9router/pkgs/container/9router) (multi-platform amd64/arm64).
+Published images: [Docker Hub](https://hub.docker.com/r/ch0c01dxyz/akanesia-router) • [GHCR](https://github.com/ch0c01dxyz/akanesia-router/pkgs/container/9router) (multi-platform amd64/arm64).
 
 🎉 Dashboard opens at `http://localhost:20128`
 
@@ -110,8 +110,8 @@ Any tool supporting OpenAI/Claude-compatible API works.
 
 Full docs, advanced setup, video tutorials & development guide:
 
-- **GitHub**: https://github.com/decolua/9router
-- **Full README**: https://github.com/decolua/9router/blob/master/README.md
+- **GitHub**: https://github.com/ch0c01dxyz/akanesia-router
+- **Full README**: https://github.com/ch0c01dxyz/akanesia-router/blob/master/README.md
 - **Website**: https://9router.com
 
 ---

@@ -64,8 +64,8 @@ describe("OpenCodeGoExecutor routing + sanitization", () => {
     })).toBe("https://opencode.ai/zen/go/v1/responses");
   });
 
-  it("is wired for opencode-go and routes muse-spark to /responses", () => {
-    expect(getExecutor("opencode-go")).toBeInstanceOf(OpenCodeGoExecutor);
+  it("is wired for opencode-go and routes muse-spark to /responses", async () => {
+    expect(await getExecutor("opencode-go")).toBeInstanceOf(OpenCodeGoExecutor);
     const ex = new OpenCodeGoExecutor();
     expect(ex.buildUrl(MODEL)).toBe("https://opencode.ai/zen/go/v1/responses");
     // Even a stale runtimeTransport must not drag muse-spark onto chat/messages

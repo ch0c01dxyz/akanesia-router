@@ -1,6 +1,6 @@
 # ☁️ Cloud Deployment
 
-Deploy 9Router on VPS or Docker for remote access and production use.
+Deploy Akanesia-Gateway on VPS or Docker for remote access and production use.
 
 ---
 
@@ -16,7 +16,7 @@ Deploy 9Router on VPS or Docker for remote access and production use.
 ### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/decolua/9router.git
+git clone https://github.com/ch0c01dxyz/akanesia-router.git
 cd 9router/app
 ```
 
@@ -74,7 +74,7 @@ PM2 keeps your application running and restarts it on crashes:
 # Install PM2 globally
 npm install -g pm2
 
-# Start 9Router with PM2
+# Start Akanesia-Gateway with PM2
 pm2 start npm --name 9router -- start
 
 # Save PM2 configuration
@@ -247,7 +247,7 @@ server {
     ssl_ciphers HIGH:!aNULL:!MD5;
     ssl_prefer_server_ciphers on;
 
-    # Proxy to 9Router
+    # Proxy to Akanesia-Gateway
     location / {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
@@ -333,7 +333,7 @@ sudo ufw allow 22/tcp
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 
-# If NOT using reverse proxy, allow 9Router ports
+# If NOT using reverse proxy, allow Akanesia-Gateway ports
 sudo ufw allow 3000/tcp
 sudo ufw allow 20128/tcp
 
@@ -363,7 +363,7 @@ ssh -L 3000:localhost:3000 user@your-server.com
 # Update system packages
 sudo apt update && sudo apt upgrade -y
 
-# Update 9Router
+# Update Akanesia-Gateway
 cd /path/to/9router/app
 git pull
 npm install
@@ -442,7 +442,7 @@ pm2 env 9router
 ### Nginx 502 Bad Gateway
 
 ```bash
-# Check if 9Router is running
+# Check if Akanesia-Gateway is running
 pm2 status
 
 # Check Nginx error logs

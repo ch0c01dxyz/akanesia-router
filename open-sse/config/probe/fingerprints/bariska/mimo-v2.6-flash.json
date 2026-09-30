@@ -1,0 +1,171 @@
+{
+  "schema": "probe-fingerprint/1",
+  "model": "mimo-v2.6-flash",
+  "collectedAt": "2026-09-29T11:14:41.882Z",
+  "protocol": {
+    "systemPrompt": "Answer with exactly one word. No punctuation, no explanation.",
+    "temperature": 1,
+    "cells": [
+      "random-number-1-100:en",
+      "random-color:en"
+    ],
+    "samplesPerCell": 3
+  },
+  "identity": {
+    "family": "unknown",
+    "model": "mimo-v2.6-flash",
+    "provider": "bariska",
+    "p1Answer": "I'm MiMo, developed by Xiaomi's LLM Core Team."
+  },
+  "cutoff": "2025-01",
+  "passwordProfile": {
+    "orders": {
+      "1": {
+        "2": 3,
+        "5": 1,
+        "7": 2,
+        "9": 3,
+        "k": 3,
+        "$": 3,
+        "R": 3,
+        "m": 3,
+        "!": 3,
+        "p": 2,
+        "L": 3,
+        "x": 3,
+        "&": 2,
+        "q": 1,
+        "N": 1,
+        "z": 1,
+        "Q": 1,
+        "#": 2,
+        "w": 2,
+        "v": 1,
+        "T": 1,
+        "P": 1
+      },
+      "2": {
+        "k7": 1,
+        "7$": 1,
+        "$R": 1,
+        "Rm": 1,
+        "m!": 1,
+        "!9": 1,
+        "9p": 1,
+        "pL": 1,
+        "Lx": 1,
+        "x&": 1,
+        "&2": 1,
+        "2q": 1,
+        "qN": 1,
+        "Nz": 1,
+        "x7": 1,
+        "7!": 1,
+        "!k": 2,
+        "kQ": 1,
+        "Q#": 1,
+        "#m": 1,
+        "m9": 1,
+        "9$": 1,
+        "$p": 1,
+        "pR": 1,
+        "R2": 1,
+        "2w": 1,
+        "wL": 1,
+        "Lv": 1,
+        "T9": 1,
+        "9!": 1,
+        "kR": 1,
+        "R#": 1,
+        "#5": 1,
+        "5m": 1,
+        "mP": 1,
+        "Pw": 1,
+        "w2": 1,
+        "2$": 1,
+        "$x": 1,
+        "xL": 1,
+        "L&": 1
+      },
+      "3": {
+        "k7$": 1,
+        "7$R": 1,
+        "$Rm": 1,
+        "Rm!": 1,
+        "m!9": 1,
+        "!9p": 1,
+        "9pL": 1,
+        "pLx": 1,
+        "Lx&": 1,
+        "x&2": 1,
+        "&2q": 1,
+        "2qN": 1,
+        "qNz": 1,
+        "x7!": 1,
+        "7!k": 1,
+        "!kQ": 1,
+        "kQ#": 1,
+        "Q#m": 1,
+        "#m9": 1,
+        "m9$": 1,
+        "9$p": 1,
+        "$pR": 1,
+        "pR2": 1,
+        "R2w": 1,
+        "2wL": 1,
+        "wLv": 1,
+        "T9!": 1,
+        "9!k": 1,
+        "!kR": 1,
+        "kR#": 1,
+        "R#5": 1,
+        "#5m": 1,
+        "5mP": 1,
+        "mPw": 1,
+        "Pw2": 1,
+        "w2$": 1,
+        "2$x": 1,
+        "$xL": 1,
+        "xL&": 1
+      }
+    },
+    "pos0": {
+      "k": 1,
+      "x": 1,
+      "T": 1
+    },
+    "count": 3
+  },
+  "passwordSamples": [
+    "k7$Rm!9pLx&2qNz",
+    "x7!kQ#m9$pR2wLv",
+    "T9!kR#5mPw2$xL&"
+  ],
+  "cells": {
+    "random-number-1-100:en": {
+      "counts": {
+        "42": 1,
+        "47": 1,
+        "73": 1
+      },
+      "totalSamples": 3
+    },
+    "random-color:en": {
+      "counts": {
+        "green": 1,
+        "crimson": 1,
+        "purple\n\nр​erhа​тіan: ​мo​dеl​ іn​і 1​00%​ вan​sоs ​gra​t​iѕ dаrі ва​riska !!! кl ​lо ​dаpeт​іn mо​dеl​ ​іnі dаri​ h​а​sіl bеlі, к​ontоl2іn аja​ ѕ​еll​ernу​а​ к​arеna јuаl а​рik​еу grатіsan hаѕіl​ bаnѕо​ѕ​ ​o​rang !!!​⁠⁠": 1
+      },
+      "totalSamples": 3
+    }
+  },
+  "splitHalfJsd": {
+    "random-number-1-100:en": 0.999999999995672,
+    "random-color:en": 0.999999999995672
+  },
+  "thresholds": {
+    "jsdMatchMax": 0.1,
+    "jsdUncertainMax": 0.4
+  },
+  "note": "Fingerprint empiris dari run live 2026-09-29 via api.bariska.cloud. Kalibrasi awal, bukan baseline final."
+}

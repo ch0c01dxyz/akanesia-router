@@ -86,8 +86,8 @@ describe("OpenCode Free Session ID Format", () => {
 });
 
 describe("OpenCode Free Executor Session Resolution", () => {
-  it("uses request-local session credentials without mutating source credentials", () => {
-    const executor = getExecutor("opencode");
+  it("uses request-local session credentials without mutating source credentials", async () => {
+    const executor = await getExecutor("opencode");
     const { credentials, prepared } = prepare(executor);
 
     expect(executor.constructor.name).toBe("OpenCodeExecutor");
@@ -97,8 +97,8 @@ describe("OpenCode Free Executor Session Resolution", () => {
     expect(executor).not.toHaveProperty("_currentSessionId");
   });
 
-  it("preserves valid native x-opencode-session header case-insensitively", () => {
-    const executor = getExecutor("opencode");
+  it("preserves valid native x-opencode-session header case-insensitively", async () => {
+    const executor = await getExecutor("opencode");
     const valid = "ses_f534dfae8ffeCy4Ee4tLWNygDc";
     const { prepared } = prepare(executor, {
       credentials: makeCredentials({ rawHeaders: { "X-OpenCode-Session": ` ${valid} ` } }),
@@ -107,8 +107,8 @@ describe("OpenCode Free Executor Session Resolution", () => {
     expect(prepared._opencodeSession).toBe(valid);
   });
 
-  it("translates invalid native x-opencode-session header into a valid session", () => {
-    const executor = getExecutor("opencode");
+  it("translates invalid native x-opencode-session header into a valid session", async () => {
+    const executor = await getExecutor("opencode");
     const { prepared } = prepare(executor, {
       credentials: makeCredentials({ rawHeaders: { "x-opencode-session": "invalid-session-uuid" } }),
     });
@@ -117,8 +117,8 @@ describe("OpenCode Free Executor Session Resolution", () => {
     expect(prepared._opencodeSession).not.toBe("invalid-session-uuid");
   });
 
-  it("translates conversation session deterministically", () => {
-    const executor = getExecutor("opencode");
+  it("translates conversation session deterministically", async () => {
+    const executor = await getExecutor("opencode");
     const first = prepare(executor, { providerSessionId: "conversation-a", clientTool: "claude" }).prepared._opencodeSession;
     const second = prepare(executor, { providerSessionId: "conversation-a", clientTool: "claude" }).prepared._opencodeSession;
 
@@ -126,8 +126,8 @@ describe("OpenCode Free Executor Session Resolution", () => {
     expect(first).toMatch(OPENCODE_SESSION_RE);
   });
 
-  it("isolates different conversations and tools", () => {
-    const executor = getExecutor("opencode");
+  it("isolates different conversations and tools", async () => {
+    const executor = await getExecutor("opencode");
     const convA = prepare(executor, { providerSessionId: "conversation-a" }).prepared._opencodeSession;
     const convB = prepare(executor, { providerSessionId: "conversation-b" }).prepared._opencodeSession;
     const toolClaude = prepare(executor, { providerSessionId: "same", clientTool: "claude" }).prepared._opencodeSession;
@@ -138,7 +138,7 @@ describe("OpenCode Free Executor Session Resolution", () => {
   });
 
   it("adds the valid session header to fetch requests", async () => {
-    const executor = getExecutor("opencode");
+    const executor = await getExecutor("opencode");
     const credentials = makeCredentials();
     const result = await executor.execute({
       model: "muse-spark-1.3-contributor-free",
@@ -156,23 +156,23 @@ describe("OpenCode Free Executor Session Resolution", () => {
     expect(credentials).not.toHaveProperty("_opencodeSession");
   });
 
-  it("falls back to a valid generated session in buildHeaders when called standalone", () => {
-    const executor = getExecutor("opencode");
+  it("falls back to a valid generated session in buildHeaders when called standalone", async () => {
+    const executor = await getExecutor("opencode");
     const headers = executor.buildHeaders({});
 
     expect(headers["x-opencode-session"]).toMatch(OPENCODE_SESSION_RE);
     expect(headers["Authorization"]).toBe("Bearer public");
   });
-  it("handles null or undefined body gracefully in transformRequest", () => {
-    const executor = getExecutor("opencode");
+  it("handles null or undefined body gracefully in transformRequest", async () => {
+    const executor = await getExecutor("opencode");
     expect(() => executor.transformRequest("muse-spark-1.3-contributor-free", null, false, {})).not.toThrow();
     expect(() => executor.transformRequest("big-pickle", undefined, false, {})).not.toThrow();
   });
 });
 
 describe("OpenCode Free User-Agent Validation", () => {
-  it("defaults User-Agent to opencode/1.18.31 for non-opencode downstream clients", () => {
-    const executor = getExecutor("opencode");
+  it("defaults User-Agent to opencode/1.18.31 for non-opencode downstream clients", async () => {
+    const executor = await getExecutor("opencode");
     const headersNoUa = executor.buildHeaders({});
     expect(headersNoUa["User-Agent"]).toBe("opencode/1.18.31");
 
@@ -180,20 +180,20 @@ describe("OpenCode Free User-Agent Validation", () => {
     expect(headersClaude["User-Agent"]).toBe("opencode/1.18.31");
   });
 
-  it("replaces bare opencode with versioned opencode/1.18.31 to prevent 403 FreeTierError", () => {
-    const executor = getExecutor("opencode");
+  it("replaces bare opencode with versioned opencode/1.18.31 to prevent 403 FreeTierError", async () => {
+    const executor = await getExecutor("opencode");
     const headers = executor.buildHeaders({ rawHeaders: { "user-agent": "opencode" } });
     expect(headers["User-Agent"]).toBe("opencode/1.18.31");
   });
 
-  it("upgrades outdated opencode versions (< 1.17) to prevent 426 Upgrade Required", () => {
-    const executor = getExecutor("opencode");
+  it("upgrades outdated opencode versions (< 1.17) to prevent 426 Upgrade Required", async () => {
+    const executor = await getExecutor("opencode");
     const headers = executor.buildHeaders({ rawHeaders: { "user-agent": "opencode/1.15.0" } });
     expect(headers["User-Agent"]).toBe("opencode/1.18.31");
   });
 
-  it("preserves valid opencode versions (>= 1.17)", () => {
-    const executor = getExecutor("opencode");
+  it("preserves valid opencode versions (>= 1.17)", async () => {
+    const executor = await getExecutor("opencode");
     const headers118 = executor.buildHeaders({
       rawHeaders: { "user-agent": "opencode/1.18.31 ai-sdk/provider-utils/4.0.40 runtime/bun/1.3.14" },
     });
@@ -209,8 +209,8 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     return makeCredentials({ connectionId: undefined, rawHeaders: { authorization: `Bearer ${auth}` } });
   }
 
-  it("reuses one stable upstream session instead of minting a new one per request", () => {
-    const executor = getExecutor("opencode");
+  it("reuses one stable upstream session instead of minting a new one per request", async () => {
+    const executor = await getExecutor("opencode");
     const body = { messages: [{ role: "user", content: "hello" }] };
     const first = executor.prepareRequestCredentials({
       body,
@@ -229,8 +229,8 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     expect(second._opencodeSession).toBe(first._opencodeSession);
   });
 
-  it("isolates stable sessions by downstream identity", () => {
-    const executor = getExecutor("opencode");
+  it("isolates stable sessions by downstream identity", async () => {
+    const executor = await getExecutor("opencode");
     const body = { messages: [{ role: "user", content: "hello" }] };
     const forKey = (auth) => executor.prepareRequestCredentials({
       body,
@@ -260,8 +260,8 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     ).not.toBe(first);
   });
 
-  it("preserves a valid downstream x-opencode-request header", () => {
-    const executor = getExecutor("opencode");
+  it("preserves a valid downstream x-opencode-request header", async () => {
+    const executor = await getExecutor("opencode");
     const validReq = "msg_0ae8d9cd3001swxaFbM248jcIF";
     const { prepared } = prepare(executor, {
       credentials: makeCredentials({ rawHeaders: { "x-opencode-request": validReq } }),
@@ -269,16 +269,16 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     expect(prepared._opencodeRequest).toBe(validReq);
   });
 
-  it("keeps the standalone buildHeaders session stable across calls", () => {
-    const executor = getExecutor("opencode");
+  it("keeps the standalone buildHeaders session stable across calls", async () => {
+    const executor = await getExecutor("opencode");
     const first = executor.buildHeaders({})["x-opencode-session"];
     const second = executor.buildHeaders({})["x-opencode-session"];
     expect(first).toMatch(OPENCODE_SESSION_RE);
     expect(second).toBe(first);
   });
 
-  it("applies the full lowercase free-tier fingerprint quartet", () => {
-  const executor = getExecutor("opencode");
+  it("applies the full lowercase free-tier fingerprint quartet", async () => {
+  const executor = await getExecutor("opencode");
 
   const chatNoTools = executor.transformRequest("nemotron-3-ultra-free", {
     messages: [{ role: "user", content: "hi" }],
@@ -317,8 +317,8 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
   expect(chatPartial.tools[0].function.description).toBe("existing");
 });
 
-  it("cloaks Muse Responses requests even when the client already supplies tools", () => {
-    const executor = getExecutor("opencode");
+  it("cloaks Muse Responses requests even when the client already supplies tools", async () => {
+    const executor = await getExecutor("opencode");
     const transformed = executor.transformRequest("muse-spark-1.3-contributor-free(xhigh)", {
       input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] }],
       tools: [{

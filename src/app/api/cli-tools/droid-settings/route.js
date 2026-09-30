@@ -79,7 +79,7 @@ export async function GET() {
   }
 }
 
-// POST - Update 9Router customModels (merge with existing settings)
+// POST - Update Akanesia-Gateway customModels (merge with existing settings)
 // Accepts either `model` (string, legacy single-model) or `models` (array of strings, multi-model)
 // Also accepts `activeModel` to set which model is active/primary
 export async function POST(request) {

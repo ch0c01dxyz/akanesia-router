@@ -7,6 +7,14 @@ import ProviderIcon from "./ProviderIcon";
 import CapacityBadges from "./CapacityBadges";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { getModelsByProviderId, getModelKind } from "@/shared/constants/models";
+import { capabilitiesFromServiceKind } from "open-sse/providers/capabilities.js";
+
+// Capability groups for pickers: the Audio adapter section ("audioInput" key)
+// covers the whole audio category — audio input (STT, multimodal) and audio
+// output (TTS). Runtime routing still verifies real per-request capabilities
+// (modelSatisfies), so a TTS-only pool entry is never picked for audio input.
+const CAP_FILTER_GROUPS = { audioInput: ["audioInput", "audioOutput"] };
+const capFilterKeys = (capFilter) => CAP_FILTER_GROUPS[capFilter] || [capFilter];
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS, FREE_PROVIDERS, FREE_TIER_PROVIDERS, AI_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, getProviderAlias } from "@/shared/constants/providers";
 
 // Provider order: OAuth first, then Free Tier, then API Key (matches dashboard/providers)
@@ -36,6 +44,7 @@ function useLiveProviderModels(isOpen, connectionIds, label) {
   useEffect(() => {
     const ids = idsKey ? idsKey.split("|") : [];
     if (!isOpen || ids.length === 0) {
+// eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: reset saat modal ditutup/tanpa koneksi; jangan di-refactor
       setModels([]);
       return undefined;
     }
@@ -67,6 +76,13 @@ function useLiveProviderModels(isOpen, connectionIds, label) {
 
   return models;
 }
+
+// Sort models alphabetically, with added models floated to top
+const sortModels = (models, addedModelValues = []) => {
+  const added = models.filter(m => addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
+  const rest = models.filter(m => !addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
+  return [...added, ...rest];
+};
 
 export default function ModelSelectModal({
   isOpen,
@@ -130,6 +146,7 @@ export default function ModelSelectModal({
   };
 
   useEffect(() => {
+// eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: fetch ulang setiap modal dibuka; jangan di-refactor
     if (isOpen) fetchCombos();
   }, [isOpen]);
 
@@ -146,6 +163,7 @@ export default function ModelSelectModal({
   };
 
   useEffect(() => {
+// eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: fetch ulang setiap modal dibuka; jangan di-refactor
     if (isOpen) fetchProviderNodes();
   }, [isOpen]);
 
@@ -162,6 +180,7 @@ export default function ModelSelectModal({
   };
 
   useEffect(() => {
+// eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: fetch ulang setiap modal dibuka; jangan di-refactor
     if (isOpen) fetchCustomModels();
   }, [isOpen]);
 
@@ -178,6 +197,7 @@ export default function ModelSelectModal({
   };
 
   useEffect(() => {
+// eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: fetch ulang setiap modal dibuka; jangan di-refactor
     if (isOpen) fetchDisabledModels();
   }, [isOpen]);
 
@@ -276,8 +296,16 @@ export default function ModelSelectModal({
             if (supports) combined = [{ id: providerId, name: providerInfo.name, value: alias }];
           }
         } else {
-          // LLM/null kind: merge hardcoded models (e.g. mimo-free → mimo-auto) with user-added models
-          const registeredLlms = customRegisteredModels.filter((m) => !getModelKind(m) || getModelKind(m) === "llm");
+          // LLM/null kind: merge hardcoded models (e.g. mimo-free → mimo-auto) with user-added models.
+          // Capacity-adapter pickers (capFilter set, no kindFilter) also accept custom
+          // models whose service kind implies the needed capability (e.g. stt/tts → audio).
+          const registeredLlms = customRegisteredModels.filter((m) => {
+            const kind = getModelKind(m);
+            if (!kind || kind === "llm") return true;
+            if (!capFilter || kindFilter) return false;
+            const kindCaps = capabilitiesFromServiceKind(kind) || {};
+            return capFilterKeys(capFilter).some((k) => kindCaps[k] === true);
+          });
           const seen = new Set([...aliasModels, ...registeredLlms].map((m) => m.value));
           const hardcoded = getModelsByProviderId(providerId)
             .filter((m) => !getModelKind(m) || getModelKind(m) === "llm")
@@ -325,6 +353,7 @@ export default function ModelSelectModal({
             id: m.id,
             name: m.name || m.id,
             value: `${nodePrefix}/${m.id}`,
+            kind: getModelKind(m),
             isCustom: true,
           }));
         const seen = new Set(nodeModels.map((m) => m.value));
@@ -372,7 +401,7 @@ export default function ModelSelectModal({
         const customAliasIds = new Set(customAliasModels.map((m) => m.id));
         const customRegisteredModels = customModels
           .filter((m) => m.providerAlias === alias && !hardcodedIds.has(m.id) && !customAliasIds.has(m.id))
-          .map((m) => ({ id: m.id, name: m.name || m.id, value: `${alias}/${m.id}`, isCustom: true }));
+          .map((m) => ({ id: m.id, name: m.name || m.id, value: `${alias}/${m.id}`, kind: getModelKind(m), isCustom: true }));
 
         const merged = [
           ...hardcodedModels.map((m) => ({ id: m.id, name: m.name, value: `${alias}/${m.id}`, kind: getModelKind(m) })),
@@ -420,7 +449,7 @@ export default function ModelSelectModal({
     });
 
     return groups;
-  }, [filteredActiveProviders, modelAliases, allProviders, providerNodes, customModels, disabledModels, kindFilter, activeProviders, cursorModels, clineModels, clinepassModels]);
+  }, [filteredActiveProviders, modelAliases, allProviders, providerNodes, customModels, disabledModels, kindFilter, capFilter, activeProviders, cursorModels, clineModels, clinepassModels]);
 
   // Filter combos by search query (and hide combos when kindFilter is set — combos are LLM-only by design)
   const filteredCombos = useMemo(() => {
@@ -428,14 +457,7 @@ export default function ModelSelectModal({
     if (!searchQuery.trim()) return combos;
     const query = searchQuery.toLowerCase();
     return combos.filter(c => c.name.toLowerCase().includes(query));
-  }, [combos, searchQuery, kindFilter]);
-
-  // Sort models alphabetically, with added models floated to top
-  const sortModels = (models) => {
-    const added = models.filter(m => addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
-    const rest = models.filter(m => !addedModelValues.includes(m.value)).sort((a, b) => a.name.localeCompare(b.name));
-    return [...added, ...rest];
-  };
+  }, [combos, searchQuery, kindFilter, capFilter]);
 
   // Filter models by search query
   const filteredGroups = useMemo(() => {
@@ -445,8 +467,16 @@ export default function ModelSelectModal({
     Object.entries(groupedModels).forEach(([providerId, group]) => {
       let models = group.models;
       // Filter by input-modality capability (vision/pdf/audioInput/videoInput).
+      // Fall back to the model's service kind: custom typed models (e.g. stt/tts)
+      // imply their capability even when name-based caps can't tell.
+      // The audio section covers the whole audio category (input + output).
       if (capFilter) {
-        models = models.filter((m) => getCaps(m.value)?.[capFilter] === true);
+        const keys = capFilterKeys(capFilter);
+        models = models.filter((m) => {
+          const caps = getCaps(m.value) || {};
+          const kindCaps = capabilitiesFromServiceKind(getModelKind(m)) || {};
+          return keys.some((k) => caps[k] === true || kindCaps[k] === true);
+        });
         if (models.length === 0) return;
       }
       if (query) {
@@ -460,12 +490,12 @@ export default function ModelSelectModal({
       }
       filtered[providerId] = {
         ...group,
-        models: sortModels(models),
+        models: sortModels(models, addedModelValues),
       };
     });
 
     return filtered;
-  }, [groupedModels, searchQuery, addedModelValues]);
+  }, [groupedModels, searchQuery, addedModelValues, capFilter, getCaps]);
 
   const handleSelect = (model) => {
     const value = model?.value || model?.name || model;

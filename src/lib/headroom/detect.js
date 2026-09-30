@@ -1,4 +1,5 @@
 import { execFileSync, execSync } from "child_process";
+import fs from "fs";
 import path from "path";
 
 // Extras that improve headroom compression quality. `proxy` is the base;
@@ -19,9 +20,24 @@ const HEADROOM_PIP_TIMEOUT_MS = 8000;
 const IS_WIN = process.platform === "win32";
 const WHICH_CMD = IS_WIN ? "where" : "which";
 
+// uv binary/shim locations. `uv tool install` puts the `headroom` shim in
+// `%USERPROFILE%\.local\bin` (Windows) or `~/.local/bin` — these are often
+// missing from a service/packaged PATH, so probe them explicitly.
+const UV_BIN_DIR = IS_WIN
+  ? path.join(process.env.USERPROFILE || "", ".local", "bin")
+  : path.join(process.env.HOME || "", ".local", "bin");
+
+function uvToolsDir() {
+  if (process.env.UV_TOOL_DIR) return process.env.UV_TOOL_DIR;
+  return IS_WIN
+    ? path.join(process.env.APPDATA || "", "uv", "tools")
+    : path.join(process.env.HOME || "", ".local", "share", "uv", "tools");
+}
+
 // Extra bin dirs often missing from a packaged/launchd PATH (Python installs headroom here).
 const EXTRA_BINS = IS_WIN
   ? [
+      UV_BIN_DIR,
       `${process.env.LOCALAPPDATA || ""}\\Programs\\Python\\Python313\\Scripts`,
       `${process.env.LOCALAPPDATA || ""}\\Programs\\Python\\Python312\\Scripts`,
       `${process.env.LOCALAPPDATA || ""}\\Programs\\Python\\Python311\\Scripts`,
@@ -29,6 +45,7 @@ const EXTRA_BINS = IS_WIN
       `${process.env.APPDATA || ""}\\Python\\Python313\\Scripts`,
     ]
   : [
+      UV_BIN_DIR,
       "/usr/local/bin",
       "/opt/homebrew/bin",
       "/Library/Frameworks/Python.framework/Versions/3.13/bin",
@@ -61,6 +78,54 @@ export function findHeadroomBinary() {
   } catch {
     return null;
   }
+}
+
+// Find the `uv` binary (used for uv-managed headroom installs).
+export function findUvBinary() {
+  try {
+    const out = execSync(`${WHICH_CMD} uv`, {
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+      env: { ...process.env, PATH: EXTENDED_PATH },
+    }).toString().trim();
+    return out ? out.split(/\r?\n/)[0].trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+// Python inside uv's isolated tool venv for headroom-ai
+// (`uv tool install "headroom-ai[all]"`). Returns null when not present.
+export function findUvToolPython() {
+  const venvPy = IS_WIN
+    ? path.join(uvToolsDir(), "headroom-ai", "Scripts", "python.exe")
+    : path.join(uvToolsDir(), "headroom-ai", "bin", "python");
+  try {
+    if (fs.existsSync(venvPy)) return venvPy;
+  } catch { /* ignore */ }
+  return null;
+}
+
+// How headroom-ai was installed: "uv" (uv tool venv), "pip" (visible to a
+// system python via pip), or null (not installed).
+export function getHeadroomInstallKind() {
+  if (findUvToolPython()) return "uv";
+  const py = findPython310();
+  if (py) {
+    try {
+      execFileSync(py, ["-m", "pip", "show", "headroom-ai"], {
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+        timeout: HEADROOM_PIP_TIMEOUT_MS,
+        env: { ...process.env, PATH: EXTENDED_PATH },
+      });
+      return "pip";
+    } catch { /* not visible to this python */ }
+  }
+  // Binary exists but package not visible to any probed python (e.g. pipx,
+  // conda env not on PATH) — treat as pip-style for marker probing fallback.
+  if (findHeadroomBinary()) return "pip";
+  return null;
 }
 
 // Find a Python interpreter >= 3.10 (headroom-ai requires it). Returns null if none.
@@ -145,19 +210,21 @@ export function isLoopbackHeadroomUrl(url) {
 export async function getHeadroomStatus(url) {
   const path = findHeadroomBinary();
   const python = findPython310();
-  const installed = Boolean(path);
+  const uvPy = findUvToolPython();
+  const installed = Boolean(path) || Boolean(uvPy);
   const running = await probeProxyRunning(url);
   const localUrl = isLoopbackHeadroomUrl(url);
-  const extrasStatus = installed ? getInstalledHeadroomExtras(python) : { installed: false, version: null, extras: { code: false, ml: false } };
+  const extrasStatus = installed ? getInstalledHeadroomExtras(python) : { installed: false, version: null, extras: { code: false, ml: false }, via: null };
   return {
     installed,
     path,
     running,
-    python,
+    python: uvPy || python,
     localUrl,
     canStart: installed && localUrl,
     version: extrasStatus.version,
     extras: extrasStatus.extras,
+    via: extrasStatus.via || null,
   };
 }
 
@@ -165,10 +232,29 @@ export async function getHeadroomStatus(url) {
 // actually installed (detected via marker package presence). One `pip list`
 // call is enough to answer both questions.
 //
-// Returns: { installed: bool, version: string|null, extras: { code, ml } }
+// For `uv tool install` setups the package lives in uv's isolated tool venv,
+// invisible to system pythons — so probe the uv venv python first.
+//
+// Returns: { installed: bool, version: string|null, extras: { code, ml }, via: "uv"|"pip"|null }
 export function getInstalledHeadroomExtras(python) {
+  // 1) uv-managed install: probe the isolated tool venv directly.
+  const uvPy = findUvToolPython();
+  if (uvPy) {
+    const st = probeExtrasViaPython(uvPy);
+    if (st.installed) return { ...st, via: "uv" };
+  }
+  // 2) pip-managed install: probe the given/found system python.
   const py = python || findPython310();
-  if (!py) return { installed: false, version: null, extras: { code: false, ml: false } };
+  if (!py) return { installed: false, version: null, extras: { code: false, ml: false }, via: null };
+  const pipStatus = probeExtrasViaPython(py);
+  return { ...pipStatus, via: pipStatus.installed ? "pip" : null };
+}
+
+function emptyExtrasStatus() {
+  return { installed: false, version: null, extras: { code: false, ml: false } };
+}
+
+function probeExtrasViaPython(py) {
   try {
     const out = execFileSync(py, ["-m", "pip", "list", "--format=json", "--disable-pip-version-check"], {
       stdio: ["ignore", "pipe", "ignore"],
@@ -179,7 +265,7 @@ export function getInstalledHeadroomExtras(python) {
     const packages = JSON.parse(out);
     const names = new Set(packages.map((p) => String(p.name || "").toLowerCase()));
     const installed = names.has("headroom-ai");
-    if (!installed) return { installed: false, version: null, extras: { code: false, ml: false } };
+    if (!installed) return emptyExtrasStatus();
     const version = packages.find((p) => p.name?.toLowerCase() === "headroom-ai")?.version || null;
     const extras = {};
     for (const extra of HEADROOM_COMPRESSION_EXTRAS) {
@@ -187,6 +273,31 @@ export function getInstalledHeadroomExtras(python) {
     }
     return { installed: true, version, extras };
   } catch {
-    return { installed: false, version: null, extras: { code: false, ml: false } };
+    // pip may be missing in the venv — fall back to import probing.
+    return probeExtrasViaImport(py);
   }
+}
+
+// Fallback when `pip` is unavailable: check marker packages via import.
+function probeExtrasViaImport(py) {
+  const check = (mod) => {
+    try {
+      execFileSync(py, ["-c", `import ${mod}`], {
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+        timeout: HEADROOM_PIP_TIMEOUT_MS,
+        env: { ...process.env, PATH: EXTENDED_PATH },
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const installed = check("headroom_ai") || check("headroom");
+  if (!installed) return emptyExtrasStatus();
+  const extras = {};
+  for (const extra of HEADROOM_COMPRESSION_EXTRAS) {
+    extras[extra] = EXTRA_MARKERS[extra].some((m) => check(m.replace(/-/g, "_")));
+  }
+  return { installed: true, version: null, extras };
 }

@@ -1,12 +1,12 @@
 # 🏠 ローカルホストデプロイメント
 
-開発と個人利用のため、ローカルマシンで9Routerを実行。
+開発と個人利用のため、ローカルマシンでAkanesia-Gatewayを実行。
 
 ---
 
 ## 📦 インストール
 
-npm経由で9Routerをグローバルインストール:
+npm経由でAkanesia-Gatewayをグローバルインストール:
 
 ```bash
 npm install -g 9router
@@ -20,7 +20,7 @@ npm install -g 9router
 
 ## 🚀 サーバーの起動
 
-一つのコマンドで9Routerを起動:
+一つのコマンドでAkanesia-Gatewayを起動:
 
 ```bash
 9router
@@ -53,7 +53,7 @@ APIポート(20128)とダッシュボードポート(3000)はアプリケーシ�
 
 ## 🛑 サーバーの停止
 
-9Routerが実行されているターミナルで `Ctrl+C` を押します。
+Akanesia-Gatewayが実行されているターミナルで `Ctrl+C` を押します。
 
 ```bash
 # 9routerを実行しているターミナル
@@ -76,7 +76,7 @@ APIポート(20128)とダッシュボードポート(3000)はアプリケーシ�
 
 ---
 
-## 📊 9Routerの更新
+## 📊 Akanesia-Gatewayの更新
 
 最新バージョンに更新:
 

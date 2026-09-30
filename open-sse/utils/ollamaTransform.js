@@ -1,5 +1,21 @@
 // Transform OpenAI SSE stream to Ollama JSON lines format
 export function transformToOllama(response, model) {
+  // BUG-2 (ditemukan saat pengujian 2026-09-30): jangan samarkan error
+  // sebagai sukses. Sebelumnya SEMUA respons — termasuk 401/400 dari
+  // handleChat — diubah menjadi HTTP 200
+  // {"message":{"role":"assistant","content":""},"done":true} karena flush()
+  // selalu mengirim done:true dan status asli dibuang. Klien tidak bisa
+  // membedakan error dari sukses. Teruskan error apa adanya.
+  if (!response.ok) {
+    return new Response(response.body, {
+      status: response.status,
+      headers: {
+        "Content-Type": response.headers.get("content-type") || "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
+
   let buffer = "";
   let pendingToolCalls = {};
   
