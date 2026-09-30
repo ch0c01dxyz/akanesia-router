@@ -26,6 +26,11 @@ import { getProviderCredentials } from "@/sse/services/auth.js";
 import { checkAndRefreshToken } from "@/sse/services/tokenRefresh.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
 import { PROBE } from "open-sse/config/probe.js";
+import {
+  isOpenAICompatibleProvider,
+  isAnthropicCompatibleProvider,
+  isCustomEmbeddingProvider,
+} from "@/shared/constants/providers.js";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +97,29 @@ function bazaarUpstreamFormat(entry) {
   const fmt = String(entry?.transport?.format || "").toLowerCase();
   if (fmt === "claude") return "anthropic";
   return "openai";
+}
+
+// Provider kustom (openai-compatible-*, anthropic-compatible-*) tidak ada di
+// registry statis — bangun entri sintetis dari data koneksi tersimpan agar
+// probe online tetap bisa jalan. Base URL diambil dari
+// connection.providerSpecificData.baseUrl (sumber yang sama dipakai halaman
+// daftar model & executor). Mengembalikan { entry } atau { error } —
+// "missing-baseurl" bila base URL belum dikonfigurasi, "unknown" bila ID
+// tidak cocok pola kustom manapun.
+function entryCustomDariKoneksi(providerId, connection) {
+  const baseUrlMentah = connection?.providerSpecificData?.baseUrl;
+  if (!baseUrlMentah || typeof baseUrlMentah !== "string" || !baseUrlMentah.trim()) {
+    return { error: "missing-baseurl" };
+  }
+  const baseUrl = baseUrlMentah.trim();
+  if (isOpenAICompatibleProvider(providerId)) {
+    return { entry: { id: providerId, transport: { baseUrl, format: "openai" } } };
+  }
+  if (isAnthropicCompatibleProvider(providerId)) {
+    // format "claude" dipetakan bazaarUpstreamFormat() -> "anthropic".
+    return { entry: { id: providerId, transport: { baseUrl, format: "claude" } } };
+  }
+  return { error: "unknown" };
 }
 
 // Validasi URL publik HTTPS: tolak localhost, IP privat, dan TLD lokal.
@@ -195,9 +223,28 @@ export async function POST(request) {
     return NextResponse.json({ error: "Koneksi tidak ditemukan / tidak aktif" }, { status: 400 });
   }
   const providerId = connection.provider;
-  const entry = REGISTRY.find((r) => r.id === providerId) || null;
+  let entry = REGISTRY.find((r) => r.id === providerId) || null;
   if (!entry) {
-    return NextResponse.json({ error: "Provider tidak dikenal di registry" }, { status: 400 });
+    // Provider kustom tidak ada di registry statis — coba bangun entri
+    // sintetis dari koneksi tersimpan. Probe LLM hanya untuk model chat;
+    // provider embedding ditolak eksplisit.
+    if (isCustomEmbeddingProvider(providerId)) {
+      return NextResponse.json(
+        { error: "Probe tidak didukung untuk provider embedding" },
+        { status: 400 }
+      );
+    }
+    const custom = entryCustomDariKoneksi(providerId, connection);
+    if (custom.error === "missing-baseurl") {
+      return NextResponse.json(
+        { error: "Base URL belum dikonfigurasi untuk provider kustom ini" },
+        { status: 400 }
+      );
+    }
+    if (!custom.entry) {
+      return NextResponse.json({ error: "Provider tidak dikenal di registry" }, { status: 400 });
+    }
+    entry = custom.entry;
   }
 
   // Skip eksplisit (pola meniru check-models): cookie butuh sesi browser,

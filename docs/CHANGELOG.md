@@ -5,6 +5,33 @@
 
 ## 2026-09-30
 
+### Fix Online Probe untuk provider kustom (openai-/anthropic-compatible)
+
+- Laporan Egar: Online Probe (`POST /api/probe/online`) mengembalikan HTTP 400
+  `{"error":"Provider tidak dikenal di registry"}` untuk koneksi provider
+  dinamis `openai-compatible-chat-<uuid>`. Akar masalah: route melakukan
+  lookup exact `REGISTRY.find((r) => r.id === providerId)` ke registry statis
+  (320 entri) yang tidak pernah berisi ID dinamis, lalu hard-fail — padahal
+  halaman UI dan executor memang mendukung provider kustom.
+- Perbaikan di `src/app/api/probe/online/route.js`: bila ID tidak ada di
+  registry, route membangun entri sintetis dari koneksi tersimpan via helper
+  baru `entryCustomDariKoneksi()` — base URL dari
+  `connection.providerSpecificData.baseUrl` (sumber yang sama dipakai halaman
+  daftar model), format `openai` untuk `openai-compatible-*` dan `claude`
+  (-> `anthropic` di BazaarLink) untuk `anthropic-compatible-*`. Suffix
+  endpoint (`/chat/completions` dsb) tetap di-strip via `turunkanBaseUrl()`,
+  dan guard keamanan tetap berlaku: hanya HTTPS publik (localhost/IP privat
+  ditolak), cookie & AWS SigV4 ditolak, connectionId harus cocok persis,
+  tanpa secret di log/respons.
+- Kasus baru yang ditangani eksplisit: `custom-embedding-*` -> 400 "Probe
+  tidak didukung untuk provider embedding"; provider kustom tanpa base URL
+  -> 400 "Base URL belum dikonfigurasi untuk provider kustom ini"; ID yang
+  benar-benar asing tetap 400 "Provider tidak dikenal di registry".
+- Regression test baru `tests/unit/probe-online-custom-provider.test.js`:
+  8 test lolos (start-run kustom openai/anthropic + payload yang dikirim ke
+  BazaarLink, strip suffix, tanpa baseUrl, embedding, localhost, ID asing,
+  dan provider registry statis tetap bekerja). ESLint bersih.
+
 ### Hilangkan warning MODULE_TYPELESS_PACKAGE_JSON + hardening EBADF
 
 - Warning `MODULE_TYPELESS_PACKAGE_JSON` untuk
