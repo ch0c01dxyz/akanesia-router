@@ -16,6 +16,65 @@ combo fallback, multi-account, quota tracking, dan token saver.
 - **Universal** — kompatibel dengan Claude Code, Cursor, Cline, Codex, OpenCode, dan CLI tools lainnya
 - **Local-first** — berjalan lokal/intranet, data tetap di mesin sendiri
 
+## Instalasi
+
+Prasyarat: **Node.js 18+** (disarankan 22 LTS) dan npm.
+
+### Cara 1 — CLI launcher (paling mudah)
+
+```bash
+npm install -g akanesia-router
+akanesia-router
+```
+
+Dashboard: `http://localhost:20128/dashboard` · API: `http://localhost:20128/v1`.
+Data tersimpan di `~/.9router`.
+
+### Cara 2 — dari source
+
+```bash
+git clone https://github.com/ch0c01dxyz/akanesia-router.git
+cd akanesia-router
+cp .env.example .env   # isi JWT_SECRET & INITIAL_PASSWORD
+npm install
+npm run dev            # dev, port 20127
+# atau production:
+npm run build && npm start
+```
+
+### Windows
+
+1. Install **Node.js LTS** dari [nodejs.org](https://nodejs.org) (centang "Add to PATH").
+2. Buka PowerShell / Terminal:
+   ```powershell
+   npm install -g akanesia-router
+   akanesia-router
+   ```
+3. Ikon tray muncul di system tray; server berjalan di background.
+
+### Ubuntu / Linux
+
+1. Install Node.js 22 dan git:
+   ```bash
+   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+   sudo apt install -y nodejs git
+   ```
+   (alternatif: via [nvm](https://github.com/nvm-sh/nvm))
+2. Agar `npm install -g` bisa tanpa sudo (disarankan):
+   ```bash
+   mkdir -p ~/.npm-global
+   npm config set prefix ~/.npm-global
+   echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
+   source ~/.bashrc
+   ```
+3. Install dan jalankan:
+   ```bash
+   npm install -g akanesia-router
+   akanesia-router
+   ```
+4. Di server headless, CLI berjalan sebagai server biasa. Di desktop
+   Linux, ikon tray tersedia bila lingkungan desktop menyediakan system tray.
+
 ## Mulai Cepat
 
 ```bash

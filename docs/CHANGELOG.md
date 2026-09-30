@@ -5,6 +5,11 @@
 
 ## 2026-09-30
 
+### Panduan instalasi di README
+
+- Bagian "Instalasi" baru: cara CLI launcher, dari source, plus
+  langkah per OS (Windows, Ubuntu/Linux).
+
 ### .gitignore minimal
 
 - Hanya cache & artefak build yang di-ignore (`node_modules`, `.next`,
