@@ -27,6 +27,24 @@
   "View full report", "TTFT", "Speed", "Response preview",
   "Neutral control probe — not scored.") ditambahkan ke
   `public/i18n/literals/id.json`.
+- Hasil run ke-2 (2026-09-30, `aaac914e-…`) membuktikan `lang: "en"`
+  hanya menerjemahkan teks dinamis (passReason kini Inggris), tetapi
+  65/86 label probe statis tetap Mandarin Tradisional — dan tidak ada
+  dokumentasi resmi untuk lokalisasi label. Maka diterapkan terjemahan
+  manual sesuai saran Egar: `open-sse/config/probe-labels-en.js` berisi
+  kamus 65 label statis + template regex fallback untuk passReason lama,
+  dipasang server-side di route polling `[runId]` setelah sanitasi.
+  Diverifikasi dengan probe.json asli: 0 label/passReason ber-Mandarin
+  tersisa, idempoten, konten tes Mandarin dalam kutipan (mis.
+  「這是測試」) tidak tersentuh. `response`/`error` model dan
+  `identityAssessment.evidence` sengaja tidak diterjemahkan (dinamis /
+  tidak tampil di UI).
+- Perbaiki toggle collapse peringatan probe online: komponen WarningList
+  hanya menampilkan `detail` (bentuk offline), padahal BazaarLink mengirim
+  `evidence[]` — kini evidence dirender sebagai daftar saat di-expand.
+  Sekalian: severity `"warning"` dipetakan ke pill warn (sebelumnya jatuh
+  ke "Info"), dan label key `probe.warning.xxx` dirapikan menjadi label
+  Inggris yang mudah dibaca ("Unofficial package source").
 - Verifikasi: ESLint bersih, production build sukses.
 
 ### Revisi UI: hapus tombol Donate, tampilkan provider Web Cookie

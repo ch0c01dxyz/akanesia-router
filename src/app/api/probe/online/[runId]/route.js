@@ -9,10 +9,14 @@
 // bazaarApiKey diambil dari memori (disimpan saat start-run), TIDAK PERNAH
 // diteruskan ke browser. Sebelum ke frontend, field sensitif di-strip rekursif
 // (startedByIp, userKey, headers, *apiKey/*token/*secret) tanpa merusak
-// struktur hasil. Entri memori dihapus begitu run mencapai status terminal.
+// struktur hasil. Label probe statis yang masih Mandarin diterjemahkan ke
+// Inggris via open-sse/config/probe-labels-en.js (lang:"en" tidak mempan
+// untuk label — terverifikasi dari 2 run aktual). Entri memori dihapus
+// begitu run mencapai status terminal.
 
 import { NextResponse } from "next/server";
 import { PROBE } from "open-sse/config/probe.js";
+import { terjemahkanProbeKeInggris } from "open-sse/config/probe-labels-en.js";
 
 export const dynamic = "force-dynamic";
 
@@ -180,6 +184,11 @@ export async function GET(request, { params }) {
 
   const bersih = buangSensitif(run);
 
+  // Label probe statis dari BazaarLink tetap Mandarin Tradisional meski
+  // start-run mengirim lang:"en" (terverifikasi dari 2 run aktual) —
+  // terjemahkan manual di sini agar UI selalu Inggris.
+  const hasil = terjemahkanProbeKeInggris(bersih);
+
   // Key tidak disimpan lebih lama dari perlu: hapus saat run terminal.
   if (STATUS_TERMINAL.has(run?.status)) {
     store.delete(runId);
@@ -188,5 +197,5 @@ export async function GET(request, { params }) {
   // Log minimal — tanpa key dalam bentuk apapun (syarat wajib RULES.md).
   console.log("[Probe] online poll", { runId, status: run?.status });
 
-  return NextResponse.json(bersih);
+  return NextResponse.json(hasil);
 }
