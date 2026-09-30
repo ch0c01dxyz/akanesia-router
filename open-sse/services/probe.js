@@ -341,20 +341,37 @@ function fmt(n) {
 const SAFE_ID = /^[a-zA-Z0-9._-]+$/;
 
 /**
+ * Petakan ID arbitrer (mis. `deepseek-v4.1-flash:free`) ke nama file yang aman:
+ * setiap rangkaian karakter di luar [a-zA-Z0-9._-] diganti satu "-".
+ * Hasilnya selalu lolos SAFE_ID sehingga path traversal mustahil; lapisan
+ * kedua (startsWith root) tetap dipertahankan di bawah.
+ */
+function keNamaFileAman(id) {
+  const s = String(id ?? "").trim();
+  if (!s) return "";
+  return s.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+/**
  * Muat fingerprint referensi dari open-sse/config/probe/fingerprints/<providerId>/<modelId>.json.
- * - Sanitasi: hanya karakter [a-zA-Z0-9._-]; path traversal ditolak → return null.
+ * - Sanitasi: providerId/modelId dipetakan via keNamaFileAman() (mis. ":" jadi "-",
+ *   sehingga `deepseek-v4.1-flash:free` memakai file `deepseek-v4.1-flash-free.json`);
+ *   hasil kosong/unsafe → return null. Path traversal mustahil karena output
+ *   selalu dalam [a-zA-Z0-9._-] + pengecekan startsWith(root) lapis kedua.
  * - File tidak ada ATAU berisi "placeholder": true → return null (bukan error),
  *   artinya "tanpa referensi" (verdict P6 jadi uncertain, bukan gagal).
  */
 export async function loadReferenceFingerprint(providerId, modelId) {
-  if (!SAFE_ID.test(String(providerId ?? "")) || !SAFE_ID.test(String(modelId ?? ""))) return null;
+  const p = keNamaFileAman(providerId);
+  const m = keNamaFileAman(modelId);
+  if (!p || !m || !SAFE_ID.test(p) || !SAFE_ID.test(m)) return null;
   try {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const path = (await import("node:path")).default;
     const here = path.dirname(fileURLToPath(import.meta.url));
     const root = path.join(here, "..", "config", "probe", "fingerprints");
-    const file = path.join(root, providerId, `${modelId}.json`);
+    const file = path.join(root, p, `${m}.json`);
     // Pertahanan lapis kedua: pastikan path akhir tetap di dalam folder fingerprints.
     if (!file.startsWith(root + path.sep)) return null;
     const raw = await readFile(file, "utf8");
