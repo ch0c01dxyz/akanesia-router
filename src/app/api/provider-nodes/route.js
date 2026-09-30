@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createProviderNode, getProviderNodes } from "@/models";
 import { OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX, CUSTOM_EMBEDDING_PREFIX } from "@/shared/constants/providers";
+import { isReservedProviderPrefix } from "@/sse/services/model.js";
 import { generateId } from "@/shared/utils";
 import { sanitizeCustomHeaders } from "@/shared/utils/customHeaders.js";
 
@@ -41,6 +42,17 @@ export async function POST(request) {
 
     if (!prefix?.trim()) {
       return NextResponse.json({ error: "Prefix is required" }, { status: 400 });
+    }
+
+    // Prefix node tidak boleh bertabrakan dengan id/alias provider bawaan:
+    // getModelInfo selalu me-routing prefix tersebut ke provider bawaan,
+    // sehingga model node tidak akan bisa dipakai (404 "No active
+    // credentials") walau node punya API key.
+    if (isReservedProviderPrefix(prefix)) {
+      return NextResponse.json(
+        { error: `Prefix "${prefix.trim()}" is reserved by a built-in provider. Choose a different prefix.` },
+        { status: 400 }
+      );
     }
 
     // Ide #8: custom headers per node (Advanced Option)

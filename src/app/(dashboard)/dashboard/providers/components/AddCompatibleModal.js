@@ -51,6 +51,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
   const [checkModelId, setCheckModelId] = useState("");
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
+  const [submitError, setSubmitError] = useState("");
 
   // openai: reset baseUrl when apiType changes; anthropic: reset checks when opened
   useEffect(() => {
@@ -66,6 +67,7 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
   const handleSubmit = async () => {
     if (!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim()) return;
     setSubmitting(true);
+    setSubmitError("");
     try {
       const res = await fetch("/api/provider-nodes", {
         method: "POST",
@@ -85,9 +87,12 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
         setFormData(initialFormData());
         setCheckKey("");
         setValidationResult(null);
+      } else {
+        setSubmitError(data?.error || "Failed to create provider node");
       }
     } catch (error) {
       console.log(`Error creating ${config.errorLabel} node:`, error);
+      setSubmitError("Failed to create provider node");
     } finally {
       setSubmitting(false);
     }
@@ -214,6 +219,9 @@ function AddCompatibleModal({ variant, isOpen, onClose, onCreated }) {
             Cancel
           </Button>
         </div>
+        {submitError && (
+          <p className="text-sm text-red-500">{submitError}</p>
+        )}
       </div>
     </Modal>
   );

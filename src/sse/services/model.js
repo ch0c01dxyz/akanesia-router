@@ -16,6 +16,18 @@ for (const entry of REGISTRY) {
   for (const alias of entry.aliases || []) RESERVED_PROVIDER_PREFIXES.add(alias);
 }
 
+// Diekspor agar API provider-nodes dan /v1/models bisa menolak /
+// menyembunyikan prefix node kustom yang bertabrakan dengan id/alias
+// provider bawaan. Tanpa ini, model node tampil di /v1/models sebagai
+// `{prefix}/{model}` tetapi chat me-routing `{prefix}` ke provider bawaan
+// (getModelInfo sengaja memprioritaskan provider bawaan) sehingga request
+// gagal dengan "No active credentials for provider: {prefix}".
+export { RESERVED_PROVIDER_PREFIXES };
+
+export function isReservedProviderPrefix(prefix) {
+  return typeof prefix === "string" && RESERVED_PROVIDER_PREFIXES.has(prefix.trim());
+}
+
 export function parseModel(modelStr) {
   const parsed = parseModelCore(modelStr);
   if (parsed?.providerAlias && LOCAL_PROVIDER_ALIASES[parsed.providerAlias]) {

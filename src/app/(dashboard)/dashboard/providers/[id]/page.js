@@ -54,6 +54,7 @@ export default function ProviderDetailPage() {
   const [showBulkImportGrokCli, setShowBulkImportGrokCli] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditNodeModal, setShowEditNodeModal] = useState(false);
+  const [updateNodeError, setUpdateNodeError] = useState("");
   const [showBulkProxyModal, setShowBulkProxyModal] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState(null);
   const [modelAliases, setModelAliases] = useState({});
@@ -365,6 +366,7 @@ export default function ProviderDetailPage() {
   }, [providerId, isCompatible]);
 
   const handleUpdateNode = async (formData) => {
+    setUpdateNodeError("");
     try {
       const res = await fetch(`/api/provider-nodes/${providerId}`, {
         method: "PUT",
@@ -376,9 +378,12 @@ export default function ProviderDetailPage() {
         setProviderNode(data.node);
         await fetchConnections();
         setShowEditNodeModal(false);
+      } else {
+        setUpdateNodeError(data?.error || "Failed to update provider node");
       }
     } catch (error) {
       console.log("Error updating provider node:", error);
+      setUpdateNodeError("Failed to update provider node");
     }
   };
 
@@ -2023,8 +2028,9 @@ export default function ProviderDetailPage() {
           isOpen={showEditNodeModal}
           node={providerNode}
           onSave={handleUpdateNode}
-          onClose={() => setShowEditNodeModal(false)}
+          onClose={() => { setShowEditNodeModal(false); setUpdateNodeError(""); }}
           isAnthropic={isAnthropicCompatible}
+          error={updateNodeError}
         />
       )}
       {!isCompatible && (

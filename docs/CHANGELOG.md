@@ -5,6 +5,39 @@
 
 ## 2026-09-30
 
+### Perbaikan tabrakan prefix node kustom dengan provider bawaan
+
+- Atas laporan Egar: `/v1/models` menampilkan
+  `tokenharbor/deepseek-v4.1-flash:free` (dari node OpenAI-Compatible
+  "tokenharbor" yang punya API key), tetapi chat gagal dengan
+  `404 No active credentials for provider: tokenharbor`. Akar masalah:
+  `tokenharbor` adalah id/alias provider **bawaan** di registry, dan
+  `getModelInfo` sengaja memprioritaskan provider bawaan di atas prefix
+  node kustom — jadi request di-routing ke provider bawaan (yang tidak
+  punya koneksi) alih-alih ke node. List model berbohong: menampilkan
+  model yang tidak bisa dipakai.
+- Perbaikan:
+  - `POST /api/provider-nodes` dan `PUT /api/provider-nodes/[id]` kini
+    menolak prefix yang bertabrakan dengan id/alias provider bawaan
+    (400 + pesan jelas). Helper baru `isReservedProviderPrefix()`
+    diekspor dari `src/sse/services/model.js`.
+  - `buildModelsListUncached` (`/v1/models`) melewati koneksi node yang
+    prefix-nya bertabrakan — model yang tidak bisa di-routing tidak lagi
+    tampil di list, sesuai harapan: list hanya berisi model yang
+    benar-benar punya koneksi aktif.
+  - Filter umum: koneksi aktif tetapi **tanpa kredensial yang bisa dipakai**
+    (tidak ada apiKey/accessToken/refreshToken) kini disembunyikan dari
+    `/v1/models` — kecuali provider lokal (`ollama-local`) dan authType
+    tanpa kredensial (`none`/`free`/`optional`). Jadi provider yang belum
+    dipasang API key tidak lagi muncul di list.
+  - Modal tambah/edit node kini menampilkan pesan error server
+    (sebelumnya gagal diam-diam).
+- Catatan untuk Egar: node "tokenharbor" yang sudah ada perlu diganti
+  prefix-nya (mis. `tokenharbor-custom`) lewat Edit, atau lebih mudah:
+  hapus node kustom dan pasang API key ke provider bawaan `tokenharbor`
+  (sudah ada `deepseek-v4.1-flash:free` di katalognya, base URL
+  https://tokenharbor.ai/v1).
+
 ### Perbaikan probe model online (BazaarLink)
 
 - Atas laporan Egar (dengan lampiran `probe.json` dari pengujian lokal):

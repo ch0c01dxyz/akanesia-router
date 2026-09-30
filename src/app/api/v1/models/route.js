@@ -16,6 +16,7 @@ import { resolveGrokCliModels } from "open-sse/services/grokCliModels.js";
 import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
+import { isReservedProviderPrefix } from "@/sse/services/model.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 
@@ -237,6 +238,21 @@ async function fetchCompatibleModelIds(connection) {
   }
 }
 
+// Koneksi dianggap punya kredensial bila salah satu field kredensial
+// (apiKey / accessToken / refreshToken) terisi. Cookie provider menyimpan
+// cookie di apiKey. Provider lokal (ollama-local) dan authType tanpa
+// kredensial (none/free/optional) tidak butuh kunci — tetap ditampilkan.
+// Tanpa kredensial yang bisa dipakai, model provider tersebut tidak boleh
+// tampil di /v1/models.
+function koneksiPunyaKredensial(conn) {
+  if (!conn) return false;
+  const authType = String(conn.authType || "").toLowerCase();
+  if (authType === "none" || authType === "free" || authType === "optional") return true;
+  if (conn.provider === "ollama-local") return true;
+  return [conn.apiKey, conn.accessToken, conn.refreshToken]
+    .some((v) => typeof v === "string" && v.trim() !== "");
+}
+
 // Provider matches kindFilter when its serviceKinds intersect the requested kinds.
 // LLM is the default kind for providers missing serviceKinds.
 function providerMatchesKinds(providerId, kindFilter) {
@@ -290,7 +306,9 @@ async function buildModelsListUncached(kindFilter, options = {}) {
   let connections = [];
   try {
     connections = await getProviderConnections();
-    connections = connections.filter(c => c.isActive !== false);
+    // Hanya koneksi aktif yang benar-benar punya kredensial yang bisa
+    // dipakai — tanpa API key/token, modelnya tidak bisa di-chat.
+    connections = connections.filter(c => c.isActive !== false && koneksiPunyaKredensial(c));
   } catch (e) {
     console.log("Could not fetch providers, returning all models");
   }
@@ -392,6 +410,13 @@ async function buildModelsListUncached(kindFilter, options = {}) {
   } else {
     for (const [providerId, conn] of activeConnectionByProvider.entries()) {
       if (!providerMatchesKinds(providerId, kindFilter)) continue;
+
+      // Prefix node kustom yang bertabrakan dengan id/alias provider bawaan
+      // tidak bisa di-routing oleh chat (getModelInfo memprioritaskan
+      // provider bawaan) — modelnya tampil di list tetapi gagal dipakai
+      // dengan "No active credentials". Lewati agar /v1/models hanya
+      // menampilkan model yang benar-benar punya koneksi aktif.
+      if (isReservedProviderPrefix(conn?.providerSpecificData?.prefix)) continue;
 
       const staticAlias = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
       const outputAlias = (

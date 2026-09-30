@@ -5,7 +5,7 @@ import PropTypes from "prop-types";
 import { Button, Badge, Input, Modal, Select } from "@/shared/components";
 import CustomHeadersEditor from "../components/CustomHeadersEditor";
 
-export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose, isAnthropic }) {
+export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose, isAnthropic, error }) {
   const [formData, setFormData] = useState({
     name: "",
     prefix: "",
@@ -150,6 +150,9 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
             Cancel
           </Button>
         </div>
+        {error && (
+          <p className="text-sm text-red-500">{error}</p>
+        )}
       </div>
     </Modal>
   );
@@ -167,4 +170,5 @@ EditCompatibleNodeModal.propTypes = {
   onSave: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,
   isAnthropic: PropTypes.bool,
+  error: PropTypes.string,
 };

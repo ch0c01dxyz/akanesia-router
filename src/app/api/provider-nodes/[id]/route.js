@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { deleteProviderConnectionsByProvider, deleteProviderNode, getProviderConnections, getProviderNodeById, updateProviderConnection, updateProviderNode } from "@/models";
 import { sanitizeCustomHeaders } from "@/shared/utils/customHeaders.js";
+import { isReservedProviderPrefix } from "@/sse/services/model.js";
 
 // PUT /api/provider-nodes/[id] - Update provider node
 export async function PUT(request, { params }) {
@@ -20,6 +21,15 @@ export async function PUT(request, { params }) {
 
     if (!prefix?.trim()) {
       return NextResponse.json({ error: "Prefix is required" }, { status: 400 });
+    }
+
+    // Sama seperti pembuatan node: prefix tidak boleh bertabrakan dengan
+    // id/alias provider bawaan agar model node tetap bisa di-routing.
+    if (isReservedProviderPrefix(prefix)) {
+      return NextResponse.json(
+        { error: `Prefix "${prefix.trim()}" is reserved by a built-in provider. Choose a different prefix.` },
+        { status: 400 }
+      );
     }
 
     // Only validate apiType for OpenAI Compatible nodes
