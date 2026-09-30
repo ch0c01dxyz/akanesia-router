@@ -5,6 +5,66 @@
 
 ## 2026-09-30
 
+### Perbaikan probe model online (BazaarLink)
+
+- Atas laporan Egar (dengan lampiran `probe.json` dari pengujian lokal):
+  label & `passReason` tiap probe dari BazaarLink berbahasa Mandarin
+  Tradisional. Akar masalah: start-run tidak mengirim petunjuk bahasa.
+  Dokumen resmi (`probe-api-skill.md`) mendukung field opsional `lang`
+  ("Language hint for probe text") — kini payload start-run di
+  `src/app/api/probe/online/route.js` mengirim `lang: "en"` sehingga run
+  baru menghasilkan teks Inggris. (Run lama yang sudah selesai tidak bisa
+  diubah bahasanya; perlu dijalankan ulang.)
+- Hasil di UI kini lebih lengkap (sebelumnya tiap baris hanya probeId +
+  lulus/gagal): tabel transparan (hanya bottom-border antar baris, tanpa
+  kotak/scrollbox) — klik baris untuk toggle collapse yang menampilkan
+  detail: alasan/error lengkap, metrik TTFT/durasi/kecepatan/token
+  input-output/finish reason, dan cuplikan respons (600 karakter).
+  Status "warning" kini tampil sebagai Warning (sebelumnya "—"),
+  null ditampilkan sebagai "Skipped", plus badge grup
+  (identity/submodel/security/integrity) dan penanda probe kontrol netral.
+- i18n: 8 string baru ("Warning", "Skipped", "Claimed",
+  "View full report", "TTFT", "Speed", "Response preview",
+  "Neutral control probe — not scored.") ditambahkan ke
+  `public/i18n/literals/id.json`.
+- Verifikasi: ESLint bersih, production build sukses.
+
+### Revisi UI: hapus tombol Donate, tampilkan provider Web Cookie
+
+- Atas instruksi Egar: tombol Donate di header dihapus beserta `DonateModal`
+  (state, import, dan file komponennya; file dipindah ke trash agar bisa
+  dikembalikan).
+- Perbaikan pencarian provider: section "Web Cookie Providers" di halaman
+  Providers yang selama ini di-comment out kini diaktifkan kembali, sehingga
+  `perplexity-web` (dan provider cookie lain seperti Grok Web) muncul dan
+  ikut terfilter oleh input search di header. Section memakai filter
+  `matchSearch` + `matchStatus` yang sama dengan section lain, dan memakai
+  `authType: "cookie"` yang benar untuk statistik & toggle (kode lama yang
+  di-comment memakai `"apikey"` sehingga koneksi cookie tak akan terhitung).
+- Verifikasi: ESLint bersih, production build sukses.
+
+### Sinkron model Perplexity dari OmniRoute terbaru
+
+- Atas instruksi Egar: sinkronkan provider Perplexity ke akanesia-router
+  mengikuti definisi terbaru OmniRoute (`origin/release/v3.8.51`, 29 Sep 2026).
+  Catatan: ketiga entri provider sebenarnya sudah ada di registry kita
+  (`perplexity`, `perplexity-web`, `perplexity-agent`) — yang ketinggalan
+  adalah daftar modelnya.
+- `perplexity.js`: 2 -> 4 model (+ `sonar-deep-research`, `sonar-reasoning-pro`).
+- `perplexity-web.js`: 7 -> 11 model (nama diperbarui: "Perplexity Best",
+  "Sonar 2", GPT-5.6 Terra/Sol, Gemini 3.7 Flash, Sonnet/Opus 5.0, GLM-5.2,
+  Kimi K3, Grok 4.6, Nemotron 3 Ultra; masing-masing `toolCalling: false`)
+  + `unsupportedParams: ["tools", "tool_choice", "parallel_tool_calls"]`
+  di level provider.
+- `perplexity-agent.js`: 11 -> 2 model sesuai kurasi terbaru upstream
+  (`openai/gpt-5.6-sol` + `perplexity/kimi-k3`, beserta flag
+  `supportsReasoning`/`toolCalling`/`supportedThinkingEfforts`).
+  `passthroughModels: true` tetap aktif sehingga ID model lain tetap bisa
+  dipakai manual.
+- Verifikasi: registry ter-load 320 entri, ketiga ID perplexity tampil dengan
+  daftar model baru; ESLint 0 error (3 warning anonim-default-export yang
+  memang konvensi semua file registry).
+
 ### Fix Online Probe untuk provider kustom (openai-/anthropic-compatible)
 
 - Laporan Egar: Online Probe (`POST /api/probe/online`) mengembalikan HTTP 400

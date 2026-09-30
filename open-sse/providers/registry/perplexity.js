@@ -23,6 +23,8 @@ export default {
     validateUrl: "https://api.perplexity.ai/models",
   },
   models: [
+    { id: "sonar-deep-research", name: "Sonar Deep Research" },
+    { id: "sonar-reasoning-pro", name: "Sonar Reasoning Pro" },
     { id: "sonar-pro", name: "Sonar Pro" },
     { id: "sonar", name: "Sonar" },
   ],

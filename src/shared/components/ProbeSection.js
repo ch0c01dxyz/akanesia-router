@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import { cn } from "@/shared/utils/cn";
 import { translate } from "@/i18n/runtime";
 import { Button } from "@/shared/components";
+import { PROBE } from "open-sse/config/probe.js";
 import SearchableSelect from "./SearchableSelect";
 import MetricCard from "./MetricCard";
 import ProbeGroupRow from "./ProbeGroupRow";
@@ -172,6 +173,110 @@ function CopyJsonButton({ data }) {
 
 CopyJsonButton.propTypes = {
   data: PropTypes.object,
+};
+
+function formatProbeMs(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+}
+
+/**
+ * Satu baris tabel hasil probe online: label + badge grup + status.
+ * Diklik untuk toggle collapse — detail (alasan, metrik waktu, token,
+ * cuplikan respons) muncul di bawahnya. Tabel transparan: hanya
+ * bottom-border antar baris, tanpa kotak luar.
+ */
+function OnlineProbeItemRow({ item, index }) {
+  const [expanded, setExpanded] = useState(false);
+  const label = item?.label || item?.probeId || `${translate("Probe")} ${index + 1}`;
+  const group = typeof item?.group === "string" ? item.group : "";
+  const passReason = typeof item?.passReason === "string" && item.passReason.trim() ? item.passReason.trim() : "";
+  const error = item?.error ? String(item.error) : "";
+  const detail = error || passReason;
+  const ttft = formatProbeMs(item?.ttftMs);
+  const duration = formatProbeMs(item?.durationMs);
+  const tps = Number.isFinite(item?.tps) ? item.tps : null;
+  const usage = item?.usage && typeof item.usage === "object" ? item.usage : null;
+  const response = typeof item?.response === "string" && item.response ? item.response : "";
+  const responsePreview = response.length > 600 ? `${response.slice(0, 600)}…` : response;
+
+  const passed = item?.passed;
+  const statusMeta =
+    error || passed === false
+      ? { text: translate("Failed"), cls: "text-red-500" }
+      : passed === true
+        ? { text: translate("Passed"), cls: "text-green-600 dark:text-green-400" }
+        : passed === "warning"
+          ? { text: translate("Warning"), cls: "text-amber-600 dark:text-amber-400" }
+          : { text: translate("Skipped"), cls: "text-text-muted" };
+
+  const metrics = [
+    [translate("TTFT"), ttft],
+    [translate("Duration"), duration],
+    [translate("Speed"), tps != null ? `${tps.toFixed(1)} tps` : null],
+    [translate("Input tokens"), usage?.promptTokens ?? item?.inputTokens ?? null],
+    [translate("Output tokens"), usage?.completionTokens ?? item?.outputTokens ?? null],
+    [translate("Finish reason"), item?.finishReason || null],
+  ].filter(([, v]) => v != null && v !== "");
+
+  return (
+    <div className="border-b border-border-subtle last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        aria-expanded={expanded}
+        className="flex w-full cursor-pointer items-center justify-between gap-2 px-1 py-2 text-left transition-colors hover:bg-surface-2/50"
+      >
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="material-symbols-outlined shrink-0 text-[18px] text-text-muted" aria-hidden="true">
+            {expanded ? "expand_less" : "expand_more"}
+          </span>
+          {group && (
+            <span className="shrink-0 rounded border border-border-subtle px-1 py-px text-[10px] uppercase tracking-wide text-text-muted">
+              {group}
+            </span>
+          )}
+          <span className="truncate text-sm text-text-main" title={`${label}${item?.probeId && item.label ? ` (${item.probeId})` : ""}`}>
+            {label}
+          </span>
+        </span>
+        <span className={`shrink-0 text-xs font-medium ${statusMeta.cls}`}>{statusMeta.text}</span>
+      </button>
+      {expanded && (
+        <div className="flex flex-col gap-2 px-1 pb-3 pl-8">
+          {item?.neutral && (
+            <p className="text-xs text-text-muted italic">{translate("Neutral control probe — not scored.")}</p>
+          )}
+          {detail && (
+            <p className="whitespace-pre-wrap break-words text-xs text-text-main">{detail}</p>
+          )}
+          {metrics.length > 0 && (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
+              {metrics.map(([k, v]) => (
+                <div key={k} className="flex items-baseline justify-between gap-2 text-xs">
+                  <dt className="shrink-0 text-text-muted">{k}</dt>
+                  <dd className="truncate font-mono text-text-main" title={String(v)}>{String(v)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {responsePreview && (
+            <div className="flex flex-col gap-1">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-text-muted">{translate("Response preview")}</p>
+              <p className="whitespace-pre-wrap break-words rounded-[8px] bg-surface-2 p-2 text-xs text-text-main">
+                {responsePreview}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+OnlineProbeItemRow.propTypes = {
+  item: PropTypes.object,
+  index: PropTypes.number.isRequired,
 };
 
 function ErrorBanner({ message, onRetry }) {
@@ -666,6 +771,12 @@ function OnlineProbePanel({ modelOptions, connectionOptions }) {
   // null = belum diketahui; jangan tampilkan kandidat sementara sebagai identitas pasti.
   const trueFamily = iaVerdict?.trueFamily ?? detail.trueFamily ?? result?.trueFamily ?? null;
   const trueModel = iaVerdict?.trueModel ?? detail.trueModel ?? result?.trueModel ?? null;
+  const claimedModel = result?.claimedModel || detail.claimedModel || null;
+  // Link laporan resmi BazaarLink (base URL dari config terpusat).
+  const reportUrl = typeof result?.reportUrl === "string" ? result.reportUrl : "";
+  const reportHref = reportUrl
+    ? (reportUrl.startsWith("http") ? reportUrl : `${PROBE.online.bazaarBaseUrl}${reportUrl}`)
+    : "";
 
   return (
     <div>
@@ -788,7 +899,23 @@ function OnlineProbePanel({ modelOptions, connectionOptions }) {
             <span className="text-sm text-text-muted">
               {translate("Confidence")}: {formatOnlineConfidence(confidence)}
             </span>
-            <span className="ml-auto">
+            {claimedModel && (
+              <span className="text-sm text-text-muted">
+                {translate("Claimed")}: <span className="font-mono text-xs text-text-main">{claimedModel}</span>
+              </span>
+            )}
+            <span className="ml-auto flex items-center gap-2">
+              {reportHref && (
+                <a
+                  href={reportHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                >
+                  <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                  {translate("View full report")}
+                </a>
+              )}
               <CopyJsonButton data={result} />
             </span>
           </div>
@@ -813,31 +940,18 @@ function OnlineProbePanel({ modelOptions, connectionOptions }) {
 
           {/* Per-item error tetap ditampilkan bila run completed (kontrak BazaarLink). */}
           {items.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <h4 className="text-sm font-medium text-text-main">{translate("Per-probe results")}</h4>
-              <div className="max-h-60 overflow-y-auto rounded-[10px] border border-border-subtle">
+            <div className="flex flex-col gap-1">
+              <h4 className="text-sm font-medium text-text-main">
+                {translate("Per-probe results")}{" "}
+                <span className="font-normal text-text-muted">({formatNumber(items.length)})</span>
+              </h4>
+              <div className="flex items-center justify-between border-b border-border-subtle px-1 pb-1 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+                <span>{translate("Probe")}</span>
+                <span>{translate("Status")}</span>
+              </div>
+              <div>
                 {items.map((item, index) => (
-                  <div
-                    key={item?.probeId || index}
-                    className="flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-1.5 text-sm last:border-b-0"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-text-main" title={item?.probeId}>
-                      {item?.probeId || `${translate("Probe")} ${index + 1}`}
-                    </span>
-                    {item?.error ? (
-                      <span className="shrink-0 text-xs text-red-500 break-words max-w-[60%] text-right">
-                        {String(item.error).slice(0, 120)}
-                      </span>
-                    ) : (
-                      <span className="shrink-0 text-xs text-text-muted">
-                        {item?.passed === true
-                          ? translate("Passed")
-                          : item?.passed === false
-                            ? translate("Failed")
-                            : "—"}
-                      </span>
-                    )}
-                  </div>
+                  <OnlineProbeItemRow key={item?.probeId || index} item={item} index={index} />
                 ))}
               </div>
             </div>

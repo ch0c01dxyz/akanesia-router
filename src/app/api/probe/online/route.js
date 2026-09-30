@@ -2,8 +2,8 @@
 //
 // Mengikuti kontrak resmi https://bazaarlink.ai/probe-api-skill.md:
 // POST /api/probe/run dengan body { baseUrl, apiKey, modelId, claimedModel,
-// upstreamFormat, sync: false }, lalu polling dilakukan server-side via
-// route [runId].
+// upstreamFormat, sync: false, lang: "en" }, lalu polling dilakukan
+// server-side via route [runId].
 //
 // TERVERIFIKASI (2026-09-29, via agent harness + browser MCP): endpoint Probe
 // publik TIDAK mewajibkan autentikasi pemanggil — run diterima tanpa header
@@ -302,13 +302,16 @@ export async function POST(request) {
   // Start-run async (sync: false) sesuai rekomendasi dokumen resmi.
   // upstreamFormat dikirim eksplisit dari transport.format registry agar
   // BazaarLink tidak menebak protokol dari URL (autodeteksi host tidak
-  // didukung menurut verifikasi).
+  // didukung menurut verifikasi). lang: "en" meminta teks probe (label &
+  // passReason tiap item) dalam bahasa Inggris — tanpa ini BazaarLink
+  // mengembalikan Mandarin Tradisional.
   const payload = {
     baseUrl,
     apiKey: upstreamApiKey,
     modelId,
     upstreamFormat: bazaarUpstreamFormat(entry),
     sync: false,
+    lang: "en",
   };
   if (claimedModel && typeof claimedModel === "string" && claimedModel.trim()) {
     payload.claimedModel = claimedModel.trim();
