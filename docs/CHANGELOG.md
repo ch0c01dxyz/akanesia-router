@@ -11,11 +11,12 @@
   (managedPid terset) tetapi label status masih "Stopped". Akar masalah:
   `startHeadroomProxy()` hanya menunggu proses *tetap hidup*, bukan menunggu
   `/health` bisa dijangkau — refresh status yang langsung jalan setelahnya
-  melihat proxy belum listen. Kini start menunggu `/health` hingga 20 detik
+  melihat proxy belum listen. Kini start menunggu `/health` hingga 90 detik
   (gagal dengan `HEALTH_TIMEOUT` bila tidak kunjung reachable; `EARLY_EXIT`
   bila proses mati saat boot). Handler Stop di frontend juga polling hingga
-  proxy benar-benar tidak reachable (maks 5 detik) agar tidak menampilkan
-  status basi.
+  proxy benar-benar tidak reachable (maks 60 detik) agar tidak menampilkan
+  status basi. Timeout dibuat longgar agar kompatibel dengan device highend
+  maupun low spec.
 - Dashboard Headroom diperkaya mengikuti struktur data asli (`/stats`,
   `/stats-history`): hero lifetime (requests, tokens saved, $ saved, input
   tokens/cost, savings %, savings basis), sesi berjalan, detail kompresi

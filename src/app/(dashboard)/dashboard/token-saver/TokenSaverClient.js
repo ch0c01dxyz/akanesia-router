@@ -204,10 +204,10 @@ export default function TokenSaverClient() {
     setHeadroomActionLoading(true);
     try {
       await fetch("/api/headroom/stop", { method: "POST" });
-      // The port can linger briefly while the process shuts down — poll
-      // until it is actually unreachable so the modal never shows a stale
-      // "Running" right after Stop.
-      const deadline = Date.now() + 5000;
+      // The port can linger briefly while the process shuts down (longer on
+      // low-spec devices) — poll until it is actually unreachable so the
+      // modal never shows a stale "Running" right after Stop.
+      const deadline = Date.now() + 60000;
       for (;;) {
         const data = await refreshHeadroomStatus();
         if (!data?.running && !data?.managedPid) break;
