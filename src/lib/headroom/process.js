@@ -111,6 +111,35 @@ export async function startHeadroomProxy({ port = DEFAULT_PORT, codeAware = fals
   // Close parent's copy of the fd; child retains its own after unref.
   fs.closeSync(outFd);
 
+  // The process staying alive is not enough: the Python proxy needs a few
+  // seconds to boot and bind the port. Wait until /health is actually
+  // reachable so callers (and the UI refresh right after) see a consistent
+  // running=true state instead of a stale "Stopped".
+  const healthUrl = `http://127.0.0.1:${safePort}/health`;
+  const deadline = Date.now() + 20000;
+  for (;;) {
+    if (!isPidAlive(child.pid)) {
+      clearPid();
+      const e = new Error("headroom proxy exited during startup — see proxy.log");
+      e.code = "EARLY_EXIT";
+      throw e;
+    }
+    try {
+      const res = await fetch(healthUrl, { signal: AbortSignal.timeout(2000) });
+      // Drain the body so the socket can be reused/closed cleanly.
+      await res.arrayBuffer().catch(() => {});
+      if (res.ok || res.status === 404) break;
+    } catch { /* not up yet — keep polling */ }
+    if (Date.now() >= deadline) {
+      const e = new Error(
+        `headroom proxy did not become reachable at ${healthUrl} within 20s — see proxy.log`
+      );
+      e.code = "HEALTH_TIMEOUT";
+      throw e;
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+
   return { pid: child.pid, alreadyRunning: false };
 }
 

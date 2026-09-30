@@ -166,6 +166,7 @@ export default function TokenSaverClient() {
         });
         setPendingExtras([]);
       }
+      return data;
     } catch {
       setHeadroomStatus({
         installed: false,
@@ -180,6 +181,7 @@ export default function TokenSaverClient() {
         loading: false,
       });
       setPendingExtras([]);
+      return null;
     }
   }, []);
 
@@ -202,7 +204,16 @@ export default function TokenSaverClient() {
     setHeadroomActionLoading(true);
     try {
       await fetch("/api/headroom/stop", { method: "POST" });
-      await refreshHeadroomStatus();
+      // The port can linger briefly while the process shuts down — poll
+      // until it is actually unreachable so the modal never shows a stale
+      // "Running" right after Stop.
+      const deadline = Date.now() + 5000;
+      for (;;) {
+        const data = await refreshHeadroomStatus();
+        if (!data?.running && !data?.managedPid) break;
+        if (Date.now() >= deadline) break;
+        await new Promise((r) => setTimeout(r, 400));
+      }
     } finally {
       setHeadroomActionLoading(false);
     }

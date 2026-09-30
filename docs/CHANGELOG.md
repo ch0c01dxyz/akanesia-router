@@ -5,6 +5,27 @@
 
 ## 2026-09-30
 
+### Perbaikan status basi setelah Start/Stop Headroom + dashboard lebih lengkap
+
+- Bug: setelah Start via modal, tombol sudah bertuliskan "Stop Headroom"
+  (managedPid terset) tetapi label status masih "Stopped". Akar masalah:
+  `startHeadroomProxy()` hanya menunggu proses *tetap hidup*, bukan menunggu
+  `/health` bisa dijangkau — refresh status yang langsung jalan setelahnya
+  melihat proxy belum listen. Kini start menunggu `/health` hingga 20 detik
+  (gagal dengan `HEALTH_TIMEOUT` bila tidak kunjung reachable; `EARLY_EXIT`
+  bila proses mati saat boot). Handler Stop di frontend juga polling hingga
+  proxy benar-benar tidak reachable (maks 5 detik) agar tidak menampilkan
+  status basi.
+- Dashboard Headroom diperkaya mengikuti struktur data asli (`/stats`,
+  `/stats-history`): hero lifetime (requests, tokens saved, $ saved, input
+  tokens/cost, savings %, savings basis), sesi berjalan, detail kompresi
+  (avg/best %, tokens removed, tool schema saved), cost breakdown
+  (without/with Headroom, measured vs projected, per-source), latensi/
+  overhead/TTFB, cache + prefix cache + rate limiter + TOIN, traffic inbound
+  per path, grafik savings per periode (hourly/daily/weekly/monthly, toggle
+  token/$), tabel savings per model (cari + sortir + ekspor CSV), dan recent
+  checkpoints.
+
 ### Dashboard Headroom Token Saver + deteksi non-blocking + animasi loading
 
 - Dashboard Headroom baru di `/dashboard/token-saver/headroom` (menggantikan
