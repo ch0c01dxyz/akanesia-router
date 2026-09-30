@@ -3,7 +3,7 @@ import { getLoadedInfo, loadPxpipe, selfTest } from "./loader.js";
 
 // Aggregate status for the Token Saver card and /api/pxpipe/status.
 // "running" in library mode = module loaded into this process.
-export function getPxpipeStatus() {
+export async function getPxpipeStatus() {
   const install = getInstallInfo();
   const loaded = getLoadedInfo();
   return {
@@ -14,7 +14,7 @@ export function getPxpipeStatus() {
     running: loaded.loaded,
     loadedAt: loaded.loadedAt || null,
     uptimeMs: loaded.loaded ? Date.now() - loaded.loadedAt : 0,
-    npmAvailable: !!findNpm(),
+    npmAvailable: !!(await findNpm()),
     mode: "library", // in-process transform, not an external proxy
   };
 }

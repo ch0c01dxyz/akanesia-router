@@ -1,11 +1,11 @@
-import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import {
   IS_WINDOWS,
-  findOnPath,
+  execFileOutputAsync,
+  findOnPathAsync,
   isExecutablePath,
-  probeRun,
+  probeRunAsync,
   windowsExecutableExtensions,
 } from "../platform.js";
 
@@ -25,6 +25,12 @@ export const EXTRA_MARKERS = {
 const HEADROOM_PIP_TIMEOUT_MS = 8000;
 
 const IS_WIN = IS_WINDOWS;
+
+// Semua fungsi deteksi di file ini async: probing binary memakai execFile
+// (bukan execFileSync) supaya event loop Node tidak terblokir. Versi sync
+// lama menahan SELURUH server selama deteksi berjalan — di Windows itu bisa
+// belasan detik, sehingga user tidak bisa pindah halaman sampai status
+// headroom selesai dimuat.
 
 // uv binary/shim locations. `uv tool install` puts the `headroom` shim in
 // `%USERPROFILE%\.local\bin` (Windows) or `~/.local/bin` — these are often
@@ -64,10 +70,21 @@ const EXTRA_BINS = IS_WIN
     ];
 
 const EXTENDED_PATH = [...EXTRA_BINS, process.env.PATH || ""].filter(Boolean).join(path.delimiter);
+const EXTENDED_ENV = () => ({ ...process.env, PATH: EXTENDED_PATH });
 const PYTHON_CANDIDATES = ["python3.13", "python3.12", "python3.11", "python3.10", "python3", "python"];
 const MIN_VERSION = [3, 10];
 const HEADROOM_HEALTH_TIMEOUT_MS = 1500;
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"]);
+
+// Hasil deteksi environment (binary/python/extras) di-cache singkat: scan
+// penuh melibatkan belasan spawn proses. `running` TIDAK di-cache — selalu
+// di-probe fresh supaya status Start/Stop di UI akurat.
+const ENV_CACHE_TTL_MS = 30000;
+let envCache = null; // { at, env }
+
+export function invalidateHeadroomStatusCache() {
+  envCache = null;
+}
 
 export const DEFAULT_HEADROOM_URL = process.env.HEADROOM_URL || "http://localhost:8787";
 
@@ -76,19 +93,20 @@ export const DEFAULT_HEADROOM_URL = process.env.HEADROOM_URL || "http://localhos
 // executable on the current platform (on Windows an extensionless script is
 // NOT executable — spawning one pops the "Open with" dialog) and it must
 // actually run (`--version` exits 0).
-export function findHeadroomBinary() {
-  const bin = findOnPath("headroom", EXTENDED_PATH);
-  return bin && probeRun(bin, ["--version"]) ? bin : null;
+export async function findHeadroomBinary() {
+  const bin = await findOnPathAsync("headroom", EXTENDED_PATH);
+  return bin && (await probeRunAsync(bin, ["--version"])) ? bin : null;
 }
 
 // Find the `uv` binary (used for uv-managed headroom installs).
-export function findUvBinary() {
-  const bin = findOnPath("uv", EXTENDED_PATH);
-  return bin && probeRun(bin, ["--version"]) ? bin : null;
+export async function findUvBinary() {
+  const bin = await findOnPathAsync("uv", EXTENDED_PATH);
+  return bin && (await probeRunAsync(bin, ["--version"])) ? bin : null;
 }
 
 // Python inside uv's isolated tool venv for headroom-ai
 // (`uv tool install "headroom-ai[all]"`). Returns null when not present.
+// existsSync cepat (tanpa spawn) jadi tetap sync.
 export function findUvToolPython() {
   const venvPy = IS_WIN
     ? path.join(uvToolsDir(), "headroom-ai", "Scripts", "python.exe")
@@ -101,32 +119,19 @@ export function findUvToolPython() {
 
 // How headroom-ai was installed: "uv" (uv tool venv), "pip" (visible to a
 // system python via pip), or null (not installed).
-export function getHeadroomInstallKind() {
+export async function getHeadroomInstallKind() {
   if (findUvToolPython()) return "uv";
-  const py = findPython310();
+  const py = await findPython310();
   if (py) {
-    try {
-      execFileSync(py, ["-m", "pip", "show", "headroom-ai"], {
-        stdio: ["ignore", "pipe", "ignore"],
-        windowsHide: true,
-        timeout: HEADROOM_PIP_TIMEOUT_MS,
-        env: { ...process.env, PATH: EXTENDED_PATH },
-      });
-      return "pip";
-    } catch { /* not visible to this python */ }
+    const ok = await probeRunAsync(py, ["-m", "pip", "show", "headroom-ai"], HEADROOM_PIP_TIMEOUT_MS);
+    if (ok) return "pip";
   }
   // Binary exists but package not visible to any probed python (e.g. pipx,
   // conda env not on PATH) — treat as pip-style for marker probing fallback.
-  if (findHeadroomBinary()) return "pip";
+  if (await findHeadroomBinary()) return "pip";
   return null;
 }
 
-// Find a Python interpreter >= 3.10 (headroom-ai requires it). Returns null if none.
-// `python3`, `python3.13`, `python` can point at different envs on any OS. Prefer
-// the interpreter that can also see the installed `headroom-ai` package so the
-// dashboard probes and install action operate on the same interpreter as the CLI.
-// Falls back to the first version-eligible candidate when headroom-ai is not yet
-// installed anywhere (needed for the initial install).
 // Interpreters to probe, most specific first: the python next to the headroom
 // binary (guaranteed to have headroom-ai), then full paths from EXTRA_BINS, then
 // bare names resolved via PATH.
@@ -135,12 +140,12 @@ export function getHeadroomInstallKind() {
 // any still-bare candidate is expanded with PATHEXT extensions, so probing
 // never hands an extensionless name to the OS — executing one via cmd.exe is
 // what popped the Windows "Open with" dialog.
-function pythonCandidates() {
+async function pythonCandidates() {
   const list = [];
   const add = (p) => {
     if (p && !list.includes(p)) list.push(p);
   };
-  const bin = findHeadroomBinary();
+  const bin = await findHeadroomBinary();
   if (bin) {
     const dir = path.dirname(bin);
     const names = IS_WIN ? ["python.exe", "python3.exe"] : ["python3", "python3.13", "python"];
@@ -151,7 +156,7 @@ function pythonCandidates() {
     for (const n of PYTHON_CANDIDATES) add(path.join(dir, IS_WIN ? `${n}.exe` : n));
   }
   if (IS_WIN) {
-    for (const n of PYTHON_CANDIDATES) add(findOnPath(n, EXTENDED_PATH));
+    for (const n of PYTHON_CANDIDATES) add(await findOnPathAsync(n, EXTENDED_PATH));
   } else {
     for (const n of PYTHON_CANDIDATES) add(n);
   }
@@ -165,52 +170,50 @@ function expandWindowsExecutable(p) {
   return windowsExecutableExtensions().map((ext) => `${p}${ext}`);
 }
 
-// `python --version` WITHOUT a shell (execFile). The old code used
-// execSync(string), which runs through cmd.exe on Windows — cmd.exe executes
-// via file associations, so an extensionless script (e.g. a pyenv shim)
-// triggered the "Open with" dialog. Returns the version string or null.
-function probePythonVersion(candidate) {
-  try {
-    return execFileSync(candidate, ["--version"], {
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true,
-      timeout: HEADROOM_PIP_TIMEOUT_MS,
-      env: { ...process.env, PATH: EXTENDED_PATH },
-    })
-      .toString()
-      .trim();
-  } catch {
-    return null;
-  }
+// `python --version` TANPA shell (execFile). Versi sync lama memakai
+// execSync(string) yang berjalan via cmd.exe di Windows — cmd.exe mengeksekusi
+// lewat asosiasi file, sehingga script tanpa ekstensi (mis. pyenv shim)
+// memicu dialog "Open with". Mengembalikan string versi atau null.
+async function probePythonVersion(candidate) {
+  return execFileOutputAsync(candidate, ["--version"], HEADROOM_PIP_TIMEOUT_MS, EXTENDED_ENV());
 }
 
-export function findPython310() {
-  let fallback = null;
-  for (const candidate of pythonCandidates()) {
-    // Never hand a non-executable file to the OS. On Windows this guard is
-    // what prevents the "Open with" dialog: an extensionless script is
-    // rejected here instead of being executed via the shell.
-    if (!isExecutablePath(candidate)) continue;
-    const ver = probePythonVersion(candidate);
-    if (!ver) continue;
-    const match = ver.match(/(\d+)\.(\d+)/);
-    if (!match) continue;
-    const [major, minor] = [parseInt(match[1], 10), parseInt(match[2], 10)];
-    if (!(major > MIN_VERSION[0] || (major === MIN_VERSION[0] && minor >= MIN_VERSION[1]))) continue;
-    if (!fallback) fallback = candidate;
-    try {
-      execFileSync(candidate, ["-m", "pip", "show", "headroom-ai"], {
-        stdio: ["ignore", "pipe", "ignore"],
-        windowsHide: true,
-        timeout: HEADROOM_PIP_TIMEOUT_MS,
-        env: { ...process.env, PATH: EXTENDED_PATH },
-      });
+// Find a Python interpreter >= 3.10 (headroom-ai requires it). Returns null if none.
+// `python3`, `python3.13`, `python` can point at different envs on any OS. Prefer
+// the interpreter that can also see the installed `headroom-ai` package so the
+// dashboard probes and install action operate on the same interpreter as the CLI.
+// Falls back to the first version-eligible candidate when headroom-ai is not yet
+// installed anywhere (needed for the initial install).
+//
+// Kandidat di-probe paralel (Promise.all) — kegagalan cepat, dan event loop
+// tetap bebas sehingga request lain tidak antre di belakang deteksi.
+export async function findPython310() {
+  const candidates = await pythonCandidates();
+  const probed = await Promise.all(
+    candidates.map(async (candidate) => {
+      // Never hand a non-executable file to the OS. On Windows this guard is
+      // what prevents the "Open with" dialog: an extensionless script is
+      // rejected here instead of being executed via the shell.
+      if (!isExecutablePath(candidate)) return null;
+      const ver = await probePythonVersion(candidate);
+      const match = ver && ver.match(/(\d+)\.(\d+)/);
+      if (!match) return null;
+      const [major, minor] = [parseInt(match[1], 10), parseInt(match[2], 10)];
+      if (!(major > MIN_VERSION[0] || (major === MIN_VERSION[0] && minor >= MIN_VERSION[1]))) return null;
       return candidate;
-    } catch {
-      // Keep scanning until an interpreter that sees headroom-ai is found.
-    }
-  }
-  return fallback;
+    })
+  );
+  const eligible = probed.filter(Boolean);
+  if (eligible.length === 0) return null;
+  // Pilih interpreter yang bisa melihat headroom-ai (paralel, urutan prioritas dijaga).
+  const seen = await Promise.all(
+    eligible.map((py) =>
+      probeRunAsync(py, ["-m", "pip", "show", "headroom-ai"], HEADROOM_PIP_TIMEOUT_MS).then((ok) =>
+        ok ? py : null
+      )
+    )
+  );
+  return seen.find(Boolean) || eligible[0];
 }
 
 // Probe whether a Headroom proxy is reachable at the given URL by hitting /health.
@@ -234,25 +237,41 @@ export function isLoopbackHeadroomUrl(url) {
   }
 }
 
-// Aggregate status for the dashboard: installed, running, python interpreter.
-export async function getHeadroomStatus(url) {
-  const path = findHeadroomBinary();
-  const python = findPython310();
-  const uvPy = findUvToolPython();
-  const installed = Boolean(path) || Boolean(uvPy);
-  const running = await probeProxyRunning(url);
-  const localUrl = isLoopbackHeadroomUrl(url);
-  const extrasStatus = installed ? getInstalledHeadroomExtras(python) : { installed: false, version: null, extras: { code: false, ml: false }, via: null };
-  return {
+// Deteksi environment (binary, python, extras) — di-cache 30 detik.
+async function detectHeadroomEnvironment() {
+  const now = Date.now();
+  if (envCache && now - envCache.at < ENV_CACHE_TTL_MS) return envCache.env;
+  const [bin, python, uvPy] = await Promise.all([
+    findHeadroomBinary(),
+    findPython310(),
+    Promise.resolve(findUvToolPython()),
+  ]);
+  const installed = Boolean(bin) || Boolean(uvPy);
+  const extrasStatus = installed
+    ? await getInstalledHeadroomExtras(python)
+    : { installed: false, version: null, extras: { code: false, ml: false }, via: null };
+  const env = {
     installed,
-    path,
-    running,
+    path: bin,
     python: uvPy || python,
-    localUrl,
-    canStart: installed && localUrl,
     version: extrasStatus.version,
     extras: extrasStatus.extras,
     via: extrasStatus.via || null,
+  };
+  envCache = { at: now, env };
+  return env;
+}
+
+// Aggregate status for the dashboard: installed, running, python interpreter.
+// `running` selalu fresh; sisanya dari cache environment 30 detik.
+export async function getHeadroomStatus(url) {
+  const [env, running] = await Promise.all([detectHeadroomEnvironment(), probeProxyRunning(url)]);
+  const localUrl = isLoopbackHeadroomUrl(url);
+  return {
+    ...env,
+    running,
+    localUrl,
+    canStart: env.installed && localUrl,
   };
 }
 
@@ -264,32 +283,36 @@ export async function getHeadroomStatus(url) {
 // invisible to system pythons — so probe the uv venv python first.
 //
 // Returns: { installed: bool, version: string|null, extras: { code, ml }, via: "uv"|"pip"|null }
-export function getInstalledHeadroomExtras(python) {
+export async function getInstalledHeadroomExtras(python) {
   // 1) uv-managed install: probe the isolated tool venv directly.
   const uvPy = findUvToolPython();
-  if (uvPy) {
-    const st = probeExtrasViaPython(uvPy);
-    if (st.installed) return { ...st, via: "uv" };
-  }
   // 2) pip-managed install: probe the given/found system python.
-  const py = python || findPython310();
-  if (!py) return { installed: false, version: null, extras: { code: false, ml: false }, via: null };
-  const pipStatus = probeExtrasViaPython(py);
-  return { ...pipStatus, via: pipStatus.installed ? "pip" : null };
+  const py = python || (await findPython310());
+  const [uvStatus, pipStatus] = await Promise.all([
+    uvPy ? probeExtrasViaPython(uvPy) : Promise.resolve(null),
+    py ? probeExtrasViaPython(py) : Promise.resolve(null),
+  ]);
+  if (uvStatus && uvStatus.installed) return { ...uvStatus, via: "uv" };
+  if (pipStatus && pipStatus.installed) return { ...pipStatus, via: "pip" };
+  return { installed: false, version: null, extras: { code: false, ml: false }, via: null };
 }
 
 function emptyExtrasStatus() {
   return { installed: false, version: null, extras: { code: false, ml: false } };
 }
 
-function probeExtrasViaPython(py) {
+async function probeExtrasViaPython(py) {
+  const out = await execFileOutputAsync(
+    py,
+    ["-m", "pip", "list", "--format=json", "--disable-pip-version-check"],
+    HEADROOM_PIP_TIMEOUT_MS,
+    EXTENDED_ENV()
+  );
+  if (out === null) {
+    // pip may be missing in the venv — fall back to import probing.
+    return probeExtrasViaImport(py);
+  }
   try {
-    const out = execFileSync(py, ["-m", "pip", "list", "--format=json", "--disable-pip-version-check"], {
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true,
-      timeout: HEADROOM_PIP_TIMEOUT_MS,
-      env: { ...process.env, PATH: EXTENDED_PATH },
-    }).toString();
     const packages = JSON.parse(out);
     const names = new Set(packages.map((p) => String(p.name || "").toLowerCase()));
     const installed = names.has("headroom-ai");
@@ -301,31 +324,29 @@ function probeExtrasViaPython(py) {
     }
     return { installed: true, version, extras };
   } catch {
-    // pip may be missing in the venv — fall back to import probing.
-    return probeExtrasViaImport(py);
+    return emptyExtrasStatus();
   }
 }
 
 // Fallback when `pip` is unavailable: check marker packages via import.
-function probeExtrasViaImport(py) {
-  const check = (mod) => {
-    try {
-      execFileSync(py, ["-c", `import ${mod}`], {
-        stdio: ["ignore", "pipe", "ignore"],
-        windowsHide: true,
-        timeout: HEADROOM_PIP_TIMEOUT_MS,
-        env: { ...process.env, PATH: EXTENDED_PATH },
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  const installed = check("headroom_ai") || check("headroom");
-  if (!installed) return emptyExtrasStatus();
+async function probeExtrasViaImport(py) {
+  const check = (mod) =>
+    execFileOutputAsync(py, ["-c", `import ${mod}`], HEADROOM_PIP_TIMEOUT_MS, EXTENDED_ENV()).then(
+      (out) => out !== null
+    );
+  const [hasAi, hasLegacy] = await Promise.all([check("headroom_ai"), check("headroom")]);
+  if (!hasAi && !hasLegacy) return emptyExtrasStatus();
+  const extrasChecks = await Promise.all(
+    HEADROOM_COMPRESSION_EXTRAS.map(async (extra) => {
+      const found = await Promise.all(
+        EXTRA_MARKERS[extra].map((m) => check(m.replace(/-/g, "_")))
+      );
+      return found.some(Boolean);
+    })
+  );
   const extras = {};
-  for (const extra of HEADROOM_COMPRESSION_EXTRAS) {
-    extras[extra] = EXTRA_MARKERS[extra].some((m) => check(m.replace(/-/g, "_")));
-  }
+  HEADROOM_COMPRESSION_EXTRAS.forEach((extra, i) => {
+    extras[extra] = extrasChecks[i];
+  });
   return { installed: true, version: null, extras };
 }

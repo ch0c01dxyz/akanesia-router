@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function POST() {
   try {
     const wasLoaded = unloadPxpipe();
-    return NextResponse.json({ stopped: wasLoaded, ...getPxpipeStatus() });
+    return NextResponse.json({ stopped: wasLoaded, ...(await getPxpipeStatus()) });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

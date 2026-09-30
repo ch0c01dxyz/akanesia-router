@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { Card, Button, Input, Modal, Toggle, ConfirmModal } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { getCurrentLocale, onLocaleChange } from "@/i18n/runtime";
@@ -521,14 +522,22 @@ export default function TokenSaverClient() {
                 </a>
               </p>
               <span
-                className={`text-xs px-2 py-0.5 rounded ${headroomRunning ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+                className={`inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded ${headroomRunning ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+                aria-busy={headroomStatus.loading}
               >
+                {headroomStatus.loading && (
+                  <span
+                    className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin"
+                    aria-hidden="true"
+                  />
+                )}
                 {headroomStatusLabel}
               </span>
               <button
                 type="button"
                 onClick={() => setShowHeadroomInstallModal(true)}
-                className="text-xs text-primary underline hover:opacity-80"
+                disabled={headroomStatus.loading}
+                className="text-xs text-primary underline hover:opacity-80 disabled:opacity-40 disabled:no-underline disabled:cursor-wait"
               >
                 {headroomRunning ? "Manage" : "Setup"}
               </button>
@@ -539,10 +548,25 @@ export default function TokenSaverClient() {
           </div>
           <Toggle
             checked={headroomEnabled}
+            disabled={headroomStatus.loading}
             onChange={() => handleHeadroomEnabled(!headroomEnabled)}
           />
         </div>
-        {headroomStatus.installed && (
+        {headroomStatus.loading && (
+          <div
+            className="mb-3 ml-1 pl-3 pb-4 border-l-2 border-border"
+            aria-hidden="true"
+          >
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              <span className="text-xs text-text-muted">
+                Detecting Headroom installation…
+              </span>
+            </div>
+            <div className="mt-2 h-8 rounded bg-surface-2 animate-pulse" />
+          </div>
+        )}
+        {headroomStatus.installed && !headroomStatus.loading && (
           <div className="mb-3 ml-1 pl-3 pb-4 border-l-2 border-border">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-text-muted">
@@ -799,20 +823,25 @@ export default function TokenSaverClient() {
           <div className="flex items-center justify-between text-sm">
             <span>Status</span>
             <span
-              className={headroomRunning ? "text-success" : "text-warning"}
+              className={`inline-flex items-center gap-1.5 ${headroomRunning ? "text-success" : "text-warning"}`}
+              aria-busy={headroomStatus.loading}
             >
+              {headroomStatus.loading && (
+                <span
+                  className="inline-block w-3 h-3 rounded-full border-2 border-current border-t-transparent animate-spin"
+                  aria-hidden="true"
+                />
+              )}
               {headroomStatusLabel}
             </span>
           </div>
           {headroomRunning && (
-            <a
-              href="/api/headroom/proxy/dashboard"
-              target="_blank"
-              rel="noreferrer"
+            <Link
+              href="/dashboard/token-saver/headroom"
               className="w-full rounded border border-border px-4 py-2 text-center text-sm hover:bg-surface-2"
             >
               Open Headroom Dashboard
-            </a>
+            </Link>
           )}
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium">Proxy URL</p>

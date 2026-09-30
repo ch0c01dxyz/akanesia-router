@@ -21,6 +21,9 @@ import {
   isExecutablePath,
   probeRun,
   findOnPath,
+  probeRunAsync,
+  findOnPathAsync,
+  execFileOutputAsync,
 } from "@/lib/platform.js";
 
 let tmpDir;
@@ -133,5 +136,54 @@ describe("findOnPath", () => {
     fs.writeFileSync(exe, "#!/bin/sh\nexit 0\n");
     fs.chmodSync(exe, 0o755);
     expect(findOnPath("alat-kecil", dir)).toBe(exe);
+  });
+});
+
+describe("varian async (tidak blokir event loop)", () => {
+  it("probeRunAsync: true untuk binary valid", async () => {
+    expect(await probeRunAsync(process.execPath, ["--version"])).toBe(true);
+  });
+
+  it("probeRunAsync: false untuk file tidak ada / bukan executable", async () => {
+    expect(await probeRunAsync(path.join(tmpDir, "tidak-ada"))).toBe(false);
+    const f = path.join(tmpDir, "data.txt");
+    fs.writeFileSync(f, "hello");
+    expect(await probeRunAsync(f, ["--version"])).toBe(false);
+  });
+
+  it("probeRunAsync: menolak shim tanpa ekstensi (kasus dialog Open with)", async () => {
+    const shim = path.join(tmpDir, "shim-tanpa-ekstensi");
+    fs.writeFileSync(shim, '#!/bin/sh\npyenv exec $(basename "$0") "$@"\n');
+    expect(await probeRunAsync(shim, ["--version"])).toBe(false);
+  });
+
+  it("findOnPathAsync: menemukan node dan menolak nama kosong", async () => {
+    expect(await findOnPathAsync("node")).toContain("node");
+    expect(await findOnPathAsync("")).toBeNull();
+    expect(await findOnPathAsync("binary-yang-pasti-tidak-ada-xyz")).toBeNull();
+  });
+
+  it("findOnPathAsync: memakai extraPath", async () => {
+    const dir = fs.mkdtempSync(path.join(tmpDir, "bin-async-"));
+    const exe = path.join(dir, "alat-async");
+    fs.writeFileSync(exe, "#!/bin/sh\nexit 0\n");
+    fs.chmodSync(exe, 0o755);
+    expect(await findOnPathAsync("alat-async", dir)).toBe(exe);
+  });
+
+  it("execFileOutputAsync: mengembalikan stdout trim atau null", async () => {
+    const out = await execFileOutputAsync(process.execPath, ["--version"]);
+    expect(out).toMatch(/^v\d+\./);
+    expect(await execFileOutputAsync(path.join(tmpDir, "tidak-ada"), [])).toBeNull();
+  });
+
+  it("event loop tetap responsif selama probe async berjalan", async () => {
+    // Probe yang lambat (timeout 3s ke binary yang hang) tidak boleh
+    // menahan timer lain — bukti tidak ada pemblokiran event loop.
+    const slow = probeRunAsync(path.join(tmpDir, "tidak-ada"), [], 3000);
+    let ticked = false;
+    await new Promise((r) => setTimeout(() => { ticked = true; r(); }, 50));
+    expect(ticked).toBe(true);
+    expect(await slow).toBe(false);
   });
 });

@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import { DATA_DIR } from "@/lib/dataDir.js";
-import { IS_WINDOWS, findOnPath, probeRun } from "@/lib/platform.js";
+import { IS_WINDOWS, findOnPathAsync, probeRunAsync } from "@/lib/platform.js";
 
 export const PXPIPE_DIR = path.join(DATA_DIR, "pxpipe");
 export const PXPIPE_PACKAGE = "pxpipe-proxy";
@@ -36,9 +36,10 @@ export function libraryEntry() {
 // executable on the current platform and must actually run
 // (`npm --version` exits 0). A blind `where` hit (e.g. an extensionless
 // script) must never be spawned — on Windows that pops "Open with".
-export function findNpm() {
-  const npm = findOnPath("npm", EXTENDED_PATH);
-  return npm && probeRun(npm, ["--version"]) ? npm : null;
+// Async agar tidak memblokir event loop (npm --version di Windows bisa 1-3 detik).
+export async function findNpm() {
+  const npm = await findOnPathAsync("npm", EXTENDED_PATH);
+  return npm && (await probeRunAsync(npm, ["--version"])) ? npm : null;
 }
 
 // { installed, version, path } — installed means the library entry exists on disk.
@@ -68,7 +69,7 @@ export function installPxpipe() {
 }
 
 async function runInstall() {
-  const npm = findNpm();
+  const npm = await findNpm();
   if (!npm) {
     const err = new Error("npm not found on PATH — Node.js/npm is required to install PXPIPE");
     err.code = "NPM_NOT_FOUND";

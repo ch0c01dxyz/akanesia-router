@@ -10,8 +10,8 @@ export async function GET(req) {
     if (new URL(req.url).searchParams.get("log") === "1") {
       return NextResponse.json({ log: getInstallLogTail() });
     }
-    const python = findPython310();
-    const status = getInstalledHeadroomExtras(python);
+    const python = await findPython310();
+    const status = await getInstalledHeadroomExtras(python);
     return NextResponse.json({
       available: HEADROOM_COMPRESSION_EXTRAS,
       ...status,

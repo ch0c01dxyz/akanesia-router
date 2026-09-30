@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const settings = await getSettings();
-    const status = getPxpipeStatus();
+    const status = await getPxpipeStatus();
     return NextResponse.json({
       ...status,
       enabled: !!settings.pxpipeEnabled,

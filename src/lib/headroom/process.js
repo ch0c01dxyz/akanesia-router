@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import { DATA_DIR } from "@/lib/dataDir.js";
-import { findHeadroomBinary, findPython310, findUvBinary, findUvToolPython, getHeadroomInstallKind, HEADROOM_COMPRESSION_EXTRAS, EXTRA_MARKERS, getInstalledHeadroomExtras } from "./detect.js";
+import { findHeadroomBinary, findPython310, findUvBinary, findUvToolPython, getHeadroomInstallKind, HEADROOM_COMPRESSION_EXTRAS, EXTRA_MARKERS, getInstalledHeadroomExtras, invalidateHeadroomStatusCache } from "./detect.js";
 import { IS_WINDOWS } from "../platform.js";
 
 const HEADROOM_DIR = path.join(DATA_DIR, "headroom");
@@ -55,7 +55,7 @@ function extrasProxyArgs({ codeAware, kompress } = {}) {
 
 export async function startHeadroomProxy({ port = DEFAULT_PORT, codeAware = false, kompress = true } = {}) {
   const safePort = Number(port) > 0 && Number(port) < 65536 ? Number(port) : DEFAULT_PORT;
-  const binary = findHeadroomBinary();
+  const binary = await findHeadroomBinary();
   if (!binary) {
     const err = new Error("Headroom CLI not installed");
     err.code = "NOT_INSTALLED";
@@ -181,12 +181,12 @@ export async function installHeadroomExtras(extras = []) {
   const extrasList = ["proxy", ...requested].join(",");
   const spec = `headroom-ai[${extrasList}]`;
 
-  const kind = getHeadroomInstallKind();
-  if (kind === "uv" || (!kind && findUvBinary())) {
+  const kind = await getHeadroomInstallKind();
+  if (kind === "uv" || (!kind && (await findUvBinary()))) {
     return runUvToolInstall(spec, requested);
   }
 
-  const py = findPython310();
+  const py = await findPython310();
   if (!py) {
     const err = new Error("Python >= 3.10 not found and `uv` is not available");
     err.code = "NO_PYTHON";
@@ -205,10 +205,11 @@ export async function installHeadroomExtras(extras = []) {
 
   return new Promise((resolve, reject) => {
     child.once("error", (e) => { fs.closeSync(outFd); reject(e); });
-    child.once("exit", (code) => {
+    child.once("exit", async (code) => {
       fs.closeSync(outFd);
       if (code === 0) {
-        const status = getInstalledHeadroomExtras(py);
+        const status = await getInstalledHeadroomExtras(py);
+        invalidateHeadroomStatusCache();
         resolve({ success: true, code, spec, extras: requested, via: "pip", ...status });
       } else {
         const err = new Error(`pip install exited with code=${code} — see headroom/install.log`);
@@ -221,8 +222,8 @@ export async function installHeadroomExtras(extras = []) {
 
 // `uv tool install` is atomic per tool: reinstalling with `--force` and the
 // desired extras set is the supported way to add/remove extras.
-function runUvToolInstall(spec, requested) {
-  const uv = findUvBinary();
+async function runUvToolInstall(spec, requested) {
+  const uv = await findUvBinary();
   if (!uv) {
     const err = new Error("`uv` not found");
     err.code = "NO_UV";
@@ -240,10 +241,11 @@ function runUvToolInstall(spec, requested) {
 
   return new Promise((resolve, reject) => {
     child.once("error", (e) => { fs.closeSync(outFd); reject(e); });
-    child.once("exit", (code) => {
+    child.once("exit", async (code) => {
       fs.closeSync(outFd);
       if (code === 0) {
-        const status = getInstalledHeadroomExtras(findUvToolPython());
+        const status = await getInstalledHeadroomExtras(findUvToolPython());
+        invalidateHeadroomStatusCache();
         resolve({ success: true, code, spec, extras: requested, via: "uv", ...status });
       } else {
         const err = new Error(`uv tool install exited with code=${code} — see headroom/install.log`);
@@ -261,14 +263,14 @@ function runUvToolInstall(spec, requested) {
 // (`uv tool install` is atomic — individual packages can't be uninstalled).
 export async function uninstallHeadroomExtras(extras = []) {
   const requested = Array.isArray(extras) ? extras.filter((e) => HEADROOM_COMPRESSION_EXTRAS.includes(e)) : [];
-  const kind = getHeadroomInstallKind();
+  const kind = await getHeadroomInstallKind();
   if (kind === "uv") {
-    const current = getInstalledHeadroomExtras(findUvToolPython());
+    const current = await getInstalledHeadroomExtras(findUvToolPython());
     const keep = HEADROOM_COMPRESSION_EXTRAS.filter((e) => current.extras?.[e] && !requested.includes(e));
     const extrasList = ["proxy", ...keep].join(",");
     return runUvToolInstall(`headroom-ai[${extrasList}]`, keep);
   }
-  const py = findPython310();
+  const py = await findPython310();
   if (!py) {
     const err = new Error("Python >= 3.10 not found");
     err.code = "NO_PYTHON";
@@ -292,10 +294,11 @@ export async function uninstallHeadroomExtras(extras = []) {
 
   return new Promise((resolve, reject) => {
     child.once("error", (e) => { fs.closeSync(outFd); reject(e); });
-    child.once("exit", (code) => {
+    child.once("exit", async (code) => {
       fs.closeSync(outFd);
       if (code === 0) {
-        const status = getInstalledHeadroomExtras(py);
+        const status = await getInstalledHeadroomExtras(py);
+        invalidateHeadroomStatusCache();
         resolve({ success: true, code, removed: pkgs, extras: requested, ...status });
       } else {
         const err = new Error(`pip uninstall exited with code=${code} — see headroom/install.log`);

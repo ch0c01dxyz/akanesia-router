@@ -5,6 +5,31 @@
 
 ## 2026-09-30
 
+### Dashboard Headroom Token Saver + deteksi non-blocking + animasi loading
+
+- Dashboard Headroom baru di `/dashboard/token-saver/headroom` (menggantikan
+  proxy dashboard bawaan yang kosong): status running/versi/uptime, tile
+  request & token & USD saved (menangani `litellm_available`), grafik token
+  savings (daily/weekly/monthly), tabel checkpoint, ekspor CSV, auto-refresh
+  30 detik. Data diambil dari `/stats` dan `/stats-history` (API frontend
+  stabil menurut dokumentasi resmi Headroom).
+- Deteksi Headroom/PXPIPE kini non-blocking: seluruh probing proses
+  (`findHeadroomBinary`, `findPython310`, `getHeadroomInstallKind`, extras)
+  ditulis ulang menjadi async (`execFileOutputAsync`/`probeRunAsync`/
+  `findOnPathAsync` di `src/lib/platform.js`); kandidat python di-probe
+  paralel; hasil environment di-cache 30 detik (status `running` selalu
+  fresh). Sebelumnya probe sinkron menahan event loop Node sehingga halaman
+  tidak bisa ditinggal selama pengecekan. Smoke test: scan pertama ~2725 ms,
+  cache hit ~3 ms, event loop tetap bergerak 27 ticks selama scan.
+- Animasi loading di halaman Token Saver: badge "Checking…" dengan spinner,
+  skeleton "Detecting Headroom installation…", tombol Setup/Manage dan toggle
+  Headroom dinonaktifkan selama pengecekan, spinner status di modal; link
+  dashboard di modal mengarah ke halaman internal baru.
+- Test: `tests/unit/platform-detect.test.js` diperluas (22 lolos, termasuk
+  fungsi async + event loop responsif); `tests/unit/headroom-detect.test.js`
+  ditulis ulang untuk API async (5 lolos). Production build sukses
+  (route `/dashboard/token-saver/headroom` terdaftar).
+
 ### Fix dialog "Open with" di halaman Token Saver (Windows)
 
 - Akar masalah: kandidat binary di-probe lewat `execSync(string)` → cmd.exe,
