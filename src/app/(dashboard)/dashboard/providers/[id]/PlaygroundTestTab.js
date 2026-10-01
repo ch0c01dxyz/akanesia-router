@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Button } from "@/shared/components";
+import { Button, SearchableSelect } from "@/shared/components";
 import { translate } from "@/i18n/runtime";
 import {
   buildAvailableModels,
@@ -91,18 +91,15 @@ export default function PlaygroundTestTab({ providerId, providerAlias, models, c
   return (
     <div>
       <div className="mb-4 flex justify-end">
-        <div className="flex gap-2">
-          <select
+        <div className="flex gap-2 items-end">
+          <SearchableSelect
+            options={availableModels.map((m) => ({ value: m.id, label: m.label }))}
             value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
+            onChange={setSelectedModel}
             disabled={availableModels.length === 0}
-            className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none max-w-[240px]"
-            aria-label={translate("Select model")}
-          >
-            {availableModels.map((m) => (
-              <option key={m.id} value={m.id}>{m.label}</option>
-            ))}
-          </select>
+            placeholder={translate("Select model")}
+            className="w-60"
+          />
           <Button size="sm" variant="secondary" icon="delete" onClick={() => { abortRef.current?.abort(); setMessages([]); setError(""); }} disabled={messages.length === 0 && !error}>
             {translate("Clear")}
           </Button>

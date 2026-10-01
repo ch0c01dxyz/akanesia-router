@@ -17,6 +17,9 @@ import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { isReservedProviderPrefix } from "@/sse/services/model.js";
+import { koneksiPunyaKredensial, cariKoneksiBerkredensial, ROUTE_MASKING_OWNED_BY, ROUTE_MASK_NAME_REGEX } from "@/lib/routeMasking.js";
+import { getModelsCache, setModelsCache, invalidateModelsCache } from "@/lib/modelsCache.js";
+export { invalidateModelsCache };
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 
@@ -241,17 +244,10 @@ async function fetchCompatibleModelIds(connection) {
 // Koneksi dianggap punya kredensial bila salah satu field kredensial
 // (apiKey / accessToken / refreshToken) terisi. Cookie provider menyimpan
 // cookie di apiKey. Provider lokal (ollama-local) dan authType tanpa
-// kredensial (none/free/optional) tidak butuh kunci — tetap ditampilkan.
-// Tanpa kredensial yang bisa dipakai, model provider tersebut tidak boleh
-// tampil di /v1/models.
-function koneksiPunyaKredensial(conn) {
-  if (!conn) return false;
-  const authType = String(conn.authType || "").toLowerCase();
-  if (authType === "none" || authType === "free" || authType === "optional") return true;
-  if (conn.provider === "ollama-local") return true;
-  return [conn.apiKey, conn.accessToken, conn.refreshToken]
-    .some((v) => typeof v === "string" && v.trim() !== "");
-}
+// koneksiPunyaKredensial kini tinggal di @/lib/routeMasking.js agar dipakai
+// bersama oleh /v1/models dan validasi Route-Masking (/api/models/alias).
+// Aturan: koneksi tanpa apiKey/accessToken/refreshToken disembunyikan,
+// kecuali authType none/free/optional dan ollama-local.
 
 // Provider matches kindFilter when its serviceKinds intersect the requested kinds.
 // LLM is the default kind for providers missing serviceKinds.
@@ -280,21 +276,12 @@ function comboMatchesKinds(combo, kindFilter) {
 // satu model di [...model]/route.js yang berujung 404. TTL 30 dtk:
 // klien OpenAI umumnya me-cache /v1/models sendiri, jadi staleness
 // singkat dapat diterima.
-const MODELS_CACHE_TTL_MS = 30_000;
-const modelsCache = new Map(); // key -> { data, expiresAt }
-
-function modelsCacheKey(kindFilter, skipDynamicFetch) {
-  const kinds = Array.isArray(kindFilter) ? [...kindFilter].sort().join(",") : "";
-  return `${kinds}|${skipDynamicFetch ? 1 : 0}`;
-}
-
 export async function buildModelsList(kindFilter, options = {}) {
   const skipDynamicFetch = options.skipDynamicFetch === true;
-  const key = modelsCacheKey(kindFilter, skipDynamicFetch);
-  const hit = modelsCache.get(key);
-  if (hit && hit.expiresAt > Date.now()) return hit.data;
+  const cached = getModelsCache(kindFilter, skipDynamicFetch);
+  if (cached) return cached;
   const data = await buildModelsListUncached(kindFilter, options);
-  modelsCache.set(key, { data, expiresAt: Date.now() + MODELS_CACHE_TTL_MS });
+  setModelsCache(kindFilter, skipDynamicFetch, data);
   return data;
 }
 
@@ -609,6 +596,34 @@ async function buildModelsListUncached(kindFilter, options = {}) {
     if (!model?.id || seenModelIds.has(model.id)) continue;
     seenModelIds.add(model.id);
     dedupedModels.push(model);
+  }
+
+  // Route-Masking: tampilkan nama samaran sebagai entri model sendiri agar
+  // harness bisa discovery/validasi langsung via /v1/models. Chat tetap
+  // me-resolve ke model asli dan respons tetap memakai nama asli.
+  if (kindFilter.includes(LLM_KIND)) {
+    for (const maskName of Object.keys(modelAliases || {})) {
+      if (!maskName || !ROUTE_MASK_NAME_REGEX.test(maskName)) continue;
+      const target = modelAliases[maskName];
+      const slash = typeof target === "string" ? target.indexOf("/") : -1;
+      if (slash <= 0 || slash === target.length - 1) continue;
+      // Mask basi (target kehilangan koneksi aktif berkredensial) tidak
+      // ditampilkan — syarat fitur: mask hanya untuk model yang bisa dipakai.
+      if (!cariKoneksiBerkredensial(target.slice(0, slash), connections)) continue;
+      const entry = {
+        id: maskName,
+        object: "model",
+        owned_by: ROUTE_MASKING_OWNED_BY,
+      };
+      if (seenModelIds.has(maskName)) {
+        // Konsisten dengan chat (mask menang atas id asli): ganti entri lama.
+        const idx = dedupedModels.findIndex((m) => m?.id === maskName);
+        if (idx >= 0) dedupedModels[idx] = entry;
+      } else {
+        seenModelIds.add(maskName);
+        dedupedModels.push(entry);
+      }
+    }
   }
 
   return dedupedModels;

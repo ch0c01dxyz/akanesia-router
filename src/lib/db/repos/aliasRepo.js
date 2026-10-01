@@ -19,6 +19,20 @@ export async function deleteModelAlias(alias) {
   await aliasKv.remove(alias);
 }
 
+// Rename atomik: tulis baru + hapus lama dalam satu transaksi. Dipakai fitur
+// Route-Masking agar edit nama tidak bisa menghilangkan data bila langkah
+// kedua gagal (fail-closed: transaksi rollback seluruhnya).
+export async function renameModelAlias(oldAlias, newAlias, model) {
+  const db = await getAdapter();
+  db.transaction(() => {
+    db.run(
+      `INSERT INTO kv(scope, key, value) VALUES(?, ?, ?) ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value`,
+      ["modelAliases", newAlias, stringifyJson(model)]
+    );
+    db.run(`DELETE FROM kv WHERE scope = ? AND key = ?`, ["modelAliases", oldAlias]);
+  });
+}
+
 // customModels: key=`${providerAlias}|${id}|${type}`, value=full model object
 function customKey(providerAlias, id, type) {
   return `${providerAlias}|${id}|${type}`;

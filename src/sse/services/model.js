@@ -40,37 +40,92 @@ export function parseModel(modelStr) {
  * Resolve model alias from localDb
  */
 export async function resolveModelAlias(alias) {
-  const aliases = await getModelAliases();
+  const aliases = await getCachedModelAliases();
   return resolveModelAliasFromMap(alias, aliases);
+}
+
+// Cache singkat untuk tabel modelAliases agar tiap request chat tidak selalu
+// SELECT ke DB. Di-invalidate eksplisit setiap PUT/DELETE alias.
+const MASK_ALIAS_CACHE_TTL_MS = 10_000;
+let maskAliasCache = null;
+let maskAliasCacheAt = 0;
+
+async function getCachedModelAliases() {
+  const now = Date.now();
+  if (maskAliasCache && now - maskAliasCacheAt < MASK_ALIAS_CACHE_TTL_MS) {
+    return maskAliasCache;
+  }
+  const aliases = await getModelAliases();
+  maskAliasCache = aliases || {};
+  maskAliasCacheAt = now;
+  return maskAliasCache;
+}
+
+/** Kosongkan cache mask — dipanggil setelah PUT/DELETE /api/models/alias. */
+export function invalidateMaskAliasCache() {
+  maskAliasCache = null;
+  maskAliasCacheAt = 0;
+}
+
+/**
+ * Resolve prefix node kustom (openai/anthropic/embedding-compatible) menjadi
+ * node id. Null bila prefix adalah id/alias provider bawaan (reserved) atau
+ * tidak cocok dengan node manapun.
+ */
+async function resolveNodePrefixId(providerAlias) {
+  if (!providerAlias || RESERVED_PROVIDER_PREFIXES.has(providerAlias)) return null;
+  const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
+  const matchedOpenAI = openaiNodes.find((node) => node.prefix === providerAlias);
+  if (matchedOpenAI) return matchedOpenAI.id;
+  const anthropicNodes = await getProviderNodes({ type: "anthropic-compatible" });
+  const matchedAnthropic = anthropicNodes.find((node) => node.prefix === providerAlias);
+  if (matchedAnthropic) return matchedAnthropic.id;
+  const embeddingNodes = await getProviderNodes({ type: "custom-embedding" });
+  const matchedEmbedding = embeddingNodes.find((node) => node.prefix === providerAlias);
+  if (matchedEmbedding) return matchedEmbedding.id;
+  return null;
 }
 
 /**
  * Get full model info (parse or resolve)
  */
 export async function getModelInfo(modelStr) {
+  // Route-Masking: nama samaran boleh berformat "prefix/model" (prefix bisa
+  // virtual, mis. "routerlokal/glm-5.3-flash"), jadi seluruh string harus
+  // dicocokkan ke daftar mask DULU sebelum di-parse sebagai provider/model.
+  // Tanpa ini, "routerlokal/..." tidak pernah mencapai alias map karena
+  // parseModel menganggapnya pasangan provider/model biasa.
+  if (typeof modelStr === "string" && modelStr.includes("/")) {
+    let masks = null;
+    try {
+      masks = await getCachedModelAliases();
+    } catch (err) {
+      // Fail-open ke parsing normal, tapi jangan telan error DB diam-diam.
+      console.warn("[route-masking] getModelAliases gagal, lanjut parsing normal:", err?.message || err);
+    }
+    if (masks && Object.prototype.hasOwnProperty.call(masks, modelStr)) {
+      const resolved = resolveModelAliasFromMap(modelStr, masks);
+      if (resolved) {
+        // Target mask harus melewati resolusi yang sama dengan jalur normal:
+        // prefix node kustom -> node id, lalu alias provider lokal.
+        // Tanpa ini, mask ke target node kustom (mis. "dahono/...") gagal
+        // dengan "No active credentials" karena kredensial tersimpan
+        // di bawah node id, bukan prefix.
+        const nodeId = await resolveNodePrefixId(resolved.provider);
+        const provider = nodeId || LOCAL_PROVIDER_ALIASES[resolved.provider] || resolved.provider;
+        return { provider, model: resolved.model };
+      }
+    }
+  }
+
   const parsed = parseModel(modelStr);
 
   if (!parsed.isAlias) {
     // Provider-node prefixes are user-defined. They must not override built-in
     // provider ids/aliases such as `cf`, `cloudflare-ai`, `openai`, or `hf`.
-    if (!RESERVED_PROVIDER_PREFIXES.has(parsed.providerAlias)) {
-      const openaiNodes = await getProviderNodes({ type: "openai-compatible" });
-      const matchedOpenAI = openaiNodes.find((node) => node.prefix === parsed.providerAlias);
-      if (matchedOpenAI) {
-        return { provider: matchedOpenAI.id, model: parsed.model };
-      }
-
-      const anthropicNodes = await getProviderNodes({ type: "anthropic-compatible" });
-      const matchedAnthropic = anthropicNodes.find((node) => node.prefix === parsed.providerAlias);
-      if (matchedAnthropic) {
-        return { provider: matchedAnthropic.id, model: parsed.model };
-      }
-
-      const embeddingNodes = await getProviderNodes({ type: "custom-embedding" });
-      const matchedEmbedding = embeddingNodes.find((node) => node.prefix === parsed.providerAlias);
-      if (matchedEmbedding) {
-        return { provider: matchedEmbedding.id, model: parsed.model };
-      }
+    const nodeId = await resolveNodePrefixId(parsed.providerAlias);
+    if (nodeId) {
+      return { provider: nodeId, model: parsed.model };
     }
     return {
       provider: parsed.provider,

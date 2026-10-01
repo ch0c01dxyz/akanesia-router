@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
-import { Button } from "@/shared/components";
+import { Button, SearchableSelect } from "@/shared/components";
 import { translate } from "@/i18n/runtime";
 import {
   buildAvailableModels,
@@ -119,23 +119,27 @@ export default function PlaygroundCompareTab({ providerId, providerAlias, models
     setRunning(false);
   };
 
-  // Opsi yang sudah dipilih di select lain di-disable agar tidak duplikat.
+  // Opsi yang sudah dipilih di select lain disembunyikan agar tidak duplikat
+  // (SearchableSelect tidak mendukung option disabled; slot sendiri
+  // dikecualikan agar nilai terpilih tetap tampil).
   const isTaken = (id, except) => [modelA, modelB, modelC].some((m, i) => m && m === id && ["A", "B", "C"][i] !== except);
 
-  const renderSelect = (value, setValue, slot, required, ariaLabel) => (
-    <select
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      disabled={availableModels.length === 0 || running}
-      className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:border-primary focus:outline-none max-w-[220px] disabled:opacity-50"
-      aria-label={ariaLabel}
-    >
-      {!required && <option value="">{translate("Optional")}</option>}
-      {availableModels.map((m) => (
-        <option key={m.id} value={m.id} disabled={isTaken(m.id, slot)}>{m.label}</option>
-      ))}
-    </select>
-  );
+  const renderSelect = (value, setValue, slot, required, ariaLabel) => {
+    const options = availableModels
+      .filter((m) => !isTaken(m.id, slot))
+      .map((m) => ({ value: m.id, label: m.label }));
+    if (!required) options.unshift({ value: "", label: translate("Optional") });
+    return (
+      <SearchableSelect
+        options={options}
+        value={value}
+        onChange={setValue}
+        disabled={availableModels.length === 0 || running}
+        placeholder={ariaLabel}
+        className="w-56"
+      />
+    );
+  };
 
   const gridCols = columns.length > 2 ? "md:grid-cols-3" : "md:grid-cols-2";
   const anyDone = columns.some((c) => c.done);
