@@ -5,16 +5,34 @@ export default {
   priority: 140,
   alias: "glm",
   display: {
-    name: "GLM Coding",
+    name: "Zai GLM Coding",
     icon: "code",
     color: "#2563EB",
     textIcon: "GL",
     website: "https://open.bigmodel.cn",
     notice: {
       apiKeyUrl: "https://open.bigmodel.cn/usercenter/apikeys",
+      signupUrl: "https://chat.z.ai",
     },
   },
-  category: "apikey",
+  category: "oauth",
+  // Dual-auth seperti kimi: paste API key, atau OAuth-login dengan akun Z.ai
+  // untuk auto-mint coding-plan key.
+  authModes: ["oauth", "apikey"],
+  hasOAuth: true,
+  // OAuth = ZCode CLI polling flow — tanpa PKCE, tanpa local callback: init
+  // mencetak one-off poll token, browser authorize_url di-generate server,
+  // dan poll/ready membawa token. Token OAuth Z.AI ditukar business JWT,
+  // lalu long-lived coding-plan API key (tanpa refresh grant — re-login saat
+  // expired, sama seperti CLI resmi).
+  oauth: {
+    providerId: "zai",
+    cliInitUrl: "https://zcode.z.ai/api/v1/oauth/cli/init",
+    cliPollUrl: "https://zcode.z.ai/api/v1/oauth/cli/poll",
+    businessLoginUrl: "https://api.z.ai/api/auth/z/login",
+    apiBaseUrl: "https://api.z.ai",
+    planApiKeyName: "zcode-api-key",
+  },
   transport: {
     baseUrl: "https://api.z.ai/api/anthropic/v1/messages",
     format: "claude",

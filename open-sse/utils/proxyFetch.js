@@ -99,6 +99,20 @@ async function tryGotScrapingFetch(url, options) {
 
 // DNS cache — use Map to avoid prototype pollution via malformed hostnames
 const DNS_CACHE = new Map();
+const TLS_CERT_ERRORS = new Set([
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "UNABLE_TO_GET_ISSUER_CERT",
+  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "CERT_HAS_EXPIRED",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+]);
+
+function isTlsCertError(err) {
+  const code = err?.cause?.code || err?.code;
+  return TLS_CERT_ERRORS.has(code);
+}
 const MITM_BYPASS_HOSTS = [
   "cloudcode-pa.googleapis.com",
   "daily-cloudcode-pa.googleapis.com",
@@ -236,11 +250,14 @@ function resolveConnectionProxyUrl(targetUrl, proxyOptions) {
 /**
  * Create proxy dispatcher lazily (undici-compatible)
  */
-async function getDispatcher(proxyUrl) {
+async function getDispatcher(proxyUrl, insecure = false) {
   const normalized = normalizeProxyUrl(proxyUrl);
-  if (!normalized) return null;
+  if (!normalized && !insecure) return null;
 
-  if (!proxyDispatchers.has(normalized)) {
+  // Cache dibedakan per (proxy, insecure): dispatcher insecure memakai
+  // rejectUnauthorized:false dan tidak boleh dipakai ulang untuk request aman.
+  const key = `${normalized || "direct"}::${insecure ? "insecure" : "secure"}`;
+  if (!proxyDispatchers.has(key)) {
     // Evict oldest entry if max size reached — tutup dispatcher yang
     // di-evict agar socket/timer undici dilepas (hindari kebocoran fd
     // pada server long-running). Kegagalan close tidak boleh mengganggu request.
@@ -252,11 +269,36 @@ async function getDispatcher(proxyUrl) {
         await oldest?.close?.();
       } catch { /* abaikan */ }
     }
-    const { ProxyAgent } = await import("undici");
-    proxyDispatchers.set(normalized, new ProxyAgent({ uri: normalized }));
+    const { Agent, ProxyAgent } = await import("undici");
+    const connect = insecure ? { rejectUnauthorized: false } : undefined;
+    const dispatcher = normalized
+      ? new ProxyAgent({ uri: normalized, ...(insecure ? { requestTls: connect } : {}) })
+      : new Agent({ connect });
+    proxyDispatchers.set(key, dispatcher);
   }
 
-  return proxyDispatchers.get(normalized);
+  return proxyDispatchers.get(key);
+}
+
+async function fetchWithTlsFallback(url, options, proxyUrl) {
+  try {
+    const dispatcher = proxyUrl ? await getDispatcher(proxyUrl) : undefined;
+    return await originalFetch(url, dispatcher ? { ...options, dispatcher } : options);
+  } catch (err) {
+    const isStrictSsl = process.env.STRICT_SSL === "true" || process.env.STRICT_SSL === "1";
+    if (!isStrictSsl && isTlsCertError(err)) {
+      // Body stream yang sudah terkunci tidak bisa di-retry — lempar error asli.
+      if (options.body && typeof options.body.getReader === "function" && options.body.locked) {
+        throw err;
+      }
+      // ponytail: fallback agent insecure in-memory untuk sertifikat MITM
+      // korporat/antivirus yang self-signed
+      console.warn(`[ProxyFetch] TLS cert verification failed (${err.cause?.code || err.code}), retrying with insecure TLS: ${url}`);
+      const insecureDispatcher = await getDispatcher(proxyUrl, true);
+      return await originalFetch(url, { ...options, dispatcher: insecureDispatcher });
+    }
+    throw err;
+  }
 }
 
 // ─── MITM-bypass connection pooling ─────────────────────────────────────
@@ -435,13 +477,23 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   const envProxyUrl = connectionProxyUrl ? null : normalizeProxyUrl(getEnvProxyUrl(targetUrl));
   const proxyUrl = connectionProxyUrl || envProxyUrl;
 
+  // Mode strict berarti "jangan pernah keluar lewat IP langsung".
+  // Gate pada proxy yang *dimaksudkan*: pemanggil seperti executor Qoder memakai
+  // strictProxy dengan arti "jangan replay request ini secara langsung bila proxy
+  // gagal" (signature COSY yang di-replay mengembalikan 403), bukan "proxy wajib
+  // ada". Bila tidak ada yang dikonfigurasi, mereka harus tetap jalan.
+  const proxyIntended = proxyOptions?.proxyPoolId
+    || proxyOptions?.enabled === true
+    || proxyOptions?.connectionProxyEnabled === true
+    || !!normalizeString(proxyOptions?.url ?? proxyOptions?.connectionProxyUrl);
+  const strictHold = proxyOptions?.strictProxy === true && proxyIntended;
+
   // MITM DNS bypass: for known MITM-intercepted hosts, resolve real IP to avoid DNS spoof
   if (shouldBypassMitmDns(targetUrl)) {
     if (proxyUrl) {
       // Proxy resolves DNS externally (not affected by /etc/hosts) — use proxy directly
       try {
-        const dispatcher = await getDispatcher(proxyUrl);
-        return await originalFetch(url, { ...options, dispatcher });
+        return await fetchWithTlsFallback(url, options, proxyUrl);
       } catch (proxyError) {
         if (proxyOptions?.strictProxy === true) {
           throw new Error(`[ProxyFetch] Proxy required but failed (strictProxy=true): ${proxyError.message}`);
@@ -449,7 +501,12 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
         console.warn(`[ProxyFetch] Proxy failed, falling back to direct bypass: ${proxyError.message}`);
       }
     }
-    // No proxy — manually resolve real IP to bypass DNS spoof
+    // No proxy — manually resolve real IP to bypass DNS spoof.
+    // Ini koneksi langsung ke IP: di bawah strict hold harus ditolak, bukan
+    // diam-diam mengekspos alamat asli (#4333).
+    if (strictHold) {
+      throw new Error("[ProxyFetch] Proxy required but none resolved (strictProxy=true)");
+    }
     try {
       const parsedUrl = new URL(targetUrl);
       const realIP = await resolveRealIP(parsedUrl.hostname);
@@ -461,21 +518,28 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
 
   if (proxyUrl) {
     try {
-      const dispatcher = await getDispatcher(proxyUrl);
-      return await originalFetch(url, { ...options, dispatcher });
+      return await fetchWithTlsFallback(url, options, proxyUrl);
     } catch (proxyError) {
       // If strictProxy is enabled, fail hard instead of falling back to direct
       if (proxyOptions?.strictProxy === true) {
         throw new Error(`[ProxyFetch] Proxy required but failed (strictProxy=true): ${proxyError.message}`);
       }
       console.warn(`[ProxyFetch] Proxy failed, falling back to direct: ${proxyError.message}`);
-      return originalFetch(url, options);
+      return fetchWithTlsFallback(url, options, null);
     }
+  }
+
+  // Sampai di sini dengan proxy terkonfigurasi tapi tidak ter-resolve adalah
+  // kasus strict — pool nonaktif atau kosong, atau semua proxy terhapus —
+  // jadi tolak daripada diam-diam mengekspos alamat asli (#4333). Blok catch
+  // di atas hanya mencakup proxy yang benar-benar sempat dicoba.
+  if (strictHold) {
+    throw new Error("[ProxyFetch] Proxy required but none resolved (strictProxy=true)");
   }
 
   // got-scraping disabled — use native fetch directly
   // (Re-enable per-host by wrapping with tryGotScrapingFetch when needed)
-  return originalFetch(url, options);
+  return fetchWithTlsFallback(url, options, null);
 }
 
 /**

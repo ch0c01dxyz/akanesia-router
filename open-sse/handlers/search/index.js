@@ -110,7 +110,10 @@ async function tryDedicatedProvider({ provider, providerConfig, body, credential
     }
     const data = await resp.json();
     const normalized = normalizeSearchResponse(provider.id, data, params.query, params.searchType);
-    const results = normalized.results.slice(0, params.maxResults);
+    // TinyFish memakai halaman tetap 10 hasil; offset dalam halaman diterapkan lokal.
+    const pageOffset = provider.id === "tinyfish" && Number.isInteger(params.offset) && params.offset > 0
+      ? params.offset % 10 : 0;
+    const results = normalized.results.slice(pageOffset, pageOffset + params.maxResults);
     const duration = Date.now() - startTime;
     const usage = {
       queries_used: 1,

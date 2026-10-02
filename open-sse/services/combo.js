@@ -356,8 +356,13 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
         try { errorText = JSON.stringify(errorText); } catch { errorText = String(errorText); }
       }
 
-      // Check if should fallback to next model
-      const { shouldFallback, cooldownMs } = checkFallbackError(result.status, errorText);
+      // Check if should fallback to next model.
+      // Teruskan provider seat agar rule spesifik-provider (mis. codex
+      // "model is not supported when using codex with a chatgpt account")
+      // ikut dievaluasi — tanpa ini combo berhenti di 400 padahal maksud
+      // rule adalah fallback ke seat berikutnya.
+      const seatProvider = modelStr.includes("/") ? modelStr.split("/")[0] : null;
+      const { shouldFallback, cooldownMs } = checkFallbackError(result.status, errorText, 0, seatProvider);
 
       if (!shouldFallback) {
         log.warn("COMBO", `Model ${modelStr} failed (no fallback)`, { status: result.status });

@@ -4,6 +4,7 @@ import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { dbg } from "../utils/debugLog.js";
 import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE } from "../providers/shared.js";
 import { resolveOpenAICompatibleApiType } from "../services/provider.js";
+import { applyCustomHeaders } from "../../src/shared/utils/customHeaders.js";
 
 /**
  * BaseExecutor - Base class for provider executors
@@ -97,7 +98,7 @@ export class BaseExecutor {
     return { status: response.status, message: bodyText || `HTTP ${response.status}` };
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null }) {
     const fallbackCount = this.getFallbackCount();
     let lastError = null;
     let lastStatus = 0;
@@ -128,6 +129,18 @@ export class BaseExecutor {
       const url = this.buildUrl(model, stream, urlIndex, credentials);
       const transformedBody = this.transformRequest(model, body, stream, credentials);
       const headers = this.buildHeaders(credentials, stream, url, model, transformedBody);
+      // Urutan merge header, dari umum ke spesifik (yang lebih spesifik menang
+      // bila nama header sama):
+      //   1. header bawaan executor/registry (dari buildHeaders),
+      //   2. override per-provider dari settings (providerOverrides.headers),
+      //   3. custom header per-node/koneksi (ide #8, dukung placeholder {{key}}).
+      // Node-level (#8) PALING SPESIFIK sehingga diterapkan TERAKHIR dan selalu
+      // menang atas provider-level. DefaultExecutor.buildHeaders() memang sudah
+      // menerapkan #8 di akhirnya, tapi provider-level di bawah ini akan
+      // menimpanya — jadi #8 diterapkan ulang di sini setelah provider-level.
+      // Untuk executor/koneksi tanpa customHeaders, applyCustomHeaders no-op.
+      if (providerOverrides?.headers) Object.assign(headers, providerOverrides.headers);
+      applyCustomHeaders(headers, credentials);
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;
 

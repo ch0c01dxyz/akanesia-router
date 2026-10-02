@@ -27,17 +27,36 @@ import { ROLE, OPENAI_BLOCK, RESPONSES_ITEM, OPENAI_FINISH, MODEL_FALLBACK } fro
 function toResponsesUsage(usage) {
   if (!usage || typeof usage !== "object") return null;
 
-  const inputTokens = [usage.input_tokens, usage.prompt_tokens].find(Number.isFinite) ?? 0;
-  const outputTokens = [usage.output_tokens, usage.completion_tokens].find(Number.isFinite) ?? 0;
-  const responseUsage = {
-    input_tokens: inputTokens,
-    output_tokens: outputTokens,
-    total_tokens: Number.isFinite(usage.total_tokens) ? usage.total_tokens : inputTokens + outputTokens
-  };
-  const cachedTokens = [usage.input_tokens_details?.cached_tokens, usage.prompt_tokens_details?.cached_tokens].find(Number.isFinite);
-  const reasoningTokens = [usage.output_tokens_details?.reasoning_tokens, usage.completion_tokens_details?.reasoning_tokens].find(Number.isFinite);
-  if (Number.isFinite(cachedTokens)) responseUsage.input_tokens_details = { cached_tokens: cachedTokens };
-  if (Number.isFinite(reasoningTokens)) responseUsage.output_tokens_details = { reasoning_tokens: reasoningTokens };
+  const inputTokens = [usage.input_tokens, usage.prompt_tokens].find(Number.isInteger);
+  const outputTokens = [usage.output_tokens, usage.completion_tokens].find(Number.isInteger);
+  // Beberapa upstream menempelkan placeholder nol di setiap chunk. Tunggu hitungan
+  // asli agar response.completed tidak membekukan placeholder sebelum trailer usage.
+  const hasBreakdown = inputTokens !== undefined && outputTokens !== undefined
+    && inputTokens + outputTokens > 0;
+  // Fallback: bila hanya total_tokens yang ada (tanpa breakdown), pakai itu agar
+  // usage tidak hilang dan memicu watchdog tanpa alasan.
+  const totalTokens = Number.isInteger(usage.total_tokens) && usage.total_tokens > 0
+    ? usage.total_tokens : null;
+  if (!hasBreakdown && totalTokens === null) {
+    return null;
+  }
+  // Breakdown valid → total selalu di-derive dari input+output (abaikan
+  // total_tokens upstream yang inkonsisten). Tanpa breakdown → pakai total apa adanya.
+  const responseUsage = hasBreakdown
+    ? {
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        total_tokens: inputTokens + outputTokens,
+      }
+    : {
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: totalTokens,
+      };
+  const cachedTokens = [usage.input_tokens_details?.cached_tokens, usage.prompt_tokens_details?.cached_tokens].find(Number.isInteger);
+  const reasoningTokens = [usage.output_tokens_details?.reasoning_tokens, usage.completion_tokens_details?.reasoning_tokens].find(Number.isInteger);
+  if (Number.isInteger(cachedTokens)) responseUsage.input_tokens_details = { cached_tokens: cachedTokens };
+  if (Number.isInteger(reasoningTokens)) responseUsage.output_tokens_details = { reasoning_tokens: reasoningTokens };
 
   return responseUsage;
 }
@@ -47,13 +66,14 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
     return flushEvents(state);
   }
 
-  // Capture upstream usage BEFORE the choices guard below: the last OpenAI chunk
-  // may carry usage together with an empty choices array, and it must not be dropped.
-  if (chunk.usage) {
-    state.responsesUsage = toResponsesUsage(chunk.usage);
-  }
+  // Tangkap usage sebelum guard choices: OpenAI bisa mengirimnya dalam trailer
+  // yang choices-nya kosong.
+  const responseUsage = toResponsesUsage(chunk.usage);
+  if (responseUsage) state.responsesUsage = responseUsage;
 
-  if (!chunk.choices?.length) return [];
+  if (!chunk.choices?.length) {
+    return state.completionPending && state.responsesUsage ? flushEvents(state) : [];
+  }
 
   const events = [];
   const nextSeq = () => ++state.seq;
@@ -163,6 +183,7 @@ export function openaiToOpenAIResponsesResponse(chunk, state) {
     // would swallow the terminal event entirely. Keep the old behaviour there.
     const flushReachesUs = state.targetFormat === FORMATS.OPENAI;
     if (state.responsesUsage || !flushReachesUs) sendCompleted(state, emit);
+    else state.completionPending = true;
   }
 
   return events;

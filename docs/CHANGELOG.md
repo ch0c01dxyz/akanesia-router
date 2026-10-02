@@ -3,6 +3,143 @@
 > Bahasa: Indonesia. Semua perubahan di bawah ini **belum dikomit**
 > (review-first). Tanggal dalam WIB.
 
+## 2026-10-02
+
+### Port upstream decolua/9router v0.5.95 (41 commit sejak v0.5.91)
+
+Atas instruksi Egar: seluruh fixing & fitur baru dari upstream
+decolua/9router (commit `a99cf572`, rilis v0.5.95) di-port ke
+akanesia-router. Dari 41 commit, 39 di-port (1 tidak applicable:
+version bump — skema versi lokal 1.5.0 dipertahankan).
+
+**Provider & model baru:**
+- Provider baru **Meta Muse** (OAuth + katalog model). Adaptasi wajib:
+  alias `"muse-code"` dari upstream dibuang karena bentrok dengan
+  provider lokal `muse-code.js` (hasil merge OmniRoute) — dikunci
+  regression test agar request `muse-code/...` tidak dibajak.
+- Provider baru **v1m System One** dan **TinyFish** (search + fetch).
+- **Claude Sonnet 5.5** (registry + pricing + translator); Sonnet 5.x
+  di-resolve ke adaptive thinking (tanpa forged thinking placeholder).
+- **GPT-6.1 Sol** di codex (identity 0.159.0, pricing resmi, 272k
+  context); varian 1M context untuk GPT-6/GPT-5.6; Sol/Luna capabilities
+  + pricing; ghost models dibersihkan; bare slug gpt-5.x/6.x di-route ke
+  codex; hosted web search dipertahankan.
+- Context window asli GPT-6/GPT-5.4+ dan combo token limits
+  dipublikasikan di `/v1/models` (termasuk combo seats).
+- Kiro: model claude-opus-5.5; agnes: seed model id 2.5/3.0; deepseek
+  `deepseek-v4-1-flash` vision alias; zed masuk live catalog providers.
+- GLM Coding: **Z.ai OAuth login** (dual-auth oauth/apikey).
+
+**Fitur:**
+- **CLI `connect`**: perintah baru untuk konek ke remote
+  Akanesia-Gateway. Env var `AKANESIA_GATEWAY_PASSWORD` (fallback
+  `NINE_ROUTER_PASSWORD` untuk kompatibilitas).
+- **Custom header per-provider dari registry** (settings-level, ada
+  blocked list Host/Authorization/Cookie). Komplementer dengan custom
+  header per-node ide #8 lokal (connection-level): keduanya hidup
+  berdampingan, urutan merge = bawaan → provider-level → **node-level
+  menang** (paling spesifik).
+- Quota: `?provider=` URL param tersinkron dengan filter (deep link
+  bookmarkable); hidden providers dikecualikan dari usage stats.
+- Dashboard: badge NEW di sidebar dihapus, 9Remote ditandai HOT.
+- cli-tools: placeholder `sk_9router` diganti API key aktif pertama
+  (bug upstream `existingProvider` undefined diperbaiki, tidak di-port
+  mentah).
+
+**Perbaikan:**
+- Responses API: `response.completed` kini menunggu usage asli (bukan
+  placeholder nol); watchdog 3 detik untuk deferred completion.
+- Claude translator: trailing user turn dipertahankan (anti assistant
+  prefill), intentional prefill dari format non-messages[]
+  dipertahankan, final tool results di-cache via breakpoint ke-4,
+  user turn berisi hanya `container_upload` tidak dibuang.
+- Thinking: level `xhigh` untuk claude-adaptive (dengan clamp per model).
+- Proxy: auto-fallback ke insecure TLS hanya saat error sertifikat
+  self-signed (di-gate `STRICT_SSL`); `strictProxy` kini di-hold
+  (tidak bocor ke IP langsung) saat proxy diniatkan tapi tak ter-resolve.
+- Gemini: 12 keyword skema non-standar (termasuk `errorMessage`)
+  di-strip dari tool schemas.
+- DeepSeek: dedup tool nama-sama; unsigned thinking placeholders untuk
+  opencode-go DeepSeek `/messages`.
+- Codex: stop refresh-token reuse (tidak lagi logout saat auto-ping).
+- CodeBuddy: parse error 6004 (rate limit + `resetsAtMs`); forward
+  `recurring` untuk quota packs codebuddy-intl.
+- Grok CLI: kirim versi 1.0.44 (atasi HTTP 426).
+- Test: `codebuddy-intl` masuk OAUTH_TEST_CONFIG; test yang menulis ke
+  DB user asli dihapus.
+
+**Catatan adaptasi:** komentar upstream Inggris/Mandarin diterjemahkan
+ke Bahasa Indonesia; `sk_9router`, `x-9router-*`, nama DB, dan
+`~/.9router` tidak disentuh. Registry diregenerasi: 323 entri, tanpa
+duplikat ID; alias byte-for-byte equal; snapshot 282 providers.
+
+### Audit bug pasca-port (2026-10-02, atas instruksi Egar)
+
+Empat area diaudit paralel (proxy/network, translator/streaming,
+codex/capabilities/pricing, provider/CLI/UI/OAuth). Bug terkonfirmasi
+yang diperbaiki:
+
+- **Strict proxy bisa dilewati MITM DNS bypass** — gate strict kini
+  dihitung sebelum jalur bypass; koneksi langsung ditolak saat strict
+  hold aktif (`open-sse/utils/proxyFetch.js`).
+- **9 executor custom tidak menerapkan provider-level header overrides**
+  (cursor, bedrock, vertex, mimo-free, devin-desktop, inner-ai,
+  conol-web, trae, windsurf) — kini menerima `providerOverrides` dan
+  merge setelah header request dibentuk.
+- **Blocked header bisa disisipkan via `PATCH /api/settings`** —
+  validasi disatukan di `src/lib/providerOverrides.js`, dipakai kedua
+  endpoint (juga perbaiki regex CR/LF yang salah escape).
+- **Prioritas env CLI terbalik** — kini `--password` >
+  `AKANESIA_GATEWAY_PASSWORD` > `NINE_ROUTER_PASSWORD` > prompt.
+- **System One crash** saat koneksi punya custom baseUrl tanpa config
+  (`cfg?.headers`).
+- **Combo fallback tidak provider-aware** — seat provider kini
+  diteruskan ke `checkFallbackError` agar rule khusus Codex memicu
+  fallback seat berikutnya.
+- **Pricing combo seat `[1m]` jadi $0** — marker dibersihkan sebelum
+  lookup pricing.
+- **Usage hanya `total_tokens` dibuang** di Responses translator —
+  kini dipakai sebagai fallback (breakdown valid tetap derive total
+  dari input+output).
+- **Timer watchdog bisa hidup setelah stream error** — dicek
+  `controller.desiredSize` sebelum flush.
+- **GLM OAuth**: error transient (429/5xx/gangguan jaringan) saat
+  polling kini `authorization_pending` (lanjut polling) bukan
+  `access_denied`; kegagalan mint coding-plan key mengembalikan error
+  eksplisit, bukan "Authorization timeout" menyesatkan.
+- **Thinking xhigh Claude 4.5** — diselaraskan dengan kiroConstants
+  (4.7+ baru punya xhigh): 4.5 ikut di-exclude seperti 4.6.
+- Komentar tool deduper diperbaiki (MCP dedup memang hanya untuk
+  klien Claude).
+
+Diselidiki dan dinyatakan bukan bug: v1m memang provider systemone
+(bukan chat); non-chat modalities tidak menerima overrides sesuai
+upstream; `applyErrorState` dead code pre-existing (dibiarkan);
+`applyThinking` justru yang *set* output_config (bukan strip).
+
+Belum diputuskan (butuh arahan Egar): `noProxy + strictProxy` kini
+throw (fail-closed); pool hilang / DB error masih fail-open; usage
+yang tiba setelah watchdog 3 dtk tetap tidak dikirim.
+
+### Audit cakupan port (2026-10-02, atas instruksi Egar)
+
+Empat area tambahan diaudit (CLI/OAuth, dashboard UI, core
+handlers/services, registry/translator). Temuan:
+
+- **KRITIS: `readOverrides()` hilang di route overrides** — helper
+  terbuang saat refaktor validasi ke modul shared, sehingga GET/PUT
+  `/api/providers/[id]/overrides` selalu 500 dan seluruh fitur Custom
+  Headers mati. Sudah dikembalikan + regression test
+  `provider-overrides-route.test.js` (5/5 lolos).
+- **Filter `enabledModels` tidak strip marker `[1m]`** — koneksi codex
+  dengan enabledModels terisi selalu melewatkan seat combo
+  `gpt-6-sol[1m]`. Sudah diperbaiki pakai `stripModelContextMarker`.
+- **Inkonsistensi kosmetik**: `"muse"` ada di daftar noPkce
+  device-code tapi tidak di daftar poll — diselaraskan.
+- Registry/translator/models: bersih, tidak ada bug.
+- File test yang dihapus (`provider-priority-insert-cost.test.js`)
+  adalah penghapusan disengaja upstream (menulis ke DB user asli).
+
 ## 2026-09-30
 
 ### Perbaikan tabrakan prefix node kustom dengan provider bawaan

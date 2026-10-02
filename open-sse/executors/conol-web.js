@@ -631,6 +631,14 @@ export class ConolWebExecutor extends BaseExecutor {
     const upstreamSignal = input.signal
       ? mergeAbortSignals(input.signal, timeoutSignal)
       : timeoutSignal;
+    // Override header per-provider dari settings (provider-level): dibungkus
+    // agar ikut terkirim di semua request sesi Conol dalam execute() ini.
+    const providerOverrides = input.providerOverrides ?? null;
+    const sessionHeaders = (extra, sessionId) => {
+      const h = conolHeaders(cookie, extra, sessionId);
+      if (providerOverrides?.headers) Object.assign(h, providerOverrides.headers);
+      return h;
+    };
     try {
       return await withConolSessionLock(sessionBindingKey, async () => {
         if (upstreamSignal.aborted) {
@@ -662,7 +670,7 @@ export class ConolWebExecutor extends BaseExecutor {
         if (!sessionId) {
           const createResponse = await fetch(CONOL_SESSION_URL, {
             method: "POST",
-            headers: conolHeaders(cookie, { "content-type": "application/json" }),
+            headers: sessionHeaders({ "content-type": "application/json" }),
             body: JSON.stringify({ source: { type: "home" }, messages: [], timezone }),
             signal: upstreamSignal,
           });
@@ -709,7 +717,7 @@ export class ConolWebExecutor extends BaseExecutor {
             sessionId,
             plan,
             skipPreset: presetApplied,
-            buildHeaders: (id) => conolHeaders(cookie, undefined, id),
+            buildHeaders: (id) => sessionHeaders(undefined, id),
             signal: upstreamSignal,
             onWarning: (message) => input.log?.warn?.("conol-web", message),
           });
@@ -724,7 +732,7 @@ export class ConolWebExecutor extends BaseExecutor {
           const followUpUrl = `${CONOL_SESSION_URL}/${sessionId}/messages`;
           const followUpResponse = await fetch(followUpUrl, {
             method: "POST",
-            headers: conolHeaders(cookie, { "content-type": "application/json" }, sessionId),
+            headers: sessionHeaders({ "content-type": "application/json" }, sessionId),
             body: JSON.stringify({ messages: parts, timezone }),
             signal: upstreamSignal,
           });
@@ -759,7 +767,7 @@ export class ConolWebExecutor extends BaseExecutor {
           const firstTurnUrl = `${CONOL_SESSION_URL}/${sessionId}/messages`;
           const firstTurnResponse = await fetch(firstTurnUrl, {
             method: "POST",
-            headers: conolHeaders(cookie, { "content-type": "application/json" }, sessionId),
+            headers: sessionHeaders({ "content-type": "application/json" }, sessionId),
             body: JSON.stringify({ messages: parts, timezone }),
             signal: upstreamSignal,
           });
@@ -795,8 +803,7 @@ export class ConolWebExecutor extends BaseExecutor {
         const messagesUrl = `${CONOL_SESSION_URL}/${sessionId}/messages?logDeltas=1`;
         const messageResponse = await fetch(messagesUrl, {
           method: "GET",
-          headers: conolHeaders(
-            cookie,
+          headers: sessionHeaders(
             { accept: "text/event-stream, application/x-ndjson" },
             sessionId
           ),

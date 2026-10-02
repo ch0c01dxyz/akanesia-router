@@ -23,7 +23,16 @@ export default {
     baseUrl: "https://apihub.agnes-ai.com/v1/chat/completions",
     validateUrl: "https://apihub.agnes-ai.com/v1/models",
   },
-  // No model ids could be verified without a key, so discovery is left to the
-  // live endpoint and any id is accepted through passthroughModels.
+  // Seed agar dashboard punya daftar awal sebelum key disimpan dan /v1/models
+  // menjawab dengan daftar yang bisa dipakai. Katalog live di
+  // apihub.agnes-ai.com/v1/models butuh token (401 "Token not provided"),
+  // jadi id ini set awal kurasi bukan dump terverifikasi —
+  // passthroughModels di bawah tetap menerima id apapun yang dimiliki akun.
+  models: [
+    { id: "agnes-2.5-flash", name: "Agnes 2.5 Flash" },
+    { id: "agnes-2.5-pro", name: "Agnes 2.5 Pro" },
+    { id: "agnes-2.5-pro-beta", name: "Agnes 2.5 Pro Beta" },
+    { id: "agnes-3.0-flash", name: "Agnes 3.0 Flash" },
+  ],
   passthroughModels: true,
 };

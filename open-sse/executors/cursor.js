@@ -548,12 +548,14 @@ export class CursorExecutor extends BaseExecutor {
     };
   }
 
-  async executeAgent({ model, body, stream, credentials, signal, log }) {
+  async executeAgent({ model, body, stream, credentials, signal, log, providerOverrides = null }) {
     const agentEndpoint = PROVIDER_OAUTH.cursor?.agentEndpoint;
     if (!agentEndpoint) throw new Error("Cursor AgentService endpoint is not configured");
 
     const url = `${agentEndpoint}${AGENT_RUN_PATH}`;
     const headers = this.buildHeaders(credentials);
+    // Terapkan override header per-provider dari settings (provider-level).
+    if (providerOverrides?.headers) Object.assign(headers, providerOverrides.headers);
     const requestController = new AbortController();
     if (signal?.addEventListener) {
       signal.addEventListener("abort", () => requestController.abort(signal.reason), { once: true });
@@ -838,10 +840,10 @@ export class CursorExecutor extends BaseExecutor {
     };
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null }) {
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null }) {
     if (isAgentCapableRequest(body)) {
       try {
-        return await this.executeAgent({ model, body, stream, credentials, signal, log });
+        return await this.executeAgent({ model, body, stream, credentials, signal, log, providerOverrides });
       } catch (error) {
         return {
           response: new Response(JSON.stringify({
@@ -856,6 +858,8 @@ export class CursorExecutor extends BaseExecutor {
 
     const url = this.buildUrl();
     const headers = this.buildHeaders(credentials);
+    // Terapkan override header per-provider dari settings (provider-level).
+    if (providerOverrides?.headers) Object.assign(headers, providerOverrides.headers);
     const transformedBody = this.transformRequest(model, body, stream, credentials);
 
     try {

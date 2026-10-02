@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSettings, updateSettings } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
+import { normalizeProviderOverridesMap } from "@/lib/providerOverrides";
 import bcrypt from "bcryptjs";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,17 @@ export async function PATCH(request) {
 
     // Strip protected secrets before any internal handling sets them
     for (const key of PROTECTED_SETTING_KEYS) delete body[key];
+
+    // providerOverrides memakai aturan validasi yang sama dengan
+    // PUT /api/providers/[id]/overrides (blocked list dsb.) — jangan sampai
+    // bisa di-bypass lewat PATCH ini.
+    if (Object.prototype.hasOwnProperty.call(body, "providerOverrides")) {
+      const { overrides, error } = normalizeProviderOverridesMap(body.providerOverrides);
+      if (error) {
+        return NextResponse.json({ error }, { status: 400 });
+      }
+      body.providerOverrides = overrides;
+    }
 
     // If updating password, hash it
     if (body.newPassword) {

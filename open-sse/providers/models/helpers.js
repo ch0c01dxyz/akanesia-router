@@ -28,6 +28,15 @@ export function isMuseSparkModel(modelId) {
   return /^muse[-_]?spark(?:$|[-_:.\s])/i.test(base);
 }
 
+// "model(level)" adalah thinking override; strip sebelum matching.
+// Menerima id polos ("deepseek-v4-pro(max)") maupun ber-prefix provider.
+export function isDeepSeekModel(modelId) {
+  if (!modelId || typeof modelId !== "string") return false;
+  const clean = modelId.replace(/\([^()]+\)\s*$/, "").trim();
+  const base = clean.includes("/") ? clean.split("/").pop() : clean;
+  return /^deepseek-/i.test(base);
+}
+
 // Endpoint families for OpenCode models outside the curated registry (modelsFetcher /
 // passthrough ids) — regex keeps auto-fetched models on the right endpoint:
 // /responses (gpt/grok/muse-spark), /messages (minimax/qwen), /chat/completions (rest).

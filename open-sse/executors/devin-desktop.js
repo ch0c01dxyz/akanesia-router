@@ -533,6 +533,7 @@ export class DevinDesktopExecutor extends BaseExecutor {
     signal,
     log,
     upstreamExtraHeaders,
+    providerOverrides = null,
   }) {
     const apiKey = credentials.accessToken || credentials.apiKey || "";
     const baseUrl = this.config?.baseUrl || DEVIN_DESKTOP_BASE_URL;
@@ -540,6 +541,8 @@ export class DevinDesktopExecutor extends BaseExecutor {
     const authEndpoint = authUrl(baseUrl);
     const headers = this.buildHeaders(credentials);
     mergeUpstreamExtraHeaders(headers, upstreamExtraHeaders);
+    // Terapkan override header per-provider dari settings (provider-level).
+    if (providerOverrides?.headers) Object.assign(headers, providerOverrides.headers);
     if (!apiKey) {
       return {
         response: jsonErrorResponse(401, "Devin Desktop API key is required"),

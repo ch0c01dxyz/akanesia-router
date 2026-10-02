@@ -42,6 +42,9 @@ function applyAuth(headers, desc, credentials) {
 const HEADER_HOOKS = {
   // Stable device_id from OAuth connection (CLIProxyAPI KimiTokenStorage.DeviceID)
   kimiHeaders: (h, c) => Object.assign(h, buildKimiHeaders(c?.providerSpecificData?.deviceId)),
+  // Muse: x-api-version hanya untuk request langganan (key hasil cetak) —
+  // key Model API biasa sudah jalan tanpa header ini
+  museHeaders: (h, c) => { if (c?.accessToken && !c?.apiKey) h["x-api-version"] = "1.0.0"; },
   clineHeaders: (h, c) => Object.assign(h, buildClineHeaders(c.apiKey || c.accessToken)),
   kilocodeOrg: (h, c) => { if (c.providerSpecificData?.orgId) h["X-Kilocode-OrganizationID"] = c.providerSpecificData.orgId; },
 };
@@ -219,8 +222,12 @@ export class DefaultExecutor extends BaseExecutor {
     if (stream) headers["Accept"] = "text/event-stream";
 
     // Ide #8: custom headers per provider node (Advanced Option). Diterapkan
-    // PALING AKHIR agar menang atas header default 9router jika nama sama.
+    // di akhir buildHeaders agar menang atas header default bila nama sama.
     // Mendukung placeholder {{key}} → API key koneksi ini.
+    // Catatan urutan merge final ada di BaseExecutor.execute(): override
+    // per-provider (settings.providerOverrides) diterapkan setelah buildHeaders,
+    // lalu custom header node diterapkan ulang PALING TERAKHIR sehingga
+    // node-level (lebih spesifik) selalu menang atas provider-level.
     applyCustomHeaders(headers, credentials);
 
     return headers;

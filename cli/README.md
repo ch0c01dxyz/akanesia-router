@@ -90,6 +90,24 @@ That's it! Start coding with FREE AI models.
 
 ---
 
+## 🔌 Connect to a Remote Akanesia-Gateway
+
+Already running Akanesia-Gateway on another machine (e.g. a team server on your LAN)? Point this machine's CLI tools at it — no local server is started:
+
+```bash
+npx akanesia-router connect http://<server-host>:20128                       # pick tools interactively
+npx akanesia-router connect http://<server-host>:20128 --tools claude,codex  # or choose up front
+npx akanesia-router connect --reset --tools claude,codex                     # undo
+```
+
+It logs in with the dashboard password (hidden prompt, or env `AKANESIA_GATEWAY_PASSWORD` / `NINE_ROUTER_PASSWORD`), reuses or creates an API key named `cli-<hostname>`, and writes each tool's config (backing up the original once as `*.bak-9router`).
+
+Supported: `claude`, `codex`, `opencode`, `droid`, `crush`, `kilo`, `cline`, or `all`. Other options: `--model`, `--opus/--sonnet/--haiku/--fable`, `--api-key`, `--key-name`, `--print-env`. See `akanesia-router connect --help`.
+
+> ⚠️ Over plain `http://` the password and API key are sent unencrypted — use a trusted LAN/VPN or put HTTPS in front. The API key is stored in each tool's config file.
+
+---
+
 ## 🛠️ Supported CLI Tools
 
 Claude-Code • OpenClaw • Codex • OpenCode • Cursor • Antigravity • Cline • Continue • Droid • Roo • Copilot • Kilo Code • Gemini CLI • Qwen Code • iFlow • Crush • Crusher • Aider

@@ -8,6 +8,7 @@ import claude from "./claude.js";
 import codex from "./codex.js";
 import xai from "./xai.js";
 import grokCli from "./grok-cli.js";
+import muse from "./muse.js";
 import geminiCli from "./gemini-cli.js";
 import antigravity from "./antigravity.js";
 import iflow from "./iflow.js";
@@ -27,6 +28,7 @@ import kimchi from "./kimchi.js";
 import trae from "./trae.js";
 import windsurf from "./windsurf.js";
 import zed from "./zed.js";
+import glm from "./glm.js";
 
 // Provider configurations
 const PROVIDERS = {
@@ -34,6 +36,7 @@ const PROVIDERS = {
   codex,
   xai,
   "grok-cli": grokCli,
+  muse,
   "gemini-cli": geminiCli,
   antigravity,
   iflow,
@@ -53,6 +56,7 @@ const PROVIDERS = {
   trae,
   windsurf,
   zed,
+  glm,
 };
 
 export { PROVIDERS };
@@ -174,7 +178,16 @@ export async function pollForToken(providerName, deviceCode, codeVerifier, extra
       // Call postExchange to get additional data (copilotToken, userInfo, etc.)
       let extra = null;
       if (provider.postExchange) {
-        extra = await provider.postExchange(result.data);
+        try {
+          extra = await provider.postExchange(result.data);
+        } catch (err) {
+          // Grant sukses tapi post-login exchange gagal (mis. cetak key
+          // Muse). Device code hanya sekali pakai, jadi polling ulang tidak
+          // akan pernah pulih — tandai fatal agar klien berhenti dan
+          // menampilkan errornya.
+          console.warn(`[oauth] ${providerName} postExchange failed:`, err?.message || err);
+          return { success: false, error: "exchange_failed", errorDescription: err.message, fatal: true };
+        }
       }
       const tokens = provider.mapTokens(result.data, extra);
       // Kiro IDC/Builder-ID tokens lack profileArn; resolve it to avoid 403

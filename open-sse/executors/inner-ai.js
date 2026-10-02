@@ -603,6 +603,9 @@ export class InnerAiExecutor extends BaseExecutor {
     };
 
     const reqHeaders = buildHeaders(token, email, deviceId);
+    // Terapkan override header per-provider dari settings (provider-level).
+    const providerOverrides = input.providerOverrides ?? null;
+    if (providerOverrides?.headers) Object.assign(reqHeaders, providerOverrides.headers);
 
     // POST to Inner.ai chat API
     let upstream;

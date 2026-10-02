@@ -996,7 +996,7 @@ export class BedrockExecutor extends BaseExecutor {
     };
   }
 
-  async execute({ model, body, stream, credentials, signal, log }) {
+  async execute({ model, body, stream, credentials, signal, log, providerOverrides = null }) {
     const region = resolveBedrockRegion(credentials?.providerSpecificData);
     const url = this.buildUrl(model, stream, 0, credentials);
     const headers = this.buildHeaders(credentials);
@@ -1032,6 +1032,10 @@ export class BedrockExecutor extends BaseExecutor {
       sessionToken,
       userAgent: getCustomUserAgent(credentials?.providerSpecificData),
     });
+    // Terapkan override header per-provider dari settings (provider-level).
+    // Digabung ke signedHeaders (header yang benar-benar dikirim), bukan ke
+    // placeholder buildHeaders — custom header tidak ikut SigV4 signing.
+    if (providerOverrides?.headers) Object.assign(signedHeaders, providerOverrides.headers);
 
     log?.info?.("BEDROCK", `POST ${url} | region=${region} model=${model} stream=${!!stream}`);
 

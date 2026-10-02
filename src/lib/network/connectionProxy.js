@@ -77,6 +77,12 @@ export async function resolveConnectionProxyConfig(
 
     const legacy = normalizeLegacyProxy(providerSpecificData);
 
+    // Pool strict harus mempertahankan jaminannya meski pool-nya sendiri tidak
+    // bisa dipakai (nonaktif, atau tersimpan tanpa url). Kalau tidak, jalur
+    // pool-tak-valid di bawah melaporkan strictProxy:false dan request diam-diam
+    // keluar lewat IP langsung — kebocoran yang justru ingin dicegah mode strict (#4333).
+    let poolStrictProxy = false;
+
     /**
      * -----------------------------
      * Proxy Pool Resolution
@@ -92,6 +98,8 @@ export async function resolveConnectionProxyConfig(
         proxyPool &&
         proxyPool.isActive === true &&
         proxyUrl;
+
+      poolStrictProxy = proxyPool?.strictProxy === true;
 
       if (isValidPool) {
         /**
@@ -148,6 +156,8 @@ export async function resolveConnectionProxyConfig(
         proxyPoolId: proxyPoolId || null,
         proxyPool: null,
 
+        strictProxy: poolStrictProxy,
+
         ...legacy,
       };
     }
@@ -162,6 +172,8 @@ export async function resolveConnectionProxyConfig(
 
       proxyPoolId: proxyPoolId || null,
       proxyPool: null,
+
+      strictProxy: poolStrictProxy,
 
       ...legacy,
     };

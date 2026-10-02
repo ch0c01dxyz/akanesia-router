@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { FORMATS } from "../../open-sse/translator/formats.js";
+import { ensureTranslatorsForRequest } from "../../open-sse/translator/index.js";
 import { createSSETransformStreamWithLogger } from "../../open-sse/utils/stream.js";
 
 /**
@@ -24,6 +25,10 @@ async function runTransform(chunks, targetFormat = FORMATS.OPENAI) {
       controller.close();
     },
   });
+
+  // Translator di-load lazy (lihat ensureTranslatorsForRequest di chatCore):
+  // pastikan pasangan response ter-register sebelum stream sinkron dipakai.
+  await ensureTranslatorsForRequest(FORMATS.OPENAI_RESPONSES, targetFormat);
 
   const output = stream.pipeThrough(
     createSSETransformStreamWithLogger(

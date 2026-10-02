@@ -619,10 +619,11 @@ export function parseQuotaData(provider, data) {
         break;
 
       case "codebuddy-cn":
-        // CodeBuddy CN mixes recurring refill packs ("Monthly"/"Weekly"/...)
-        // with one-shot bonus packs ("Bonus Pack N"). Forward `recurring`
-        // so the UI can show "Expires in" for bonus packs (whose resetAt is
-        // a hard expiry, not a refresh) instead of "Reset in".
+      case "codebuddy-intl":
+        // CodeBuddy CN/Intl mencampur refill pack recurring ("Monthly"/"Weekly"/...)
+        // dengan bonus pack sekali pakai ("Bonus Pack N"). Teruskan `recurring`
+        // agar UI menampilkan "Expires in" untuk bonus pack (resetAt-nya adalah
+        // expiry mutlak, bukan refresh) alih-alih "Reset in".
         if (data.quotas) {
           Object.entries(data.quotas).forEach(([name, quota]) => {
             normalizedQuotas.push({

@@ -19,7 +19,10 @@ export async function handleSystemoneCore({
 }) {
   const { provider, model } = modelInfo;
   const cfg = PROVIDER_MEDIA[provider]?.systemoneConfig;
-  if (!cfg?.baseUrl) {
+  // Base URL bisa di-override per koneksi via providerSpecificData (mis. v1m
+  // dengan endpoint kustom); fallback ke konfigurasi registry.
+  const targetUrl = credentials?.providerSpecificData?.baseUrl || cfg?.baseUrl;
+  if (!targetUrl) {
     return createErrorResult(
       HTTP_STATUS.BAD_REQUEST,
       `Provider '${provider}' does not support System One.`
@@ -39,7 +42,7 @@ export async function handleSystemoneCore({
   const headers = {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(cfg.headers || {}),
+    ...(cfg?.headers || {}),
     // Zen lanes expect the official client session header on every request.
     "x-opencode-session": generateSessionId(),
   };
@@ -49,7 +52,7 @@ export async function handleSystemoneCore({
 
   let providerResponse;
   try {
-    providerResponse = await fetch(cfg.baseUrl, {
+    providerResponse = await fetch(targetUrl, {
       method: "POST",
       headers,
       body: JSON.stringify(requestBody),

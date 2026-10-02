@@ -126,6 +126,17 @@ export async function getModelInfoCore(modelStr, aliasesOrGetter) {
 const MODEL_PREFIX_PROVIDERS = [
   // Codex CLI sends this bare virtual model for auto-review — keep it on OAuth Codex (#1398).
   [/^codex-auto-review$/, "codex"],
+  // Slug model GPT khusus Codex: ada di backend-api/codex/models tapi tidak ada di
+  // OpenAI API. Tanpa aturan ini, bare model id (mis. "gpt-5.6-terra" dari pemilih
+  // /model Codex CLI) ter-resolve ke provider "openai", yang 404 bagi pengguna yang
+  // hanya punya akun Codex OAuth tanpa OpenAI API key (#4405).
+  // Cakupan: gpt-5.x, gpt-6.x, gpt-daybreak-*, gpt-reserve* — semuanya model
+  // backend Codex. "gpt-4*" / "gpt-3.5*" / "gpt-4o*" polos tetap jatuh ke
+  // aturan generik gpt-* → openai di bawah.
+  [/^gpt-[56]\./, "codex"],
+  [/^gpt-6-/, "codex"],
+  [/^gpt-daybreak-/, "codex"],
+  [/^gpt-reserve/, "codex"],
   [/^claude-/, "anthropic"],
   [/^gemini-/, "gemini"],
   [/^gpt-/, "openai"],

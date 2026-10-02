@@ -173,8 +173,10 @@ export default class TraeExecutor extends BaseExecutor {
     }
   }
 
-  async execute({ model, body, stream, credentials, signal }) {
+  async execute({ model, body, stream, credentials, signal, providerOverrides = null }) {
     const headers = this.buildHeaders(credentials, stream !== false);
+    // Terapkan override header per-provider dari settings (provider-level).
+    if (providerOverrides?.headers) Object.assign(headers, providerOverrides.headers);
     const psd = credentials?.providerSpecificData || {};
     const query = flattenQuery(body?.messages || []);
     const responseId = `chatcmpl-trae-${Date.now()}`;

@@ -7,6 +7,7 @@ import { resolveSessionId } from "../../utils/sessionManager.js";
 import { isValidClaudeSignature } from "../../utils/claudeSignature.js";
 import { PROVIDERS } from "../../providers/index.js";
 import { getCapabilitiesForModel } from "../../providers/capabilities.js";
+import { isDeepSeekModel } from "../../providers/models/helpers.js";
 import { DEFAULT_MAX_TOKENS } from "../../config/runtimeConfig.js";
 
 const CACHE_CONTROL_5M = { type: "ephemeral" };
@@ -25,24 +26,33 @@ export function lastCacheableToolIndex(tools) {
 }
 
 // Check if message has valid non-empty content
+// Block type di luar daftar ini membuat seluruh pesan dianggap kosong dan
+// dibuang oleh prepareClaudeRequest — jadi semua yang boleh dikirim sendiri
+// secara sah harus didaftarkan. container_upload (Files API) salah satunya:
+// user turn yang satu-satunya blok adalah referensi file adalah input
+// Anthropic yang valid (#4316), dan membuangnya meneruskan `messages: []`
+// ke provider.
+const CONTENTFUL_BLOCKS = new Set([
+  CLAUDE_BLOCK.TOOL_USE,
+  CLAUDE_BLOCK.TOOL_RESULT,
+  CLAUDE_BLOCK.IMAGE,
+  CLAUDE_BLOCK.DOCUMENT,
+  CLAUDE_BLOCK.CONTAINER_UPLOAD,
+]);
+
+function isContentfulBlock(block) {
+  if (!block) return false;
+  if (block.type === CLAUDE_BLOCK.TEXT) return !!block.text?.trim();
+  return CONTENTFUL_BLOCKS.has(block.type);
+}
+
 export function hasValidContent(msg) {
   if (typeof msg.content === "string" && msg.content.trim()) return true;
   if (msg.content && typeof msg.content === "object" && !Array.isArray(msg.content)) {
-    const block = msg.content;
-    return !!((block.type === CLAUDE_BLOCK.TEXT && block.text?.trim()) ||
-      block.type === CLAUDE_BLOCK.TOOL_USE ||
-      block.type === CLAUDE_BLOCK.TOOL_RESULT ||
-      block.type === CLAUDE_BLOCK.IMAGE ||
-      block.type === CLAUDE_BLOCK.DOCUMENT);
+    return isContentfulBlock(msg.content);
   }
   if (Array.isArray(msg.content)) {
-    return msg.content.some(block =>
-      (block.type === CLAUDE_BLOCK.TEXT && block.text?.trim()) ||
-      block.type === CLAUDE_BLOCK.TOOL_USE ||
-      block.type === CLAUDE_BLOCK.TOOL_RESULT ||
-      block.type === CLAUDE_BLOCK.IMAGE ||
-      block.type === CLAUDE_BLOCK.DOCUMENT
-    );
+    return msg.content.some(isContentfulBlock);
   }
   return false;
 }
@@ -167,7 +177,7 @@ function handlesThinkingBlocks(provider) {
   return provider === "claude" || provider?.startsWith("anthropic-compatible") || provider === "deepseek";
 }
 
-function buildThinkingPlaceholder(provider) {
+function buildThinkingPlaceholder(provider, unsigned = false) {
   const block = {
     type: CLAUDE_BLOCK.THINKING,
     thinking: ".",
@@ -175,7 +185,9 @@ function buildThinkingPlaceholder(provider) {
 
   // DeepSeek's Anthropic-compatible endpoint requires a thinking block in
   // thinking mode, but it does not need Anthropic's signed-thinking fallback.
-  if (provider !== "deepseek") {
+  // Hal yang sama berlaku untuk model DeepSeek yang dilayani lewat transport
+  // Claude provider lain (opencode-go /messages).
+  if (provider !== "deepseek" && !unsigned) {
     block.signature = DEFAULT_THINKING_CLAUDE_SIGNATURE;
   }
 
@@ -214,6 +226,9 @@ export function normalizeClaudePassthrough(body, model = "") {
     delete body.output_config.effort;
     if (Object.keys(body.output_config).length === 0) delete body.output_config;
   }
+
+  // Role terakhir versi klien, sebelum cleanup menghapus giliran yang dikosongkan.
+  const originalLastRole = Array.isArray(body.messages) ? body.messages[body.messages.length - 1]?.role : undefined;
 
   // 3. Wrap bare content-block objects as one-element arrays before folding.
   // Some clients send content: {block} instead of content: [{block}]; the
@@ -316,9 +331,24 @@ export function normalizeClaudePassthrough(body, model = "") {
         !(block?.type === CLAUDE_BLOCK.TEXT && !String(block.text ?? "").trim()));
       return msg.content.length > 0;
     });
+    body.messages = ensureTrailingUserTurn(body.messages, originalLastRole);
   }
 
   return body;
+}
+
+// Model Claude yang lebih baru menolak body yang diakhiri giliran assistant
+// ("does not support assistant message prefill"). Pass cleanup menghapus pesan
+// yang dikosongkan, sehingga giliran user terakhir yang kosong (atau hanya berisi
+// block yang dibuang) diam-diam menjadikan giliran assistant sebelumnya sebagai
+// yang terakhir. Kembalikan giliran user hanya bila klien sendiri tidak
+// mengakhiri di assistant (prefill asli adalah pilihannya).
+const TRAILING_USER_PLACEHOLDER = "Continue.";
+
+export function ensureTrailingUserTurn(messages, originalLastRole) {
+  if (!Array.isArray(messages) || originalLastRole === ROLE.ASSISTANT) return messages;
+  if (messages[messages.length - 1]?.role !== ROLE.ASSISTANT) return messages;
+  return [...messages, { role: ROLE.USER, content: [{ type: CLAUDE_BLOCK.TEXT, text: TRAILING_USER_PLACEHOLDER }] }];
 }
 
 // Put a 5m breakpoint on the last cache-eligible block of a message.
@@ -333,6 +363,21 @@ function markLastCacheableBlock(msg) {
     return true;
   }
   return false;
+}
+
+// Dalam tool loop sebuah agen, request diakhiri hasil tool call dari giliran
+// assistant terakhir — setelah breakpoint giliran itu. Tanpa breakpoint ke-4
+// pada hasil tersebut, mereka dikenai tarif input penuh dan baru ditulis ke
+// cache oleh request berikutnya. Bila budget 4 marker masih longgar, breakpoint
+// 5m pada giliran user terakhir meng-cache-nya sekarang.
+function markFinalToolResults(body) {
+  const messages = body?.messages;
+  const last = Array.isArray(messages) ? messages[messages.length - 1] : null;
+  if (last?.role !== ROLE.USER || !Array.isArray(last.content)) return false;
+  if (!last.content.some((block) => block?.type === CLAUDE_BLOCK.TOOL_RESULT)) return false;
+  if (last.content.some((block) => block?.cache_control)) return false;
+  if (countCacheControlBlocks(body) >= 4) return false;
+  return markLastCacheableBlock(last);
 }
 
 // Re-anchor cache breakpoints on a Claude passthrough body (same policy as
@@ -404,6 +449,9 @@ export function anchorClaudeCache(body) {
         anchored = markLastCacheableBlock(body.messages[i]);
       }
     }
+
+    // ...dan hasil tool terakhir dari tool loop, agar langkah berikutnya membacanya.
+    markFinalToolResults(body);
   }
 
   return body;
@@ -443,12 +491,27 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
     delete body.output_config;
   }
 
+  // Model yang API-nya menolak thinking "disabled" dan tool_choice paksa dengan 400
+  // (Sonnet 5.5). Dijalankan pada setiap body menuju Claude, sehingga klien OpenAI,
+  // passthrough native, dan override "off" di level provider semuanya tercakup.
+  const modelCaps = getCapabilitiesForModel(provider, body.model);
+  if (modelCaps.thinkingOffType && body.thinking?.type === "disabled") {
+    body.thinking = { type: modelCaps.thinkingOffType };
+    // between_tools hanya menerima effort sampai high.
+    const effort = body.output_config?.effort;
+    if (effort === "xhigh" || effort === "max") body.output_config.effort = "high";
+  }
+  if (modelCaps.forcedToolChoice === false && (body.tool_choice?.type === "any" || body.tool_choice?.type === "tool")) {
+    const { disable_parallel_tool_use } = body.tool_choice;
+    body.tool_choice = { type: "auto", ...(disable_parallel_tool_use !== undefined ? { disable_parallel_tool_use } : {}) };
+  }
+
   // Clamp max_tokens to the model's real output ceiling. Models whose caps
   // declare a higher maxOutput (e.g. Opus 4.8 / Sonnet 4.6 = 128000) are allowed
   // up to it, so max-effort thinking gets full budget; others fall back to the
   // conservative 64000 default.
   if (body.max_tokens) {
-    const ceiling = getCapabilitiesForModel(provider, body.model).maxOutput || DEFAULT_MAX_TOKENS;
+    const ceiling = modelCaps.maxOutput || DEFAULT_MAX_TOKENS;
     if (body.max_tokens > ceiling) body.max_tokens = ceiling;
 
     // Reconcile against thinking budget. applyThinking (thinkingUnified.js) runs
@@ -480,6 +543,7 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
   // 2. Messages: process in optimized passes
   if (body.messages && Array.isArray(body.messages)) {
     const len = body.messages.length;
+    const originalLastRole = body.messages[len - 1]?.role;
     let filtered = [];
 
     // Pass 1: remove cache_control + filter empty messages
@@ -504,6 +568,7 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
     // Pass 1.5: Fix tool_use/tool_result ordering
     // Each tool_use must have tool_result in the NEXT message (not same message with other content)
     filtered = fixToolUseOrdering(filtered);
+    filtered = ensureTrailingUserTurn(filtered, originalLastRole);
 
     body.messages = filtered;
 
@@ -511,6 +576,13 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
     const lastMessage = filtered[filtered.length - 1];
     const lastMessageIsUser = lastMessage?.role === "user";
     const thinkingEnabled = body.thinking?.type === "enabled" && lastMessageIsUser;
+
+    // Model DeepSeek juga tiba lewat transport /messages OpenCode Go. Mereka
+    // membawa constraint pass-back thinking yang sama dengan provider DeepSeek
+    // resmi, sehingga mendapat penanganan keep/placeholder yang identik.
+    const deepSeekServed =
+      provider === "deepseek" ||
+      (provider === "opencode-go" && isDeepSeekModel(body?.model));
 
     // Pass 2 (reverse): add cache_control to last assistant + handle thinking for Anthropic
     let lastAssistantProcessed = false;
@@ -532,15 +604,15 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
         }
 
         // Handle thinking blocks for Anthropic-compatible endpoints.
-        if (handlesThinkingBlocks(provider)) {
+        if (handlesThinkingBlocks(provider) || deepSeekServed) {
           let hasToolUse = false;
           let hasKeptThinking = false;
 
           // Claude native: preserve valid signatures, drop invalid blocks.
           // anthropic-compatible: replace with default (safe fallback for lenient upstreams).
-          // DeepSeek: keep existing thinking as-is; add an unsigned placeholder only if missing.
+          // DeepSeek (resmi + model opencode-go): keep existing thinking as-is;
+          // add an unsigned placeholder only if missing.
           const isClaudeNative = provider === "claude";
-          const isDeepSeek = provider === "deepseek";
           const kept = [];
           for (const block of msg.content) {
             const isThinking = block.type === CLAUDE_BLOCK.THINKING || block.type === CLAUDE_BLOCK.REDACTED_THINKING;
@@ -550,7 +622,7 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
                   hasKeptThinking = true;
                   kept.push(block);
                 }
-              } else if (isDeepSeek) {
+              } else if (deepSeekServed) {
                 hasKeptThinking = true;
                 kept.push(block);
               } else {
@@ -567,7 +639,7 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
 
           // Add thinking block if thinking enabled + has tool_use but no thinking
           if (thinkingEnabled && !hasKeptThinking && hasToolUse) {
-            msg.content.unshift(buildThinkingPlaceholder(provider));
+            msg.content.unshift(buildThinkingPlaceholder(provider, deepSeekServed));
           }
         }
       }
@@ -637,6 +709,9 @@ export function prepareClaudeRequest(body, provider = null, apiKey = null, conne
   if (provider !== "claude" && !provider?.startsWith("anthropic-compatible")) {
     body = hoistToolResultImages(body);
   }
+
+  // Hasil tool terakhir dari tool loop: di-cache sekarang agar langkah berikutnya membacanya.
+  markFinalToolResults(body);
 
   // Apply cloaking for OAuth tokens (billing header + fake user ID)
   // session_id in user_id must match X-Claude-Code-Session-Id for fingerprint consistency

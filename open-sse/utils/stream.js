@@ -22,6 +22,9 @@ const STREAM_MODE = {
   PASSTHROUGH: "passthrough" // No translation, normalize output, extract usage
 };
 
+// Batas tunggu trailer usage sebelum response.completed yang ditunda di-flush paksa.
+const PENDING_COMPLETION_FLUSH_MS = 3000;
+
 // ---------------------------------------------------------------------------
 // Fast path passthrough (temuan audit #9).
 //
@@ -206,10 +209,28 @@ export function createSSEStream(options = {}) {
   let openAIResponsesDoneSent = false;
   let streamDoneSent = false;  // track duplicate [DONE] across transform + flush
   let finalized = false;
+  // Timer watchdog untuk response.completed yang ditunda (null bila tidak aktif).
+  let completionFlushTimer = null;
+
+  // Flush response.completed yang ditunda menunggu trailer usage
+  // (lihat state.completionPending di translator). Dipakai cabang [DONE]
+  // dan watchdog di bawah.
+  const flushPendingCompletion = (controller) => {
+    const completed = translateResponse(targetFormat, sourceFormat, null, state);
+    for (const item of completed || []) {
+      if (item === null || item === undefined) continue;
+      const output = formatSSE(item, sourceFormat);
+      reqLogger?.appendConvertedChunk?.(output);
+      enqueueKeKlien(controller, sharedEncoder.encode(output));
+      sseEmittedCount++;
+    }
+    finalizeStream();
+  };
 
   // Usage/logging tail, callable from transform() as well as flush(): a client that
   // closes right after the terminal event cancels the reader, and flush() never runs.
   const finalizeStream = () => {
+    if (completionFlushTimer) { clearTimeout(completionFlushTimer); completionFlushTimer = null; }
     if (finalized) return;
     finalized = true;
 
@@ -409,6 +430,14 @@ export function createSSEStream(options = {}) {
         // For Ollama: done=true is the final chunk with finish_reason/usage, must translate
         // For other formats: done=true is the [DONE] sentinel, skip
         if (parsed && parsed.done && targetFormat !== FORMATS.OLLAMA) {
+          // Translasi Chat-ke-Responses langsung bisa menunda response.completed
+          // sambil menunggu trailer usage. [DONE] mengakhiri kesempatan itu walau
+          // upstream masih menahan koneksi HTTP, jadi selesaikan sekarang.
+          if (targetFormat === FORMATS.OPENAI && sourceFormat === FORMATS.OPENAI_RESPONSES &&
+              state.completionPending && !state.completedSent) {
+            flushPendingCompletion(controller);
+          }
+
           // Synthesize response.failed if the Responses stream never sent a terminal event
           if (keepsOpenAIResponsesFormat && !openAIResponsesTerminalSeen) {
             const failedOutput = formatIncompleteOpenAIResponsesStreamFailure();
@@ -519,6 +548,23 @@ export function createSSEStream(options = {}) {
             enqueueKeKlien(controller, sharedEncoder.encode(output));
             sseEmittedCount++;
           }
+        }
+
+        // Penundaan completion bisa lebih lama dari umur upstream: upstream chat
+        // yang rusak bisa stall setelah finish_reason tanpa trailer usage dan tanpa
+        // [DONE], menahan koneksi tetap terbuka. Batasi tunggunya agar klien
+        // tetap mendapat terminal event.
+        if (targetFormat === FORMATS.OPENAI && sourceFormat === FORMATS.OPENAI_RESPONSES &&
+            state?.completionPending && !state?.completedSent && !completionFlushTimer) {
+          completionFlushTimer = setTimeout(() => {
+            completionFlushTimer = null;
+            if (state?.completedSent) return;
+            // Jangan flush ke stream yang sudah error/closed (mis. transform()
+            // throw saat timer armed): finalizeStream()/onStreamComplete tidak
+            // boleh jalan di error path. desiredSize null = stream tak readable.
+            if (controller.desiredSize === null) return;
+            try { flushPendingCompletion(controller); } catch { /* controller sudah ditutup */ }
+          }, PENDING_COMPLETION_FLUSH_MS);
         }
       }
     },

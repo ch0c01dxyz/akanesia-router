@@ -67,11 +67,24 @@ const { ensureSqliteRuntime, buildEnvWithRuntime } = require("./hooks/sqliteRunt
 const { ensureTrayRuntime } = require("./hooks/trayRuntime");
 const args = process.argv.slice(2);
 
-// Subcommands (`9router xai video …`) run against an already-running gateway
+// Subcommands (`akanesia-router xai video …`) run against an already-running gateway
 // and bypass the launcher flow (no runtime self-heal, no server spawn).
 if (args[0] === "xai" && args[1] === "video") {
   const { run } = require("./src/cli/commands/xaiVideo");
   run(args.slice(2))
+    .then((code) => process.exit(code))
+    .catch((err) => {
+      console.error(`❌ ${err?.message || err}`);
+      process.exit(1);
+    });
+  return;
+}
+
+// `akanesia-router connect <url>` configures local CLI tools against a remote
+// server — no local server, no runtime deps. Usable via `npx akanesia-router connect …`.
+if (args[0] === "connect") {
+  const { run } = require("./src/cli/commands/connect");
+  run(args.slice(1))
     .then((code) => process.exit(code))
     .catch((err) => {
       console.error(`❌ ${err?.message || err}`);
@@ -154,6 +167,8 @@ Options:
   -v, --version       Show version
 
 Commands:
+  connect <server-url> Configure CLI tools for a remote Akanesia-Gateway server
+                      (npx akanesia-router connect http://host:20128 — no install needed)
   xai video --prompt "..." --output video.mp4
                       Generate a Grok Imagine video via the running gateway
                       (see: ${APP_NAME} xai video --help)

@@ -24,6 +24,7 @@ import EditCompatibleNodeModal from "./EditCompatibleNodeModal";
 import AddCustomModelModal from "./AddCustomModelModal";
 import BulkImportCodexModal from "./BulkImportCodexModal";
 import BulkImportGrokCliModal from "./BulkImportGrokCliModal";
+import CustomConfigCard from "./CustomConfigCard";
 
 const ONE_BY_ONE_DELAY_MS = 1000;
 
@@ -1823,6 +1824,10 @@ export default function ProviderDetailPage() {
           )}
         </Card>
       )}
+
+      {/* Override per-provider (custom header) — berdampingan dengan custom
+          header per-node ide #8; node-level lebih spesifik & menang (lihat base.js) */}
+      <CustomConfigCard providerId={providerId} />
 
       {/* Models */}
       <Card>

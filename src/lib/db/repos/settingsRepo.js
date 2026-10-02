@@ -83,6 +83,10 @@ const DEFAULT_SETTINGS = {
   pxpipeAutoInstall: true,
   pxpipeMinChars: 25000,
   pxpipeTimeoutMs: 15000,
+  // Override header per-provider dari user, diterapkan saat dispatch:
+  // { [providerId]: { headers: {..} } }. Berdampingan dengan custom header
+  // per-node ide #8 (level koneksi) — lihat urutan merge di base.js execute().
+  providerOverrides: {},
 };
 
 async function readRaw() {
