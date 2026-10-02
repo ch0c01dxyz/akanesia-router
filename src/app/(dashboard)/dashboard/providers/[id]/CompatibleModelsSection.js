@@ -1,10 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
-function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting }) {
+
+// Model dianggap Free bila id-nya mengandung "-free" atau ":free".
+const isFreeById = (id) => /-free|:free/.test(id || "");
+
+function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting, isFree, onToggleFree }) {
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"
@@ -42,6 +46,19 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
               {copied === `model-${modelId}` ? "Copied!" : "Copy"}
             </span>
           </div>
+          <div className="relative group/btn">
+            <button
+              onClick={() => onToggleFree(modelId)}
+              className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary"
+              style={isFree ? { color: "#22c55e" } : undefined}
+              title={isFree ? "Move to Premium" : "Move to Free"}
+            >
+              <span className="material-symbols-outlined text-sm">sell</span>
+            </button>
+            <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
+              {isFree ? "Move to Premium" : "Move to Free"}
+            </span>
+          </div>
           {onTest && (
             <div className="relative group/btn">
               <button
@@ -71,6 +88,12 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
   );
 }
 
+const MODEL_TABS = [
+  { id: "all", label: "All" },
+  { id: "premium", label: "Premium" },
+  { id: "free", label: "Free" },
+];
+
 export default function CompatibleModelsSection({ providerId, providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
@@ -79,6 +102,35 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
   const [modelTestResults, setModelTestResults] = useState({});
   const [checkingModels, setCheckingModels] = useState(false);
   const [checkResult, setCheckResult] = useState(null);
+  const [activeTab, setActiveTab] = useState("all");
+
+  // Override kategori Free/Premium per model (manual via ikon tag).
+  // Hanya untuk penataan tampilan — tidak mengubah id/nama asli model.
+  const freeOverrideKey = `akanesia:model-free-overrides:${providerStorageAlias}`;
+  const [freeOverrides, setFreeOverrides] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(freeOverrideKey) || "{}");
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(freeOverrideKey, JSON.stringify(freeOverrides));
+    } catch {
+      // abaikan (storage penuh / mode privat)
+    }
+  }, [freeOverrideKey, freeOverrides]);
+
+  const isEffectiveFree = (id) =>
+    freeOverrides[id] !== undefined ? freeOverrides[id] : isFreeById(id);
+
+  const handleToggleFree = (id) => {
+    setFreeOverrides((prev) => {
+      const effective = prev[id] !== undefined ? prev[id] : isFreeById(id);
+      return { ...prev, [id]: !effective };
+    });
+  };
 
   const handleTestModel = async (modelId) => {
     if (testingModelId) return;
@@ -211,6 +263,26 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
         </Button>
       </div>
 
+      {/* Tab kategori model: All / Premium / Free */}
+      <div className="grid grid-cols-4 gap-2">
+        {MODEL_TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                isActive
+                  ? "bg-primary text-white border-primary font-medium"
+                  : "border-border text-text-muted hover:text-text-main hover:border-primary/50 bg-background"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
       {checkResult && (() => {
         const item = (checkResult.results || [])[0];
         return (
@@ -260,7 +332,13 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
 
       {allModels.length > 0 && (
         <div className="flex flex-col gap-3">
-          {allModels.map(({ id, alias, source }) => (
+          {allModels
+            .filter(({ id }) => {
+              if (activeTab === "all") return true;
+              const free = isEffectiveFree(id);
+              return activeTab === "free" ? free : !free;
+            })
+            .map(({ id, alias, source }) => (
             <CompatibleModelRow
               key={`${source}-${providerStorageAlias}/${id}`}
               modelId={id}
@@ -271,6 +349,8 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
               onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
               testStatus={modelTestResults[id]}
               isTesting={testingModelId === id}
+              isFree={isEffectiveFree(id)}
+              onToggleFree={handleToggleFree}
             />
           ))}
         </div>
