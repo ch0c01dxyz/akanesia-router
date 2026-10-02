@@ -1,10 +1,18 @@
-# Akanesia-Gateway (`akanesia-router`)
+<p align="center">
+  <img src="public/logo.png" alt="Akanesia-Router" width="160" />
+</p>
 
-Gateway routing AI lokal + dashboard web. Satu endpoint kompatibel OpenAI (`/v1/*`)
-yang me-routing request ke 323 provider upstream — dengan translasi format,
-combo fallback, multi-account, quota tracking, dan token saver.
+<h1 align="center">Akanesia-Gateway (<code>akanesia-router</code>)</h1>
 
-> Nama paket: `akanesia-router` · Versi: `1.5.0` · Sebelumnya dikenal sebagai 9Router.
+<p align="center">
+  Gateway routing AI lokal + dashboard web. Satu endpoint kompatibel OpenAI (<code>/v1/*</code>)
+  yang me-routing request ke 323 provider upstream — dengan translasi format,
+  combo fallback, multi-account, quota tracking, dan token saver.
+</p>
+
+<p align="center">
+  Nama paket: <code>akanesia-router</code> · Versi: <code>1.5.0</code> · Sebelumnya dikenal sebagai 9Router.
+</p>
 
 ## Asal-usul
 
