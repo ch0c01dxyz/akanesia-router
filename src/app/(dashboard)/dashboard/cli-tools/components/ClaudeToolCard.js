@@ -61,6 +61,7 @@ export default function ClaudeToolCard({
   const [oneMContext, setOneMContext] = useState(false);
   const [apiForceIdleTimeout, setApiForceIdleTimeout] = useState(false);
   const [apiTimeoutMs, setApiTimeoutMs] = useState("");
+  const [gatewayModelDiscovery, setGatewayModelDiscovery] = useState(true);
   const hasInitializedModels = useRef(false);
 
   // Claude Code only string-matches the marker against the model name, so it
@@ -117,6 +118,7 @@ export default function ClaudeToolCard({
     setOneMContext(tool.defaultModels.some((model) => env[model.envKey]?.endsWith("[1m]")));
     setApiForceIdleTimeout(env.API_FORCE_IDLE_TIMEOUT === "1");
     setApiTimeoutMs(env.API_TIMEOUT_MS ? String(env.API_TIMEOUT_MS) : "");
+    setGatewayModelDiscovery(env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY !== "0");
   }, [claudeStatus?.settings?.env, tool.defaultModels]);
 
   useEffect(() => {
@@ -203,7 +205,10 @@ export default function ClaudeToolCard({
   // Build the timeout-related env vars, validating API_TIMEOUT_MS.
   // Returns { extra } on success or { error } with a user-facing message.
   const buildTimeoutEnv = () => {
-    const extra = { API_FORCE_IDLE_TIMEOUT: apiForceIdleTimeout ? "1" : "0" };
+    const extra = {
+      API_FORCE_IDLE_TIMEOUT: apiForceIdleTimeout ? "1" : "0",
+      CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: gatewayModelDiscovery ? "1" : "0",
+    };
     const raw = apiTimeoutMs.trim();
     if (raw) {
       if (!/^\d+$/.test(raw) || Number(raw) <= 0) {
@@ -284,6 +289,7 @@ export default function ClaudeToolCard({
         setOneMContext(false);
         setApiForceIdleTimeout(false);
         setApiTimeoutMs("");
+        setGatewayModelDiscovery(true);
       } else {
         setMessage({ type: "error", text: data.error || "Failed to reset settings" });
       }
@@ -504,6 +510,19 @@ export default function ClaudeToolCard({
                       <span className="material-symbols-outlined text-text-muted text-[14px] cursor-help">info</span>
                     </Tooltip>
                   </div>
+                </div>
+
+                {/* CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY */}
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[8rem_auto_1fr_auto] sm:items-center sm:gap-2">
+                  <span className="text-xs font-semibold text-text-main sm:text-right sm:text-sm">Model discovery</span>
+                  <span className="material-symbols-outlined hidden text-text-muted text-[14px] sm:inline">arrow_forward</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input type="checkbox" checked={gatewayModelDiscovery} onChange={(e) => setGatewayModelDiscovery(e.target.checked)} className="w-3.5 h-3.5 accent-primary cursor-pointer" />
+                    <span className="text-xs text-text-muted">Enable gateway model discovery</span>
+                    <Tooltip text="Set to 1 to populate the /model picker from your gateway's /v1/models endpoint when ANTHROPIC_BASE_URL points at an Anthropic-compatible gateway such as LiteLLM, Kong, or an internal proxy. Off by default because gateways backed by a shared API key would otherwise show every user every model the key can access. Checked writes CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1; unchecked writes 0.">
+                      <span className="material-symbols-outlined text-text-muted text-[14px] cursor-help">info</span>
+                    </Tooltip>
+                  </label>
                 </div>
 
                 {/* Exa MCP — ~/.claude.json mcpServers (not settings.json) */}
