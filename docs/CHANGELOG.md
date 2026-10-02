@@ -5,6 +5,18 @@
 
 ## 2026-10-02
 
+### Fix ReferenceError: recordFailure is not defined (laporan Egar)
+
+`src/sse/services/auth.js` memanggil `recordFailure` /
+`recordSuccess` dari `./quotaIncidents.js` tanpa meng-import-nya —
+bug pre-existing sejak ide #4 (2026-09-29), sekelas dengan kasus
+`readOverrides()`. Modul ter-load normal, tapi meledak tepat saat
+`markAccountUnavailable`/`clearAccountError` dipanggil (error path
+saat upstream gagal — sesuai stack trace `/api/v1/messages` dari
+Egar). Perbaikan: tambah import; regression test
+`auth-quota-hooks-wired.test.js` terverifikasi A/B (gagal dengan
+ReferenceError persis tanpa import, lolos dengan import).
+
 ### Port upstream decolua/9router v0.5.95 (41 commit sejak v0.5.91)
 
 Atas instruksi Egar: seluruh fixing & fitur baru dari upstream
@@ -122,7 +134,6 @@ throw (fail-closed); pool hilang / DB error masih fail-open; usage
 yang tiba setelah watchdog 3 dtk tetap tidak dikirim.
 
 ### Keputusan desain proxy & watchdog (2026-10-02, atas arahan Egar)
-
 - **noProxy + strictProxy**: strict kini menghormati `noProxy` dari
   konfigurasi provider sendiri — host yang dikecualikan memang
   dimaksudkan direct, jadi tidak di-throw. Strict hanya mengikat host
