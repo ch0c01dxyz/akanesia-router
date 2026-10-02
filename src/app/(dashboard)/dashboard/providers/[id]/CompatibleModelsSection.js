@@ -331,7 +331,7 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
       )}
 
       {allModels.length > 0 && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 max-h-[480px] overflow-y-auto pr-1">
           {allModels
             .filter(({ id }) => {
               if (activeTab === "all") return true;
