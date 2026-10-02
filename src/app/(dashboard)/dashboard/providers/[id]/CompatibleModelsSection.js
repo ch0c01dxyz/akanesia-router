@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import { Button } from "@/shared/components";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
@@ -132,6 +132,10 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
     });
   };
 
+  // Auto-scroll list ke bawah saat import berjalan agar model yang baru
+  // ditambahkan terlihat. Hanya aktif selama importing; mati saat selesai.
+  const listRef = useRef(null);
+
   const handleTestModel = async (modelId) => {
     if (testingModelId) return;
     setTestingModelId(modelId);
@@ -156,6 +160,12 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
     providerAlias: providerStorageAlias,
     type: "llm",
   });
+
+  useEffect(() => {
+    if (importing && listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  }, [importing, allModels.length]);
 
   const handleAdd = async () => {
     if (!newModel.trim() || adding) return;
@@ -331,7 +341,7 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
       )}
 
       {allModels.length > 0 && (
-        <div className="flex flex-col gap-3 max-h-[480px] overflow-y-auto pr-1">
+        <div ref={listRef} className="flex flex-col gap-3 max-h-[480px] overflow-y-auto pr-1">
           {allModels
             .filter(({ id }) => {
               if (activeTab === "all") return true;
