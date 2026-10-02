@@ -121,6 +121,25 @@ Belum diputuskan (butuh arahan Egar): `noProxy + strictProxy` kini
 throw (fail-closed); pool hilang / DB error masih fail-open; usage
 yang tiba setelah watchdog 3 dtk tetap tidak dikirim.
 
+### Keputusan desain proxy & watchdog (2026-10-02, atas arahan Egar)
+
+- **noProxy + strictProxy**: strict kini menghormati `noProxy` dari
+  konfigurasi provider sendiri — host yang dikecualikan memang
+  dimaksudkan direct, jadi tidak di-throw. Strict hanya mengikat host
+  yang wajib lewat proxy. (Sebelumnya: throw untuk semua.)
+- **Pool tak valid / DB error**: bila koneksi memang mengaktifkan proxy
+  (pool diminta) tapi pool rusak atau DB error, request kini fail-closed
+  **500** dan error dicatat via `console.error` sehingga tampil di menu
+  Console Log. Pengecualian: bila fallback legacy masih menyediakan
+  proxy, request diteruskan tapi masalah pool tetap tercatat.
+  Plumbing: `strictProxy` + `proxyPoolId` + `proxyConfigError` kini
+  diteruskan dari `resolveConnectionProxyConfig` → auth → chatCore →
+  proxyFetch (sebelumnya flag strict pool tidak sampai ke proxyFetch
+  lewat jalur chat).
+- **Watchdog dinamis**: model resmi (claude/gpt/o1/o3/o4/gemini/grok)
+  tetap 3 detik; model lain (deepseek, glm, kimi, ...) 10 detik agar
+  trailer usage yang lambat tidak hilang sia-sia.
+
 ### Audit cakupan port (2026-10-02, atas instruksi Egar)
 
 Empat area tambahan diaudit (CLI/OAuth, dashboard UI, core

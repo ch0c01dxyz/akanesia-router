@@ -225,6 +225,12 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         connectionProxyUrl: resolvedProxy.connectionProxyUrl,
         connectionNoProxy: resolvedProxy.connectionNoProxy,
         connectionProxyPoolId: resolvedProxy.proxyPoolId || null,
+        connectionProxyStrict: resolvedProxy.strictProxy === true,
+        // Diteruskan agar proxyFetch bisa fail-closed (500 + Console Log)
+        // bila pool rusak/DB error padahal proxy dimaksudkan.
+        ...(resolvedProxy.proxyConfigError
+          ? { connectionProxyConfigError: resolvedProxy.proxyConfigError }
+          : {}),
         vercelRelayUrl: resolvedProxy.vercelRelayUrl || "",
       },
       connectionId: connection.id,

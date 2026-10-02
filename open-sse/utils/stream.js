@@ -23,7 +23,19 @@ const STREAM_MODE = {
 };
 
 // Batas tunggu trailer usage sebelum response.completed yang ditunda di-flush paksa.
+// Model resmi (Anthropic/OpenAI/Google/xAI) hampir selalu mengirim trailer usage
+// tepat waktu — watchdog pendek cukup. Model lain (deepseek, glm, ...) kadang
+// lambat mengirimnya, jadi diberi 10 detik agar usage tidak hilang sia-sia.
 const PENDING_COMPLETION_FLUSH_MS = 3000;
+const PENDING_COMPLETION_FLUSH_MS_NON_OFFICIAL = 10000;
+const OFFICIAL_MODEL_RE = /(claude|gpt|o1|o3|o4|gemini|grok)/i;
+
+export function getCompletionFlushMs(model) {
+  if (typeof model === "string" && OFFICIAL_MODEL_RE.test(model)) {
+    return PENDING_COMPLETION_FLUSH_MS;
+  }
+  return PENDING_COMPLETION_FLUSH_MS_NON_OFFICIAL;
+}
 
 // ---------------------------------------------------------------------------
 // Fast path passthrough (temuan audit #9).
@@ -553,9 +565,11 @@ export function createSSEStream(options = {}) {
         // Penundaan completion bisa lebih lama dari umur upstream: upstream chat
         // yang rusak bisa stall setelah finish_reason tanpa trailer usage dan tanpa
         // [DONE], menahan koneksi tetap terbuka. Batasi tunggunya agar klien
-        // tetap mendapat terminal event.
+        // tetap mendapat terminal event. Batas dinamis per model: model resmi
+        // 3 detik (trailer selalu tepat waktu), model lain 10 detik.
         if (targetFormat === FORMATS.OPENAI && sourceFormat === FORMATS.OPENAI_RESPONSES &&
             state?.completionPending && !state?.completedSent && !completionFlushTimer) {
+          const flushMs = getCompletionFlushMs(model);
           completionFlushTimer = setTimeout(() => {
             completionFlushTimer = null;
             if (state?.completedSent) return;
@@ -564,7 +578,7 @@ export function createSSEStream(options = {}) {
             // boleh jalan di error path. desiredSize null = stream tak readable.
             if (controller.desiredSize === null) return;
             try { flushPendingCompletion(controller); } catch { /* controller sudah ditutup */ }
-          }, PENDING_COMPLETION_FLUSH_MS);
+          }, flushMs);
         }
       }
     },

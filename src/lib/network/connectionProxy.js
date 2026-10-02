@@ -82,6 +82,9 @@ export async function resolveConnectionProxyConfig(
     // pool-tak-valid di bawah melaporkan strictProxy:false dan request diam-diam
     // keluar lewat IP langsung — kebocoran yang justru ingin dicegah mode strict (#4333).
     let poolStrictProxy = false;
+    // Diisi bila pool diminta tapi tidak valid — diteruskan ke return agar
+    // pemanggil bisa fail-closed (500 + Console Log), bukan fail-open diam-diam.
+    let poolConfigError = null;
 
     /**
      * -----------------------------
@@ -100,6 +103,13 @@ export async function resolveConnectionProxyConfig(
         proxyUrl;
 
       poolStrictProxy = proxyPool?.strictProxy === true;
+
+      // Pool diminta tapi tidak valid (tidak ditemukan / nonaktif / tanpa URL):
+      // tandai error agar pemanggil bisa fail-closed (500 + Console Log),
+      // bukan diam-diam fail-open ke direct. Pesan ini tidak mengandung secret.
+      if (!isValidPool) {
+        poolConfigError = `Pool proxy "${proxyPoolId}" tidak valid (tidak ditemukan, nonaktif, atau tanpa URL)`;
+      }
 
       if (isValidPool) {
         /**
@@ -157,6 +167,9 @@ export async function resolveConnectionProxyConfig(
         proxyPool: null,
 
         strictProxy: poolStrictProxy,
+        // Pool diminta tapi rusak — legacy menanggung, tapi masalah pool
+        // tetap dilaporkan agar admin tahu (lihat proxyConfigError).
+        ...(poolConfigError ? { proxyConfigError: poolConfigError } : {}),
 
         ...legacy,
       };
@@ -174,6 +187,7 @@ export async function resolveConnectionProxyConfig(
       proxyPool: null,
 
       strictProxy: poolStrictProxy,
+      ...(poolConfigError ? { proxyConfigError: poolConfigError } : {}),
 
       ...legacy,
     };
@@ -181,6 +195,16 @@ export async function resolveConnectionProxyConfig(
     console.error(
       "[resolveConnectionProxyConfig] Failed to resolve proxy config:",
       error
+    );
+
+    // DB error: hanya tandai error bila proxy memang dimaksudkan
+    // (pool diminta atau legacy aktif) — kalau tidak, "none" adalah normal.
+    const poolIdRaw = normalizeString(providerSpecificData?.proxyPoolId);
+    const proxyWasIntended =
+      !!poolIdRaw && poolIdRaw !== "__none__";
+    const legacyCfg = normalizeLegacyProxy(providerSpecificData);
+    const legacyWasEnabled = !!(
+      legacyCfg.connectionProxyEnabled && legacyCfg.connectionProxyUrl
     );
 
     return {
@@ -194,6 +218,9 @@ export async function resolveConnectionProxyConfig(
       connectionNoProxy: "",
 
       strictProxy: false,
+      ...((proxyWasIntended || legacyWasEnabled)
+        ? { proxyConfigError: `Gagal membaca konfigurasi proxy: ${error?.message || error}` }
+        : {}),
     };
   }
 }

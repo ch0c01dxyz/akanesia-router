@@ -477,6 +477,25 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   const envProxyUrl = connectionProxyUrl ? null : normalizeProxyUrl(getEnvProxyUrl(targetUrl));
   const proxyUrl = connectionProxyUrl || envProxyUrl;
 
+  // Konfigurasi proxy rusak (pool tak valid / DB error) padahal proxy
+  // dimaksudkan untuk koneksi ini: selalu catat ke Console Log, dan
+  // fail-closed (500) bila tidak ada proxy yang bisa dipakai. Kalau
+  // fallback legacy masih menyediakan proxy, request diteruskan lewat
+  // sana tapi masalah pool tetap tercatat.
+  const proxyConfigError = normalizeString(proxyOptions?.proxyConfigError);
+  if (proxyConfigError) {
+    console.error(`[ProxyFetch] ${proxyConfigError} | target=${targetUrl}`);
+    if (!proxyUrl) {
+      throw new Error(`[ProxyFetch] ${proxyConfigError}`);
+    }
+  }
+
+  // noProxy adalah bagian dari konfigurasi proxy provider sendiri: host yang
+  // dikecualikan memang dimaksudkan direct, jadi strict tidak boleh me-throw
+  // untuknya. Strict hanya mengikat host yang wajib lewat proxy.
+  const connNoProxy = normalizeString(proxyOptions?.noProxy ?? proxyOptions?.connectionNoProxy);
+  const noProxyExempt = connNoProxy ? shouldBypassByNoProxy(targetUrl, connNoProxy) : false;
+
   // Mode strict berarti "jangan pernah keluar lewat IP langsung".
   // Gate pada proxy yang *dimaksudkan*: pemanggil seperti executor Qoder memakai
   // strictProxy dengan arti "jangan replay request ini secara langsung bila proxy
@@ -503,8 +522,9 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
     }
     // No proxy — manually resolve real IP to bypass DNS spoof.
     // Ini koneksi langsung ke IP: di bawah strict hold harus ditolak, bukan
-    // diam-diam mengekspos alamat asli (#4333).
-    if (strictHold) {
+    // diam-diam mengekspos alamat asli (#4333). Pengecualian: host yang masuk
+    // noProxy memang dimaksudkan direct oleh konfigurasi provider sendiri.
+    if (strictHold && !noProxyExempt) {
       throw new Error("[ProxyFetch] Proxy required but none resolved (strictProxy=true)");
     }
     try {
@@ -533,7 +553,8 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   // kasus strict — pool nonaktif atau kosong, atau semua proxy terhapus —
   // jadi tolak daripada diam-diam mengekspos alamat asli (#4333). Blok catch
   // di atas hanya mencakup proxy yang benar-benar sempat dicoba.
-  if (strictHold) {
+  // Host noProxy dikecualikan: direct memang dimaksudkan konfigurasinya.
+  if (strictHold && !noProxyExempt) {
     throw new Error("[ProxyFetch] Proxy required but none resolved (strictProxy=true)");
   }
 

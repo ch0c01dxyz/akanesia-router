@@ -89,3 +89,25 @@ describe("pending response.completed watchdog", () => {
     }
   });
 });
+
+describe("watchdog dinamis per model", () => {
+  it("model resmi (claude/gpt/gemini/grok) memakai 3 detik", async () => {
+    const { getCompletionFlushMs } = await import("../../open-sse/utils/stream.js");
+    expect(getCompletionFlushMs("claude-opus-4-6")).toBe(3000);
+    expect(getCompletionFlushMs("gpt-5.4")).toBe(3000);
+    expect(getCompletionFlushMs("codex/gpt-6-sol[1m]")).toBe(3000);
+    expect(getCompletionFlushMs("gemini-3-pro")).toBe(3000);
+    expect(getCompletionFlushMs("grok-4-1")).toBe(3000);
+    expect(getCompletionFlushMs("o3-mini")).toBe(3000);
+  });
+
+  it("model lain (deepseek/glm/...) memakai 10 detik", async () => {
+    const { getCompletionFlushMs } = await import("../../open-sse/utils/stream.js");
+    expect(getCompletionFlushMs("deepseek-v4")).toBe(10000);
+    expect(getCompletionFlushMs("deepseek-v4.1-flash")).toBe(10000);
+    expect(getCompletionFlushMs("glm-4.6")).toBe(10000);
+    expect(getCompletionFlushMs("kimi-k2")).toBe(10000);
+    expect(getCompletionFlushMs(null)).toBe(10000);
+    expect(getCompletionFlushMs(undefined)).toBe(10000);
+  });
+});

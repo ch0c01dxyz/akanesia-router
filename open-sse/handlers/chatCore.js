@@ -349,6 +349,11 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     connectionProxyUrl: credentials?.providerSpecificData?.connectionProxyUrl || "",
     connectionNoProxy: credentials?.providerSpecificData?.connectionNoProxy || "",
     vercelRelayUrl: credentials?.providerSpecificData?.vercelRelayUrl || "",
+    // Flag strict dari pool + id pool (untuk proxyIntended) + error config
+    // (untuk fail-closed 500 + Console Log bila pool rusak/DB error).
+    strictProxy: credentials?.providerSpecificData?.connectionProxyStrict === true,
+    proxyPoolId: credentials?.providerSpecificData?.connectionProxyPoolId || "",
+    proxyConfigError: credentials?.providerSpecificData?.connectionProxyConfigError || "",
   };
 
   if (proxyOptions.vercelRelayUrl) {
