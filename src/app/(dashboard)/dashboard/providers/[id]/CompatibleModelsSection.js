@@ -264,7 +264,7 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
       </div>
 
       {/* Tab kategori model: All / Premium / Free */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {MODEL_TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
