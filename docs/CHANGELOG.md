@@ -5,6 +5,59 @@
 
 ## 2026-10-02
 
+### Fail-fast connect timeout + Filter/Export Replay tab (laporan & permintaan Egar)
+
+**Analisa error 502 `moonshotai/kimi-k3`:** "fetch connect timeout" 249 detik
+bukan satu timeout 249s — melainkan 4x60s (`FETCH_CONNECT_TIMEOUT_MS`) +
+backoff 3s dari retry 502 di level executor (`open-sse/executors/base.js`).
+Retry buta ke upstream yang lambat menghanguskan ~78% budget timeout
+Claude Code (10 menit) sebelum failover akun sempat jalan.
+
+**Perbaikan** (`open-sse/executors/base.js`): connect timeout kini fail-fast —
+langsung throw tanpa retry executor agar caller failover ke akun berikutnya.
+Terverifikasi empiris: undici me-reject dengan reason
+`Error("fetch connect timeout")` (`name="Error"`, bukan `AbortError`)
+sehingga `chatCore` tetap memetakan ke 502 → failover akun jalan; client
+abort asli (`AbortError`) tetap → 499. Network error lain tetap retry
+sesuai config. Regression test
+`tests/unit/base-executor-connect-timeout.test.js` (3 test, A/B-verified:
+gagal di kode lama, lolos di kode baru).
+
+**Replay tab** (`dashboard/console-log/ReplayTab.js`): tambah input
+"Filter Replay" (saring berdasarkan provider/model/status/URL/error,
+dengan penghitung "n / m ditampilkan") dan tombol "Export JSON" —
+bila filter aktif maka yang diekspor adalah data terfilter, bila tidak
+maka semua data (format `{ exportedAt, filtered, filter, count, entries }`,
+nama file `replay-log-<timestamp>.json`).
+
+**Detail asal error di Replay tab** (permintaan Egar): kolom status kini
+menampilkan asal error di bawah badge status — `provider` bila server LLM
+mengembalikan HTTP error, `akanesia-router` bila gateway kita yang gagal
+mendapatkan respons (network error, connect timeout, dsb.). Field
+`errorOrigin` (`"provider"`/`"gateway"`/`"unknown"`) dicatat di
+`captureReplayEntry` (`src/lib/requestReplayBuffer.js`) dan diisi eksplisit
+di kedua titik capture `chatCore` (executor throw → `"gateway"`,
+provider error response → `"provider"`); ikut terfilter dan otomatis
+termasuk di export JSON sehingga bukti debug lengkap tanpa tebakan.
+String i18n baru di `public/i18n/literals/id.json`; test
+`request-replay-buffer.test.js` +1.
+
+### Instrumentasi pengukuran RTK & Ponytail (permintaan Egar)
+
+Alat ukur efektivitas dua kompresi token-saver (headroom dikecualikan —
+konteks berbeda):
+
+- **RTK meter** (`open-sse/rtk/meter.js`): agregator in-memory yang dicatat
+  `chatCore` setiap request — total request, hit-rate, byte sebelum/sesudah,
+  per filter (`byFilter`) dan per shape body (`byShape`). Fail-open, reset
+  tiap restart. Dibaca via `GET /api/debug/token-saver-meter`, reset via
+  `DELETE`. Test `tests/unit/rtk-meter.test.js` (4 lolos).
+- **Skrip A/B Ponytail** (`scripts/measure-ponytail.mjs`): menjalankan 5
+  prompt coding × N repetisi pada fase off/lite/full/ultra (toggle via
+  `PATCH /api/settings`, settings dikembalikan setelah selesai),
+  membandingkan `completion_tokens` vs biaya injeksi `prompt_tokens`.
+  Pakai: `GATEWAY_API_KEY=... MODEL=... node scripts/measure-ponytail.mjs`.
+
 ### Fix ReferenceError: recordFailure is not defined (laporan Egar)
 
 `src/sse/services/auth.js` memanggil `recordFailure` /

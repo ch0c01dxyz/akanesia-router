@@ -1431,7 +1431,6 @@
   "Warnings": "Peringatan",
   "No probe results yet": "Belum ada hasil probe",
   "Per-probe results": "Hasil per probe",
-  "Warning": "Peringatan",
   "Skipped": "Dilewati",
   "Claimed": "Diklaim",
   "View full report": "Lihat laporan lengkap",
@@ -1485,5 +1484,12 @@
   "{passed}/{total} passed": "{passed}/{total} lolos",
   "optional": "opsional",
   "Leave empty to use the server key...": "Kosongkan untuk memakai key server...",
-  "Empty = server key from BAZAARLINK_API_KEY. A manually entered key is only used for this run and is not stored anywhere.": "Kosong = key server dari BAZAARLINK_API_KEY. Key yang diketik manual hanya dipakai untuk run ini dan tidak disimpan di mana pun."
+  "Empty = server key from BAZAARLINK_API_KEY. A manually entered key is only used for this run and is not stored anywhere.": "Kosong = key server dari BAZAARLINK_API_KEY. Key yang diketik manual hanya dipakai untuk run ini dan tidak disimpan di mana pun.",
+  "Filter by provider, model, status...": "Filter berdasarkan provider, model, status...",
+  "Export filtered entries to JSON": "Ekspor entry yang terfilter ke JSON",
+  "Export all entries to JSON": "Ekspor semua entry ke JSON",
+  "Export JSON": "Ekspor JSON",
+  "shown": "ditampilkan",
+  "No entries match the current filter.": "Tidak ada entry yang cocok dengan filter saat ini.",
+  "Error origin: LLM provider server vs akanesia-router": "Asal error: server provider LLM vs akanesia-router"
 }

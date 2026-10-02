@@ -244,6 +244,9 @@ function buatId() {
  * @param {string} [input.responseText] - teks response/error (di-redact + truncate;
  *   upstream bisa menggemakan request, jadi diperlakukan sama seperti body)
  * @param {string} [input.error] - pesan error (di-redact + truncate)
+ * @param {string} [input.errorOrigin] - asal error: "provider" (server LLM
+ *   mengembalikan HTTP error) atau "gateway" (akanesia-router gagal
+ *   mendapatkan respons: network error, connect timeout, dsb.)
  * @param {string[]} [input.secretValues] - nilai secret aktual dari credentials
  *   (tidak pernah disimpan; hanya dipakai me-redact kemunculan di free-text)
  */
@@ -268,6 +271,12 @@ export function captureReplayEntry(input) {
       method: String(input.method || "POST"),
       url: redactSecretValues(redactUrl(input.url), secretValues),
       status: Number(input.status) || 0,
+      // Asal error untuk identifikasi: "provider" = server LLM yang
+      // mengembalikan error; "gateway" = akanesia-router yang gagal
+      // mendapatkan respons. "unknown" untuk entry lama.
+      errorOrigin: input.errorOrigin === "provider" || input.errorOrigin === "gateway"
+        ? input.errorOrigin
+        : "unknown",
       latencyMs: Number(input.latencyMs) || 0,
       requestHeaders: redactHeaders(input.requestHeaders),
       requestBody: bodyPotong.text,

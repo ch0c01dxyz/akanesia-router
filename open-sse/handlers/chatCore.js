@@ -27,6 +27,7 @@ import { takeRenamedToolNames } from "../utils/opencodeFingerprint.js";
 import { injectCaveman } from "../rtk/caveman.js";
 import { injectPonytail } from "../rtk/ponytail.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
+import { recordRtkStats } from "../rtk/meter.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
 import { compressWithPxpipe } from "../rtk/pxpipe.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
@@ -279,6 +280,8 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // RTK: compress tool_result content. Skipped when already done pre-translate.
   const rtkStats = preTranslateRtk || compressMessages(translatedBody, tokenSaverEnabled && rtkEnabled);
+  // Meter: agregasi pengukuran efektivitas RTK (in-memory, fail-open).
+  try { recordRtkStats(rtkStats); } catch { /* abaikan: meter tidak boleh mengganggu request */ }
 
   // Headroom: optional external proxy compression; fail open if proxy is absent.
   const headroomDiagnostics = {};
@@ -437,6 +440,9 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
           method: "POST",
           url: providerUrl,
           status: HTTP_STATUS.BAD_GATEWAY,
+          // Executor melempar = tidak ada respons dari upstream sama sekali
+          // (network error, connect timeout, dsb.) → kesalahan di sisi gateway.
+          errorOrigin: "gateway",
           latencyMs: Date.now() - requestStartTime,
           // Redact custom header ide #8 dulu (buffer juga me-redact header
           // standar sebagai lapis kedua).
@@ -531,6 +537,9 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
         method: "POST",
         url: providerUrl,
         status: statusCode,
+        // Upstream mengembalikan HTTP error (parseUpstreamError memakai
+        // response.status asli) → kesalahan di sisi server provider.
+        errorOrigin: "provider",
         latencyMs: Date.now() - requestStartTime,
         // Redact custom header ide #8 dulu (buffer juga me-redact header
         // standar sebagai lapis kedua).

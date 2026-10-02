@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/shared/components";
 import { translate } from "@/i18n/runtime";
 
@@ -41,6 +41,14 @@ function statusBadgeClass(status) {
   return "bg-black/[0.04] dark:bg-white/[0.08] text-text-muted";
 }
 
+// Label asal error: "provider" = server LLM yang mengembalikan error,
+// "akanesia-router" = gateway kita yang gagal mendapatkan respons.
+function originLabel(origin) {
+  if (origin === "provider") return "provider";
+  if (origin === "gateway") return "akanesia-router";
+  return "—";
+}
+
 /**
  * Tab "Replay" (ide #7) — daftar request upstream yang gagal, bisa
  * di-expand untuk detail dan di-replay (dengan opsi edit body).
@@ -58,6 +66,43 @@ export default function ReplayTab() {
   const [results, setResults] = useState({});
   const [capacityMB, setCapacityMB] = useState("");
   const [savingCapacity, setSavingCapacity] = useState(false);
+  const [filter, setFilter] = useState("");
+
+  // Filter Replay: saring entry berdasarkan provider/model/status/URL/error.
+  const filteredEntries = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return entries;
+    return entries.filter((entry) =>
+      [entry.provider, entry.model, entry.status, entry.method, entry.url, entry.error, entry.errorOrigin]
+        .filter((v) => v !== undefined && v !== null && v !== "")
+        .some((v) => String(v).toLowerCase().includes(q))
+    );
+  }, [entries, filter]);
+
+  // "Filter aktif" = pengguna sedang memfilter (ada teks filter).
+  const isFiltering = filter.trim() !== "";
+
+  // Export to JSON: bila filter aktif → export data yang terfilter;
+  // bila tidak → export semua data.
+  const handleExport = useCallback(() => {
+    const data = isFiltering ? filteredEntries : entries;
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      filtered: isFiltering,
+      filter: isFiltering ? filter.trim() : null,
+      count: data.length,
+      entries: data,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `replay-log-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, [entries, filteredEntries, isFiltering, filter]);
 
   const fetchEntries = useCallback(async () => {
     try {
@@ -149,7 +194,7 @@ export default function ReplayTab() {
     }
   };
 
-  const expanded = entries.find((e) => e.id === expandedId) || null;
+  const expanded = filteredEntries.find((e) => e.id === expandedId) || null;
   const replayResult = expandedId ? results[expandedId] : null;
 
   return (
@@ -162,8 +207,26 @@ export default function ReplayTab() {
         <Button size="sm" variant="outline" icon="delete" onClick={handleClear} disabled={entries.length === 0}>
           {translate("Clear")}
         </Button>
+        <input
+          type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder={translate("Filter by provider, model, status...")}
+          className="w-56 rounded-lg border border-border bg-background px-2 py-1 text-sm focus:border-primary focus:outline-none"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          icon="download"
+          onClick={handleExport}
+          disabled={(isFiltering ? filteredEntries.length : entries.length) === 0}
+          title={isFiltering ? translate("Export filtered entries to JSON") : translate("Export all entries to JSON")}
+        >
+          {translate("Export JSON")}
+        </Button>
         <span className="text-xs text-text-muted">
           {stats ? `${stats.count} ${translate("entries")} · ${formatBytes(stats.bytesUsed)} / ${formatBytes(stats.maxBytes)}` : "—"}
+          {isFiltering && ` · ${filteredEntries.length} / ${entries.length} ${translate("shown")}`}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <label htmlFor="replay-capacity" className="text-xs text-text-muted">{translate("Capacity (MB)")}</label>
@@ -189,6 +252,10 @@ export default function ReplayTab() {
         <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-text-muted">
           {translate("No failed upstream requests captured yet.")}
         </p>
+      ) : filteredEntries.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-text-muted">
+          {translate("No entries match the current filter.")}
+        </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-sm">
@@ -203,7 +270,7 @@ export default function ReplayTab() {
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => {
+              {filteredEntries.map((entry) => {
                 const isOpen = entry.id === expandedId;
                 return (
                   <tr
@@ -222,6 +289,9 @@ export default function ReplayTab() {
                       <span className={`rounded px-2 py-0.5 font-mono text-xs font-semibold ${statusBadgeClass(entry.status)}`}>
                         {entry.status || "—"}
                       </span>
+                      <div className="mt-0.5 text-[10px] leading-tight text-text-muted" title={translate("Error origin: LLM provider server vs akanesia-router")}>
+                        {originLabel(entry.errorOrigin)}
+                      </div>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-xs">{entry.latencyMs} ms</td>
                     <td className="px-3 py-2 text-right">

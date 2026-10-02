@@ -177,10 +177,20 @@ export class BaseExecutor {
       } catch (error) {
         clearTimeout(connectTimer);
         lastError = error;
-        const isConnectTimeout = connectCtrl.signal.aborted && error.name === "AbortError";
-        dbg("FETCH", `${this.provider.toUpperCase()} ✖ ${error.name}: ${error.message}${isConnectTimeout ? " (connect timeout)" : ""}`);
-        // Connect timeout is internal — convert to retryable network error, don't propagate AbortError
-        if (error.name === "AbortError" && !isConnectTimeout) throw error;
+        // connectCtrl hanya di-abort oleh timer kita sendiri (abort dari
+        // signal client tidak mempropagasi ke sini), jadi
+        // signal.aborted === timer connect-timeout menyala.
+        const isConnectTimeout = connectCtrl.signal.aborted;
+        dbg("FETCH", `${this.provider.toUpperCase()} ✖ ${error.name}: ${error.message}${isConnectTimeout ? " (connect timeout → fail-fast ke failover akun)" : ""}`);
+        // Connect timeout = upstream lambat/tidak responsif, bukan gangguan
+        // sesaat. Retry buta ke URL yang sama hanya membakar waktu
+        // (4x60s + backoff = 249s, melebihi separuh budget timeout client).
+        // Fail-fast: lempar langsung agar caller failover ke akun berikutnya.
+        // Error ini membawa reason Error("fetch connect timeout")
+        // (name="Error", bukan "AbortError") sehingga chatCore memetakannya
+        // ke 502 → failover akun tetap jalan. Client abort asli
+        // (AbortError) diteruskan apa adanya → 499.
+        if (isConnectTimeout || error.name === "AbortError") throw error;
 
         // Map network/fetch exceptions to 502 retry config
         if (await tryRetry(urlIndex, HTTP_STATUS.BAD_GATEWAY, `network "${error.message}"`)) { urlIndex--; continue; }

@@ -161,6 +161,20 @@ describe("buffer: capture/list/get/clear", () => {
     expect(e.requestBody.length).toBeLessThanOrEqual(REPLAY_BODY_MAX_CHARS);
     expect(e.requestBodyTruncated).toBe(true);
   });
+
+  it("errorOrigin: provider/gateway disimpan, nilai lain jadi unknown", () => {
+    const e1 = captureReplayEntry({ provider: "p", model: "m", status: 500, errorOrigin: "provider", requestBody: {} });
+    const e2 = captureReplayEntry({ provider: "p", model: "m", status: 502, errorOrigin: "gateway", requestBody: {} });
+    const e3 = captureReplayEntry({ provider: "p", model: "m", status: 502, requestBody: {} });
+    const e4 = captureReplayEntry({ provider: "p", model: "m", status: 500, errorOrigin: "sembarang", requestBody: {} });
+    expect(e1.errorOrigin).toBe("provider");
+    expect(e2.errorOrigin).toBe("gateway");
+    expect(e3.errorOrigin).toBe("unknown");
+    expect(e4.errorOrigin).toBe("unknown");
+    // Field ikut terdaftar di list (untuk tampilan UI & export JSON).
+    const daftar = listReplayEntries();
+    expect(daftar.map((e) => e.errorOrigin)).toEqual(["unknown", "unknown", "gateway", "provider"]);
+  });
 });
 
 describe("buffer: byte cap drop-oldest", () => {
