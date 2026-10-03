@@ -5,6 +5,31 @@
 
 ## 2026-10-02
 
+### Header per-request x-9router-ponytail + perbaiki skrip A/B (laporan Egar)
+
+Skrip A/B Ponytail gagal dengan `401 Unauthorized` karena `PATCH
+/api/settings` diproteksi `dashboardGuard` (butuh session/JWT). Solusi:
+skrip tidak lagi mengubah settings global — ditambah header per-request
+`x-9router-ponytail: off|lite|full|ultra` (`open-sse/config/runtimeConfig.js`,
+`open-sse/rtk/ponytail.js::resolvePonytailOverride`,
+`open-sse/handlers/chatCore.js`) yang meng-override setting global hanya
+untuk request tersebut. Skrip `scripts/measure-ponytail.mjs` ditulis ulang
+memakai header ini: tanpa auth dashboard, tanpa mengubah settings, tidak
+mengganggu traffic lain. Test `tests/unit/ponytail-override.test.js`
+(4 lolos).
+
+### Batas otomatis folder logs/ 10MB (laporan Egar: logs/ membengkak 30GB)
+
+`open-sse/utils/requestLogger.js`: setiap request (bila
+`ENABLE_REQUEST_LOGS=true`) membuat satu folder sesi tanpa batas —
+pemakaian harness intensif membengkakkan `logs/` hingga 30GB. Kini ada
+retensi otomatis: env `REQUEST_LOG_MAX_BYTES` (default **10MB**,
+`0` = tanpa batas) — hanya 10MB data paling baru yang disimpan; saat
+sesi baru dibuat, bila total melebihi batas, sesi/file terlama dihapus
+otomatis (throttle 1x/menit, fail-open, fire-and-forget agar tidak
+menghambat request). Didokumentasikan di `.env.example`. Test
+`tests/unit/request-logger-retention.test.js` (3 lolos).
+
 ### Fail-fast connect timeout + Filter/Export Replay tab (laporan & permintaan Egar)
 
 **Analisa error 502 `moonshotai/kimi-k3`:** "fetch connect timeout" 249 detik

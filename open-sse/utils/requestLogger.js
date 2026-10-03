@@ -271,6 +271,79 @@ function formatTimestamp(date = new Date()) {
   return `${y}${m}${d}_${h}${min}${s}_${ms}`;
 }
 
+// ---------------------------------------------------------------------------
+// Retensi otomatis folder logs/.
+//
+// Setiap request (bila ENABLE_REQUEST_LOGS=true) membuat satu folder sesi,
+// sehingga pemakaian intensif (mis. agent harness) bisa membengkakkan
+// logs/ hingga puluhan GB. Env REQUEST_LOG_MAX_BYTES membatasi total ukuran
+// (default 10 MB; 0 = tanpa batas). Saat sesi baru dibuat, bila total
+// melebihi batas, sesi/file terlama dihapus lebih dulu (fail-open,
+// fire-and-forget agar tidak menghambat request).
+// ---------------------------------------------------------------------------
+function requestLogMaxBytes() {
+  const raw = typeof process !== "undefined" ? process.env?.REQUEST_LOG_MAX_BYTES : undefined;
+  if (raw === undefined || raw === null || raw === "") return 10 * 1024 * 1024;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 10 * 1024 * 1024;
+  return Math.floor(n);
+}
+
+const RETENTION_CHECK_INTERVAL_MS = 60 * 1000;
+let lastRetentionCheck = 0;
+
+async function enforceLogRetention() {
+  try {
+    const now = Date.now();
+    if (now - lastRetentionCheck < RETENTION_CHECK_INTERVAL_MS) return;
+    lastRetentionCheck = now;
+
+    const maxBytes = requestLogMaxBytes();
+    if (!fs || !LOGS_DIR || maxBytes <= 0) return;
+    if (!fs.existsSync(LOGS_DIR)) return;
+
+    const candidates = [];
+    let total = 0;
+    for (const name of fs.readdirSync(LOGS_DIR)) {
+      const p = path.join(LOGS_DIR, name);
+      let st;
+      try { st = fs.statSync(p); } catch { continue; }
+      let size = 0;
+      if (st.isDirectory()) {
+        // Folder sesi berisi file datar (JSON + chunk) — cukup 1 level.
+        try {
+          for (const f of fs.readdirSync(p)) {
+            try { size += fs.statSync(path.join(p, f)).size; } catch { /* abaikan */ }
+          }
+        } catch { /* abaikan */ }
+      } else if (st.isFile()) {
+        size = st.size;
+      } else {
+        continue;
+      }
+      total += size;
+      candidates.push({ path: p, mtimeMs: st.mtimeMs, size });
+    }
+    if (total <= maxBytes) return;
+
+    candidates.sort((a, b) => a.mtimeMs - b.mtimeMs);
+    for (const c of candidates) {
+      if (total <= maxBytes) break;
+      try {
+        fs.rmSync(c.path, { recursive: true, force: true });
+        total -= c.size;
+      } catch { /* abaikan */ }
+    }
+  } catch { /* abaikan: retensi tidak boleh mengganggu request */ }
+}
+
+// Internals untuk test. Bukan bagian API publik.
+export const __test__ = {
+  enforceLogRetention,
+  requestLogMaxBytes,
+  resetRetentionThrottle: () => { lastRetentionCheck = 0; },
+};
+
 // Create log session folder: {sourceFormat}_{targetFormat}_{model}_{timestamp}
 async function createLogSession(sourceFormat, targetFormat, model) {
   await ensureNodeModules();
@@ -287,7 +360,11 @@ async function createLogSession(sourceFormat, targetFormat, model) {
     const sessionPath = path.join(LOGS_DIR, folderName);
     
     fs.mkdirSync(sessionPath, { recursive: true });
-    
+
+    // Retensi otomatis: jaga total ukuran logs/ tetap di bawah batas
+    // (fire-and-forget — kegagalan tidak mengganggu request).
+    enforceLogRetention().catch(() => {});
+
     return sessionPath;
   } catch (err) {
     console.log("[LOG] Failed to create log session:", err.message);

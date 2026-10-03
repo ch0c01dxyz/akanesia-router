@@ -1,17 +1,15 @@
 // Pengukuran efektivitas Ponytail via A/B test.
 //
 // Menjalankan serangkaian prompt coding yang sama melalui gateway dengan
-// Ponytail OFF vs tiap level (lite/full/ultra), lalu membandingkan
-// completion_tokens (output) dan prompt_tokens (biaya injeksi prompt).
+// Ponytail OFF vs tiap level (lite/full/ultra) memakai header per-request
+// x-9router-ponytail — TANPA mengubah settings global (tidak butuh auth
+// dashboard, tidak mengganggu traffic lain).
 //
-// Env:
-//   GATEWAY_URL     default http://localhost:20128
-//   GATEWAY_API_KEY wajib — API key gateway (sk_9router...)
-//   MODEL           wajib — model yang diuji, mis. "openai/gpt-4o-mini"
-//   RUNS            default 3 — repetisi per prompt per fase
-//
-// Settings ponytail diubah via PATCH /api/settings antar fase, lalu
-// DIKEMBALIKAN ke nilai semula setelah selesai (try/finally).
+// Env (PowerShell):
+//   $env:GATEWAY_URL="http://localhost:20127"   # default http://localhost:20128
+//   $env:GATEWAY_API_KEY="sk_9router..."         # wajib
+//   $env:MODEL="provider/model"                 # wajib, mis. bansosmontera/deepseek-v4.1-flash
+//   $env:RUNS="3"                               # opsional, repetisi per prompt per fase
 
 const GATEWAY_URL = process.env.GATEWAY_URL || "http://localhost:20128";
 const API_KEY = process.env.GATEWAY_API_KEY;
@@ -23,7 +21,7 @@ if (!API_KEY) {
   process.exit(1);
 }
 if (!MODEL) {
-  console.error("MODEL wajib diisi, mis. MODEL=openai/gpt-4o-mini");
+  console.error("MODEL wajib diisi, mis. MODEL=bansosmontera/deepseek-v4.1-flash");
   process.exit(1);
 }
 
@@ -35,46 +33,18 @@ const PROMPTS = [
   "Implement binary search in Go with a small main function demonstrating it.",
 ];
 
-const PHASES = [
-  { name: "off", ponytailEnabled: false, ponytailLevel: "full" },
-  { name: "lite", ponytailEnabled: true, ponytailLevel: "lite" },
-  { name: "full", ponytailEnabled: true, ponytailLevel: "full" },
-  { name: "ultra", ponytailEnabled: true, ponytailLevel: "ultra" },
-];
+const PHASES = ["off", "lite", "full", "ultra"];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function api(path, options = {}) {
-  const res = await fetch(`${GATEWAY_URL}${path}`, {
-    ...options,
+async function runOnce(prompt, phase) {
+  const res = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
+    method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(options.headers || {}),
+      Authorization: `Bearer ${API_KEY}`,
+      "x-9router-ponytail": phase,
     },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`${options.method || "GET"} ${path} -> ${res.status}: ${text.slice(0, 200)}`);
-  }
-  return res.json();
-}
-
-async function getPonytailSettings() {
-  const s = await api("/api/settings");
-  return { ponytailEnabled: s.ponytailEnabled, ponytailLevel: s.ponytailLevel };
-}
-
-async function setPonytail(enabled, level) {
-  await api("/api/settings", {
-    method: "PATCH",
-    body: JSON.stringify({ ponytailEnabled: enabled, ponytailLevel: level }),
-  });
-}
-
-async function runOnce(prompt) {
-  const data = await api("/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${API_KEY}` },
     body: JSON.stringify({
       model: MODEL,
       messages: [{ role: "user", content: prompt }],
@@ -83,6 +53,11 @@ async function runOnce(prompt) {
       max_tokens: 2048,
     }),
   });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`POST /v1/chat/completions -> ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const data = await res.json();
   const usage = data.usage || {};
   return {
     promptTokens: usage.prompt_tokens || 0,
@@ -98,36 +73,28 @@ function stats(arr) {
 }
 
 async function main() {
-  const original = await getPonytailSettings();
   console.log(`Model: ${MODEL} | ${PROMPTS.length} prompt x ${RUNS} repetisi x ${PHASES.length} fase`);
-  console.log(`Settings awal: enabled=${original.ponytailEnabled} level=${original.ponytailLevel}\n`);
+  console.log(`Gateway: ${GATEWAY_URL} | override via header x-9router-ponytail (settings global tak diubah)\n`);
 
   const results = {};
-  try {
-    for (const phase of PHASES) {
-      await setPonytail(phase.ponytailEnabled, phase.ponytailLevel);
-      await sleep(500); // beri waktu settings tersimpan
-      const completions = [];
-      const prompts = [];
-      for (const prompt of PROMPTS) {
-        for (let i = 0; i < RUNS; i++) {
-          const r = await runOnce(prompt);
-          completions.push(r.completionTokens);
-          prompts.push(r.promptTokens);
-          process.stdout.write(".");
-          await sleep(1000);
-        }
+  for (const phase of PHASES) {
+    const completions = [];
+    const prompts = [];
+    for (const prompt of PROMPTS) {
+      for (let i = 0; i < RUNS; i++) {
+        const r = await runOnce(prompt, phase);
+        completions.push(r.completionTokens);
+        prompts.push(r.promptTokens);
+        process.stdout.write(".");
+        await sleep(1000);
       }
-      results[phase.name] = {
-        completion: stats(completions),
-        prompt: stats(prompts),
-        samples: completions.length,
-      };
-      console.log(` ${phase.name} selesai\n`);
     }
-  } finally {
-    await setPonytail(original.ponytailEnabled, original.ponytailLevel);
-    console.log(`\nSettings dikembalikan: enabled=${original.ponytailEnabled} level=${original.ponytailLevel}`);
+    results[phase] = {
+      completion: stats(completions),
+      prompt: stats(prompts),
+      samples: completions.length,
+    };
+    console.log(` ${phase} selesai\n`);
   }
 
   const base = results.off.completion.mean;
@@ -135,16 +102,15 @@ async function main() {
   console.log("fase   | mean out | median out | mean in | hemat vs off");
   console.log("-------|----------|------------|---------|------------");
   for (const phase of PHASES) {
-    const r = results[phase.name];
-    const savedPct = phase.name === "off" ? "-" : `${(((base - r.completion.mean) / base) * 100).toFixed(1)}%`;
+    const r = results[phase];
+    const savedPct = phase === "off" ? "-" : `${(((base - r.completion.mean) / base) * 100).toFixed(1)}%`;
     console.log(
-      `${phase.name.padEnd(6)} | ${String(r.completion.mean).padStart(8)} | ${String(r.completion.median).padStart(10)} | ${String(r.prompt.mean).padStart(7)} | ${savedPct}`
+      `${phase.padEnd(6)} | ${String(r.completion.mean).padStart(8)} | ${String(r.completion.median).padStart(10)} | ${String(r.prompt.mean).padStart(7)} | ${savedPct}`
     );
   }
   console.log("\nCatatan: 'mean in' mencakup biaya injeksi system prompt Ponytail.");
   console.log("Hemat bersih = (out_off - out_fase) - (in_fase - in_off).");
 
-  // Simpan hasil mentah terstruktur untuk analisis lanjutan.
   const fs = await import("fs");
   const outFile = "ponytail-ab-results.json";
   fs.writeFileSync(

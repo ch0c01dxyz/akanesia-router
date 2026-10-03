@@ -25,7 +25,7 @@ import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.j
 import { dedupeTools } from "../utils/toolDeduper.js";
 import { takeRenamedToolNames } from "../utils/opencodeFingerprint.js";
 import { injectCaveman } from "../rtk/caveman.js";
-import { injectPonytail } from "../rtk/ponytail.js";
+import { injectPonytail, resolvePonytailOverride } from "../rtk/ponytail.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
 import { recordRtkStats } from "../rtk/meter.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
@@ -306,10 +306,15 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     xf.push(`CAVEMAN:${cavemanLevel}`);
   }
 
-  // Ponytail: inject lazy-senior-dev system prompt
-  if (tokenSaverEnabled && ponytailEnabled && ponytailLevel) {
-    injectPonytail(translatedBody, finalFormat, ponytailLevel);
-    xf.push(`PONYTAIL:${ponytailLevel}`);
+  // Ponytail: inject lazy-senior-dev system prompt.
+  // Header x-9router-ponytail (off|lite|full|ultra) meng-override setting
+  // global per-request — dipakai untuk A/B testing tanpa mengubah settings.
+  const ponytailOverride = resolvePonytailOverride(clientRawRequest?.headers, ponytailEnabled, ponytailLevel);
+  const effPonytailEnabled = ponytailOverride ? ponytailOverride.enabled : ponytailEnabled;
+  const effPonytailLevel = ponytailOverride ? ponytailOverride.level : ponytailLevel;
+  if (tokenSaverEnabled && effPonytailEnabled && effPonytailLevel) {
+    injectPonytail(translatedBody, finalFormat, effPonytailLevel);
+    xf.push(`PONYTAIL:${effPonytailLevel}`);
   }
 
   // PXPIPE: image bulky context (Claude-format bodies only), last saver before dispatch
