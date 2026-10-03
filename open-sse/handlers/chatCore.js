@@ -25,9 +25,8 @@ import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.j
 import { dedupeTools } from "../utils/toolDeduper.js";
 import { takeRenamedToolNames } from "../utils/opencodeFingerprint.js";
 import { injectCaveman } from "../rtk/caveman.js";
-import { injectPonytail, resolvePonytailOverride } from "../rtk/ponytail.js";
+import { injectPonytail } from "../rtk/ponytail.js";
 import { compressMessages, formatRtkLog } from "../rtk/index.js";
-import { recordRtkStats } from "../rtk/meter.js";
 import { compressWithHeadroom, formatHeadroomLog, formatHeadroomSizeLog, isHeadroomPhantomSavings } from "../rtk/headroom.js";
 import { compressWithPxpipe } from "../rtk/pxpipe.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
@@ -280,8 +279,6 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // RTK: compress tool_result content. Skipped when already done pre-translate.
   const rtkStats = preTranslateRtk || compressMessages(translatedBody, tokenSaverEnabled && rtkEnabled);
-  // Meter: agregasi pengukuran efektivitas RTK (in-memory, fail-open).
-  try { recordRtkStats(rtkStats); } catch { /* abaikan: meter tidak boleh mengganggu request */ }
 
   // Headroom: optional external proxy compression; fail open if proxy is absent.
   const headroomDiagnostics = {};
@@ -306,15 +303,10 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     xf.push(`CAVEMAN:${cavemanLevel}`);
   }
 
-  // Ponytail: inject lazy-senior-dev system prompt.
-  // Header x-9router-ponytail (off|lite|full|ultra) meng-override setting
-  // global per-request — dipakai untuk A/B testing tanpa mengubah settings.
-  const ponytailOverride = resolvePonytailOverride(clientRawRequest?.headers, ponytailEnabled, ponytailLevel);
-  const effPonytailEnabled = ponytailOverride ? ponytailOverride.enabled : ponytailEnabled;
-  const effPonytailLevel = ponytailOverride ? ponytailOverride.level : ponytailLevel;
-  if (tokenSaverEnabled && effPonytailEnabled && effPonytailLevel) {
-    injectPonytail(translatedBody, finalFormat, effPonytailLevel);
-    xf.push(`PONYTAIL:${effPonytailLevel}`);
+  // Ponytail: inject lazy-senior-dev system prompt
+  if (tokenSaverEnabled && ponytailEnabled && ponytailLevel) {
+    injectPonytail(translatedBody, finalFormat, ponytailLevel);
+    xf.push(`PONYTAIL:${ponytailLevel}`);
   }
 
   // PXPIPE: image bulky context (Claude-format bodies only), last saver before dispatch

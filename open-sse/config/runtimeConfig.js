@@ -68,10 +68,6 @@ export const DEFAULT_MIN_TOKENS = 32000;
 
 export const TOKEN_SAVER_HEADER = "x-9router-token-saver";
 
-// Per-request override Ponytail: "off" mematikan, "lite"/"full"/"ultra"
-// mengaktifkan dengan level tersebut (menang atas setting global).
-export const PONYTAIL_HEADER = "x-9router-ponytail";
-
 // Retry config for 429 responses (legacy - kept for backward compatibility)
 export const RETRY_CONFIG = {
   maxAttempts: 2,
