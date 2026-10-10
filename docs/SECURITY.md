@@ -14,7 +14,14 @@
 
 Aturan:
 
-- Jangan commit file `.env` (masuk `.dockerignore`/`.gitignore`).
+- File `.env`, varian `.env.*`, dan backup `.env.backup` diabaikan Git dan Docker,
+  termasuk di subdirektori. Hanya template `.env.example` tanpa kredensial nyata
+  yang boleh dilacak. `.npmignore` tetap mengecualikan file env dari paket npm.
+- Sebelum memperbarui checkout lama, backup `.env` lalu restore sesudah pull;
+  lihat [panduan migrasi F-01](DEPLOYMENT.md#memperbarui-checkout-lama-f-01).
+- Menghapus `.env` dari tracking tidak menghapusnya dari riwayat commit lama.
+  Perubahan ini tidak menulis ulang riwayat Git atau merotasi kredensial.
+  Bila kredensial pernah terekspos, rotasi kredensial terkait secara terpisah.
 - Jangan hardcode secret di kode; jangan tampilkan nilai secret di log/laporan.
 - File `jwt-secret` di DATA_DIR dibuat dengan mode `0o600`.
 

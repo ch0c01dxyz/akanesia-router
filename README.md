@@ -96,6 +96,12 @@ npm run dev            # dev, port 20127
 npm run build && npm start   # port 20128
 ```
 
+Konfigurasi `.env` dan variannya disimpan lokal serta diabaikan Git;
+`.env.example` tetap menjadi template tanpa kredensial nyata. Untuk checkout lama,
+**backup `.env` sebelum pull pertama** yang menerapkan perubahan ini karena Git
+akan menghapus salinan yang sebelumnya dilacak. Ikuti langkah pemulihan di
+[Deployment](docs/DEPLOYMENT.md#memperbarui-checkout-lama-f-01).
+
 ### Windows
 
 1. Install **Node.js LTS** dari [nodejs.org](https://nodejs.org) (centang "Add to PATH").

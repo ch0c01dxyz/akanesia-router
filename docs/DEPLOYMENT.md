@@ -19,6 +19,49 @@ Setelah jalan:
 - API: `http://localhost:<port>/v1` (rewrite ke `/api/v1/*`)
 - Health: `GET /api/health` → `{"ok":true}`
 
+## Memperbarui checkout lama (F-01)
+
+`.env` tidak lagi dilacak Git. **Sebelum pull/merge pertama** yang menghapusnya,
+backup file tersebut; Git dapat menghapus file yang sebelumnya dilacak dari
+working tree. Backup tetap lokal dan juga diabaikan oleh pola `.env*`.
+
+Ubuntu / Linux (jalankan dari root repository; perintah berhenti bila backup atau pull gagal):
+
+```bash
+if [ -e .env.backup ]; then
+  echo "Backup .env.backup sudah ada; simpan di lokasi lain sebelum melanjutkan."
+else
+  cp .env .env.backup && git pull --ff-only && cp .env.backup .env
+fi
+```
+
+Windows PowerShell (jalankan dari root repository):
+
+```powershell
+if (Test-Path .env.backup) { throw "Backup .env.backup sudah ada; simpan di lokasi lain." }
+Copy-Item .env .env.backup -ErrorAction Stop
+git pull --ff-only
+if ($LASTEXITCODE -ne 0) { throw "Pull gagal; backup tetap ada di .env.backup." }
+Copy-Item .env.backup .env -ErrorAction Stop
+```
+
+Jangan menimpa backup yang sudah ada kecuali yakin isinya tidak dibutuhkan.
+Jika pull gagal karena ada perubahan lokal, selesaikan perubahan/konflik tersebut;
+backup konfigurasi tersedia di `.env.backup`. Jangan menyalin `.env.example`
+ke atas `.env` yang sudah berisi konfigurasi Anda. Setelah restore, variabel,
+kredensial, dan `DATA_DIR` lama tetap digunakan.
+
+Untuk clone baru dari source di Windows:
+
+```powershell
+Copy-Item .env.example .env
+# Edit .env: isi JWT_SECRET, INITIAL_PASSWORD, dan konfigurasi instance.
+```
+
+`.env.example` adalah template, bukan konfigurasi siap pakai. Sesuaikan
+`DATA_DIR` dengan mesin Anda. Docker tetap membaca `.env` melalui `--env-file`
+atau `env_file` saat runtime; file env lokal tidak masuk build context.
+
 ## Environment variables
 
 Kontrak lengkap di `.env.example`. Yang wajib:
