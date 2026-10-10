@@ -103,6 +103,7 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
   const [checkingModels, setCheckingModels] = useState(false);
   const [checkResult, setCheckResult] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Override kategori Free/Premium per model (manual via ikon tag).
   // Hanya untuk penataan tampilan — tidak mengubah id/nama asli model.
@@ -191,6 +192,8 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
     const activeConnection = connections.find((conn) => conn.isActive !== false);
     if (!activeConnection) return;
 
+    // Bersihkan pencarian agar model yang baru diimpor terlihat saat auto-scroll.
+    setSearchQuery("");
     setImporting(true);
     try {
       const res = await fetch(`/api/providers/${activeConnection.id}/models`);
@@ -242,6 +245,17 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
   };
 
   const canImport = connections.some((conn) => conn.isActive !== false);
+
+  // Filter gabungan: tab kategori (All/Premium/Free) + pencarian teks.
+  const searchLower = searchQuery.trim().toLowerCase();
+  const visibleModels = allModels.filter(({ id }) => {
+    if (activeTab !== "all") {
+      const free = isEffectiveFree(id);
+      if (activeTab === "free" ? !free : free) return false;
+    }
+    if (searchLower && !(id || "").toLowerCase().includes(searchLower)) return false;
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -341,29 +355,58 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
       )}
 
       {allModels.length > 0 && (
-        <div ref={listRef} className="flex flex-col gap-3 max-h-[480px] overflow-y-auto pr-1">
-          {allModels
-            .filter(({ id }) => {
-              if (activeTab === "all") return true;
-              const free = isEffectiveFree(id);
-              return activeTab === "free" ? free : !free;
-            })
-            .map(({ id, alias, source }) => (
-            <CompatibleModelRow
-              key={`${source}-${providerStorageAlias}/${id}`}
-              modelId={id}
-              fullModel={`${providerDisplayAlias}/${id}`}
-              copied={copied}
-              onCopy={onCopy}
-              onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
-              onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
-              testStatus={modelTestResults[id]}
-              isTesting={testingModelId === id}
-              isFree={isEffectiveFree(id)}
-              onToggleFree={handleToggleFree}
+        <>
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-base text-text-muted">
+              search
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari model..."
+              aria-label="Cari model"
+              className="w-full pl-9 pr-9 py-2 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
             />
-          ))}
-        </div>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-text-muted hover:text-text-main"
+                aria-label="Hapus pencarian"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            )}
+          </div>
+          {searchLower && (
+            <p className="text-xs text-text-muted">
+              Menampilkan {visibleModels.length} dari {allModels.length} model
+            </p>
+          )}
+          <div ref={listRef} className="flex flex-col gap-3 max-h-[480px] overflow-y-auto pr-1">
+            {visibleModels.length > 0 ? (
+              visibleModels.map(({ id, alias, source }) => (
+              <CompatibleModelRow
+                key={`${source}-${providerStorageAlias}/${id}`}
+                modelId={id}
+                fullModel={`${providerDisplayAlias}/${id}`}
+                copied={copied}
+                onCopy={onCopy}
+                onDeleteAlias={() => source === "custom" ? onDeleteCustomModel(id) : onDeleteAlias(alias)}
+                onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
+                testStatus={modelTestResults[id]}
+                isTesting={testingModelId === id}
+                isFree={isEffectiveFree(id)}
+                onToggleFree={handleToggleFree}
+              />
+              ))
+            ) : (
+              <p className="text-sm text-text-muted text-center py-6">
+                Tidak ada model yang cocok dengan &ldquo;{searchQuery.trim()}&rdquo;.
+              </p>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

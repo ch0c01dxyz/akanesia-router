@@ -5,6 +5,15 @@
 
 ## 2026-10-11
 
+### Input pencarian pada daftar model detail provider (permintaan Egar)
+
+`CompatibleModelsSection.js`: kolom pencarian di atas daftar model —
+filter case-insensitive berdasarkan ID model, digabung dengan tab
+All/Premium/Free. Dilengkapi tombol hapus pencarian, penghitung hasil
+("Menampilkan X dari Y model"), dan pesan bila tidak ada yang cocok.
+Pencarian otomatis dibersihkan saat "Import from /models" dimulai agar
+model yang baru diimpor tetap terlihat saat auto-scroll.
+
 ### Port upstream decolua/9router v0.5.95 → v0.5.99 (instruksi Egar)
 
 27 commit di-port manual per-file via 4 worker paralel + verifikasi terpusat.
