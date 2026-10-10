@@ -11,12 +11,15 @@ export default {
   category: "apikey",
   authType: "apikey",
   transport: {
-    baseUrl: "https://api.regolo.ai",
+    // #14996 (upstream): entry sebelumnya menunjuk bare host sehingga
+    // request POST ke https://api.regolo.ai (salah); pakai endpoint /v1
+    // yang terdokumentasi + discovery via modelsUrl.
+    baseUrl: "https://api.regolo.ai/v1/chat/completions",
+    modelsUrl: "https://api.regolo.ai/v1/models",
   },
   passthroughModels: true,
-  models: [
-    { id: "regolo-chat", name: "Regolo Chat" },
-    { id: "regolo-fast", name: "Regolo Fast" },
-  ],
+  // models dikosongkan: andalkan modelsUrl discovery + passthroughModels
+  // (id statis sebelumnya adalah placeholder yang tak ada di katalog).
+  models: [],
 };
 

@@ -55,5 +55,11 @@ export const ADAPTER_DEFS = {
   "zenmux-free": { file: "./zenmux-free.js", exportName: "ZenmuxFreeExecutor", args: [] },
   auggie: { file: "./auggie.js", exportName: "AuggieExecutor", args: [] },
   "clova-studio": { file: "./clova-studio.js", exportName: "ClovaStudioExecutor", args: [] },
+  bedrock: { file: "./bedrock.js", exportName: "BedrockExecutor", args: [] },
+  br: { file: "./bedrock.js", exportName: "BedrockExecutor", args: [] },
+  "bedrock-xai": { file: "./bedrock.js", exportName: "BedrockExecutor", args: ["bedrock-xai"] },
+  brx: { file: "./bedrock.js", exportName: "BedrockExecutor", args: ["bedrock-xai"] },
+  "minimax-code": { file: "./minimax-code.js", exportName: "MinimaxCodeExecutor", args: ["minimax-code"] },
+  "minimax-code-global": { file: "./minimax-code.js", exportName: "MinimaxCodeExecutor", args: ["minimax-code-global"] },
 };
 

@@ -3,6 +3,66 @@
 > Bahasa: Indonesia. Semua perubahan di bawah ini **belum dikomit**
 > (review-first). Tanggal dalam WIB.
 
+## 2026-10-11
+
+### Port upstream decolua/9router v0.5.95 → v0.5.99 (instruksi Egar)
+
+27 commit di-port manual per-file via 4 worker paralel + verifikasi terpusat.
+**Dikecualikan atas instruksi Egar:** `6a1573e` (combo #4659) dan version bump
+(versi lokal tetap 1.5.0).
+
+Provider baru: **AWS Bedrock** (+SSO; SigV4 hand-rolled via node:crypto —
+`@aws-sdk/credential-providers` TIDAK ditambahkan karena butuh persetujuan
+eksplisit; mode SSO gagal graceful) dan **MiniMax Code (mcode)**.
+Catatan: `executors/bedrock.js` lokal (1136 baris, dead code tak terdaftar)
+diganti versi upstream (488 baris); `kiro.js` di-refactor memakai util
+EventStream bersama.
+
+Fitur: Hermes per-profile config (API/Dashboard/CLI); access control
+per-API-key (batasi key ke combo/model tertentu); Netlify relay proxy pool;
+ElevenLabs Scribe STT; Antigravity katalog refresh + default MITM Gemini 3.8
++ Claude Sonnet/Opus 5.5; SystemOne endpoint Cloudflare AI clef-flash;
+CLI `show`/`--save`/Pi/Oh My Pi + model `connect` dari server; sidebar
+9Remote langsung ke website; perbaikan layout mobile.
+
+Fix: Kimi Responses → endpoint `/responses`; Muse Responses-only routing +
+nested reasoning effort; Cursor AgentService (empty turn, reasoning effort);
+Codex tool strict flags + pelacakan token image; Gemini `$ref`/properties
+map/duplikat tool_call_id; Ollama `cached_tokens`; GLM-5.2/5.3 konteks 1M;
+GLM-5.3 tak bisa disable thinking; TTS self-hosted example.
+
+Adaptasi: string user-visible → Bahasa Indonesia; branding → Akanesia-Gateway
+(identifier fungsional tak diubah); 2 bug upstream diperbaiki saat port
+(HermesToolCard useEffect order); test upstream di-port (428 lolos);
+ESLint 0 error baru (sisa pre-existing); build sukses.
+
+**Perlu konfirmasi Egar:** commit `d8c585f` (per-API-key access control)
+di-port sebagai fitur lengkap 26 file (termasuk enforcement di 9 handler
+SSE + migrasi DB `accessRestricted`/`accessAllow`), bukan 8 file sesuai
+daftar — karena 8 file saja menghasilkan kode rusak (import hilang).
+UI tanpa enforcement = rasa aman palsu.
+
+### Samakan 11 perubahan registry provider dari OmniRoute (instruksi Egar)
+
+Diambil dari `origin/release/v3.8.51` (hanya file registry, tanpa yang lain).
+Diterapkan 5, dilewati 6 karena tidak ada padanannya / sudah ada:
+
+- `cerebras.js`: `gpt-oss-120b` + `zai-glm-4.7` ditandai
+  `unsupportedParams: ["thinking"]` (`gemma-4-31b` tidak ada lokal — dilewati).
+- `opencode-go.js`: `muse-spark-1.2-contributor` dapat
+  `supportedThinkingEfforts: ["minimal","low","medium","high","xhigh"]`.
+- `opencode-zen.js`: `gpt-5.6-sol/terra/luna` diperluas dengan
+  `supportsReasoning` + thinking efforts + `maxOutputTokens: 128000`.
+- `qwen-cloud-token-plan.js`: model baru `qwen3.8-flash` dan
+  `deepseek-v4.1-flash` (1M context).
+- `regolo.js`: bug #14996 — `baseUrl` menunjuk bare host (request POST ke
+  URL salah); kini `https://api.regolo.ai/v1/chat/completions` +
+  `modelsUrl` + `models: []` (andalkan discovery + `passthroughModels`).
+- Dilewati: `codex.js` (model sudah dihapus lokal), `github.js`
+  & `grok-cli.js` (model tidak ada lokal), `kimi.js` (struktur lokal
+  berbeda; tak ada konstanta versi yang dipetakan), `perplexity-web.js`
+  (sudah punya `unsupportedParams`).
+
 ## 2026-10-02
 
 ### Header per-request x-9router-ponytail + perbaiki skrip A/B (laporan Egar)

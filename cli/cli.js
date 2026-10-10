@@ -81,9 +81,10 @@ if (args[0] === "xai" && args[1] === "video") {
 }
 
 // `akanesia-router connect <url>` configures local CLI tools against a remote
-// server — no local server, no runtime deps. Usable via `npx akanesia-router connect …`.
-if (args[0] === "connect") {
-  const { run } = require("./src/cli/commands/connect");
+// server, and `akanesia-router show` prints what they're currently set to —
+// no local server, no runtime deps. Usable via `npx akanesia-router …`.
+if (args[0] === "connect" || args[0] === "show") {
+  const { run } = require(args[0] === "show" ? "./src/cli/commands/show" : "./src/cli/commands/connect");
   run(args.slice(1))
     .then((code) => process.exit(code))
     .catch((err) => {
@@ -169,6 +170,8 @@ Options:
 Commands:
   connect <server-url> Configure CLI tools for a remote Akanesia-Gateway server
                       (npx akanesia-router connect http://host:20128 — no install needed)
+  show [tool…]        Show each CLI tool's current Akanesia-Gateway config and models
+                      (e.g. akanesia-router show claude)
   xai video --prompt "..." --output video.mp4
                       Generate a Grok Imagine video via the running gateway
                       (see: ${APP_NAME} xai video --help)

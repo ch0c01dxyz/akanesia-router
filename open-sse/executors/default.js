@@ -1,4 +1,5 @@
 import { BaseExecutor } from "./base.js";
+import { randomUUID } from "node:crypto";
 import { PROVIDERS, PROVIDER_OAUTH } from "../config/providers.js";
 import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE, selectAnthropicBeta, mergeAnthropicBeta } from "../providers/shared.js";
 import { resolveOpenAICompatibleApiType } from "../services/provider.js";
@@ -42,6 +43,14 @@ function applyAuth(headers, desc, credentials) {
 const HEADER_HOOKS = {
   // Stable device_id from OAuth connection (CLIProxyAPI KimiTokenStorage.DeviceID)
   kimiHeaders: (h, c) => Object.assign(h, buildKimiHeaders(c?.providerSpecificData?.deviceId)),
+  // MiniMax Code (mcode): the placeholder x-api-key rides every request next
+  // to the Bearer <redacted>, plus per-request session/timezone headers. Static
+  // teammates (User-Agent, X-Mavis-Agent-Id) live in the registry transport.
+  minimaxHeaders: (h) => {
+    h["x-api-key"] = "sk-xxx";
+    h["X-Mavis-Timezone-Offset"] = String(new Date().getTimezoneOffset() * -60);
+    if (!h["X-Mavis-Session-Id"]) h["X-Mavis-Session-Id"] = randomUUID();
+  },
   // Muse: x-api-version hanya untuk request langganan (key hasil cetak) —
   // key Model API biasa sudah jalan tanpa header ini
   museHeaders: (h, c) => { if (c?.accessToken && !c?.apiKey) h["x-api-version"] = "1.0.0"; },

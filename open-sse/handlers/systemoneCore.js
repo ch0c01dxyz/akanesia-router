@@ -1,6 +1,7 @@
 import { createErrorResult, parseUpstreamError, formatProviderError } from "../utils/error.js";
 import { HTTP_STATUS, FETCH_CONNECT_TIMEOUT_MS } from "../config/runtimeConfig.js";
 import { PROVIDER_MEDIA } from "../providers/index.js";
+import { getModelUpstreamId } from "../config/providerModels.js";
 import { generateSessionId } from "../executors/opencode-zen.js";
 
 /**
@@ -21,12 +22,26 @@ export async function handleSystemoneCore({
   const cfg = PROVIDER_MEDIA[provider]?.systemoneConfig;
   // Base URL bisa di-override per koneksi via providerSpecificData (mis. v1m
   // dengan endpoint kustom); fallback ke konfigurasi registry.
-  const targetUrl = credentials?.providerSpecificData?.baseUrl || cfg?.baseUrl;
+  let targetUrl = credentials?.providerSpecificData?.baseUrl || cfg?.baseUrl;
   if (!targetUrl) {
     return createErrorResult(
       HTTP_STATUS.BAD_REQUEST,
       `Provider '${provider}' does not support System One.`
     );
+  }
+  // Endpoint gaya Cloudflare menyematkan akun dan model di path.
+  if (targetUrl.includes("{accountId}")) {
+    const accountId = credentials?.providerSpecificData?.accountId;
+    if (!accountId) {
+      return createErrorResult(
+        HTTP_STATUS.BAD_REQUEST,
+        `Provider '${provider}' requires accountId in providerSpecificData.`
+      );
+    }
+    targetUrl = targetUrl.replace("{accountId}", accountId);
+  }
+  if (targetUrl.includes("{model}")) {
+    targetUrl = targetUrl.replace(/\{model\}/g, model);
   }
 
   // Validate input at the trust boundary; question-level shape is upstream's job.
@@ -46,7 +61,8 @@ export async function handleSystemoneCore({
     // Zen lanes expect the official client session header on every request.
     "x-opencode-session": generateSessionId(),
   };
-  const requestBody = { ...body, model };
+  // Cloudflare memvalidasi model body sebagai selector pendek (mis. "clef-flash"), bukan id penuh.
+  const requestBody = { ...body, model: getModelUpstreamId(provider, model) || model };
 
   log?.debug?.("SYSTEMONE", `${provider.toUpperCase()} | ${model}`);
 

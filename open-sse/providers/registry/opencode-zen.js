@@ -58,9 +58,9 @@ export default {
     { id: "gemini-3-flash", name: "Gemini 3 Flash", supportedFormats: ["openai"] },
     // GPT / Grok / Muse Spark paid (responses)
     { id: "gpt-6-astra", name: "GPT 6 Astra", targetFormat: "openai-responses", supportedFormats: ["openai-responses"] },
-    { id: "gpt-5.6-sol", name: "GPT 5.6 Sol", targetFormat: "openai-responses", supportedFormats: ["openai-responses"] },
-    { id: "gpt-5.6-terra", name: "GPT 5.6 Terra", targetFormat: "openai-responses", supportedFormats: ["openai-responses"] },
-    { id: "gpt-5.6-luna", name: "GPT 5.6 Luna", targetFormat: "openai-responses", supportedFormats: ["openai-responses"] },
+    { id: "gpt-5.6-sol", name: "GPT 5.6 Sol", targetFormat: "openai-responses", supportedFormats: ["openai-responses"], supportsReasoning: true, supportedThinkingEfforts: ["low", "medium", "high", "xhigh", "max"], maxOutputTokens: 128000 },
+    { id: "gpt-5.6-terra", name: "GPT 5.6 Terra", targetFormat: "openai-responses", supportedFormats: ["openai-responses"], supportsReasoning: true, supportedThinkingEfforts: ["low", "medium", "high", "xhigh", "max"], maxOutputTokens: 128000 },
+    { id: "gpt-5.6-luna", name: "GPT 5.6 Luna", targetFormat: "openai-responses", supportedFormats: ["openai-responses"], supportsReasoning: true, supportedThinkingEfforts: ["low", "medium", "high", "xhigh", "max"], maxOutputTokens: 128000 },
     { id: "gpt-5.5", name: "GPT 5.5", targetFormat: "openai-responses", supportedFormats: ["openai-responses"] },
     { id: "gpt-5.5-pro", name: "GPT 5.5 Pro", targetFormat: "openai-responses", supportedFormats: ["openai-responses"] },
     { id: "gpt-5.4", name: "GPT 5.4", targetFormat: "openai-responses", supportedFormats: ["openai-responses"] },
