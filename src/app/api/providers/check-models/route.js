@@ -3,7 +3,7 @@ import { getProviderConnections } from "@/models";
 import { getSettings } from "@/lib/db/repos/settingsRepo.js";
 import { getOrRefresh, invalidate } from "@/lib/checkModelsCache.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
-import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { AI_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { FILTERS } from "../suggested-models/filters.js";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +38,7 @@ function buildCheckHeaders(entry, connection) {
   // Optional-auth providers can be checked anonymously when no key is stored.
   if (!apiKey) {
     if (authType === "optional") return { headers: {} };
-    return { skipped: true, reason: "no API key on connection" };
+    return { skipped: true, reason: "API key belum diatur — tambahkan API key pada koneksi terlebih dahulu" };
   }
 
   const headers = {};
@@ -128,6 +128,84 @@ async function checkWithConnection(providerId, connection) {
   }
 }
 
+// Check via koneksi untuk provider kompatibel dinamis (openai-compatible-* /
+// anthropic-compatible-*) yang tidak punya entry registry / validateUrl.
+// Memakai baseUrl koneksi + /models — logika yang sama dengan endpoint
+// "Import from /models" (GET /api/providers/[id]/models).
+// Mengembalikan objek hasil, atau null bila tidak applicable.
+export async function checkViaConnectionBaseUrl(providerId, connection, fetchFn = fetch) {
+  const baseUrl = connection?.providerSpecificData?.baseUrl;
+  if (!baseUrl || !(isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId))) {
+    return null;
+  }
+  // API key belum diatur: jangan kirim request sia-sia, kembalikan warning
+  // agar pengguna diminta menambahkan API key terlebih dahulu.
+  if (!connection?.apiKey) {
+    return {
+      ...baseResult(providerId),
+      name: connection?.name || baseResult(providerId).name,
+      ok: false,
+      skipped: true,
+      reason: "API key belum diatur — tambahkan API key pada koneksi terlebih dahulu",
+      source: "connection",
+      connectionName: connection?.name || connection?.email || null,
+    };
+  }
+  let url;
+  let headers;
+  if (isOpenAICompatibleProvider(providerId)) {
+    url = `${baseUrl.replace(/\/$/, "")}/models`;
+    headers = { "Content-Type": "application/json", "Authorization": `Bearer ${connection.apiKey}` };
+  } else {
+    let base = baseUrl.replace(/\/$/, "");
+    if (base.endsWith("/messages")) base = base.slice(0, -9);
+    url = `${base}/models`;
+    headers = {
+      "Content-Type": "application/json",
+      "x-api-key": connection.apiKey,
+      "anthropic-version": "2023-06-01",
+    };
+  }
+  const start = Date.now();
+  try {
+    const res = await fetchFn(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    const latencyMs = Date.now() - start;
+    if (!res.ok) {
+      return {
+        ...baseResult(providerId),
+        name: connection.name || baseResult(providerId).name,
+        ok: false,
+        error: `HTTP ${res.status}`,
+        latencyMs,
+        source: "connection",
+        connectionName: connection.name || connection.email || null,
+      };
+    }
+    const json = await res.json().catch(() => null);
+    const models = parseModelIds(json);
+    return {
+      ...baseResult(providerId),
+      name: connection.name || baseResult(providerId).name,
+      ok: true,
+      modelCount: models.length,
+      models,
+      latencyMs,
+      source: "connection",
+      connectionName: connection.name || connection.email || null,
+    };
+  } catch (err) {
+    return {
+      ...baseResult(providerId),
+      name: connection.name || baseResult(providerId).name,
+      ok: false,
+      error: err?.message || "request failed",
+      latencyMs: Date.now() - start,
+      source: "connection",
+      connectionName: connection.name || connection.email || null,
+    };
+  }
+}
+
 async function checkPublic(providerId) {
   const fetcher = AI_PROVIDERS[providerId]?.modelsFetcher;
   if (!fetcher?.url || !fetcher?.type) return null;
@@ -180,13 +258,19 @@ async function checkProviderWithCache(pid, conn, ttlSeconds, forceRefresh) {
     if (entry?.transport?.validateUrl) {
       return checkWithConnection(pid, conn);
     }
+    // Provider kompatibel dinamis (openai-compatible-*/anthropic-compatible-*)
+    // tanpa entry registry: cek via baseUrl koneksinya sendiri.
+    if (conn) {
+      const viaConn = await checkViaConnectionBaseUrl(pid, conn);
+      if (viaConn) return viaConn;
+    }
     const pub = await checkPublic(pid);
     if (pub) return pub;
     return {
       ...baseResult(pid),
       ok: false,
       skipped: true,
-      reason: conn ? "auth type not supported for model check" : "no active connection",
+      reason: conn ? "no models endpoint for this provider" : "no active connection",
     };
   };
 

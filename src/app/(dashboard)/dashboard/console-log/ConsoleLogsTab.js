@@ -27,6 +27,34 @@ export default function ConsoleLogsTab() {
   const [logs, setLogs] = useState([]);
   const [connected, setConnected] = useState(false);
   const logRef = useRef(null);
+  // Peta providerId → nama tampilan (untuk provider custom openai-compatible-*<uuid>).
+  const [providerNames, setProviderNames] = useState({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/providers", { cache: "no-store" });
+        const data = await res.json();
+        const map = {};
+        for (const c of data.connections || []) {
+          if (c?.provider && c?.name && c.name !== c.provider) map[c.provider] = c.name;
+        }
+        setProviderNames(map);
+      } catch {
+        // abaikan — tampilkan teks log apa adanya
+      }
+    })();
+  }, []);
+
+  // Ganti id provider mentah (mis. openai-compatible-chat-<uuid>) dengan
+  // nama koneksi yang terbaca, sebelum pewarnaan level.
+  const readableLine = (line) => {
+    let out = line;
+    for (const [id, name] of Object.entries(providerNames)) {
+      if (out.includes(id)) out = out.split(id).join(name);
+    }
+    return out;
+  };
 
   const handleClear = async () => {
     try {
@@ -88,7 +116,7 @@ export default function ConsoleLogsTab() {
         ) : (
           <div className="space-y-0.5">
             {logs.map((line, i) => (
-              <div key={i}>{colorLine(line)}</div>
+              <div key={i}>{colorLine(readableLine(line))}</div>
             ))}
           </div>
         )}

@@ -68,6 +68,7 @@ function comboSeatCapabilities(seat) {
 const LIVE_MODEL_RESOLVERS = {
   kiro: async (conn) => {
     const result = await resolveKiroModels({
+      connectionId: conn.id,
       accessToken: conn.accessToken,
       refreshToken: conn.refreshToken,
       providerSpecificData: conn.providerSpecificData || {}

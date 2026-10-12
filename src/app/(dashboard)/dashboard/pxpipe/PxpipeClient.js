@@ -87,6 +87,7 @@ export default function PxpipeClient() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: fetch awal saat halaman dibuka; jangan di-refactor
     refresh();
   }, [refresh]);
 
@@ -224,7 +225,7 @@ export default function PxpipeClient() {
                   <td className="py-1.5 pr-3 whitespace-nowrap text-text-muted">
                     {new Date(ev.ts).toLocaleString()}
                   </td>
-                  <td className="py-1.5 pr-3 font-mono text-xs">{ev.provider ? `${ev.provider}/${ev.model}` : ev.model || "—"}</td>
+                  <td className="py-1.5 pr-3 font-mono text-xs" title={ev.provider ? `${ev.provider}/${ev.model}` : ev.model || ""}>{ev.provider ? `${ev.providerName || ev.provider}/${ev.model}` : ev.model || "—"}</td>
                   <td className="py-1.5 pr-3 text-right font-mono text-xs">
                     {ev.applied ? fmtTokens(ev.tokensBeforeEst) : "—"}
                   </td>

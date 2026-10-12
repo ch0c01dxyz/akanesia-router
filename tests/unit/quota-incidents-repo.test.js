@@ -18,7 +18,7 @@ vi.mock("@/lib/db/driver.js", () => ({
   getAdapter: async () => fakeAdapter,
 }));
 
-const { upsertIncident, removeIncident, listIncidents } = await import(
+const { upsertIncident, removeIncident, removeIncidentsByConnection, listIncidents } = await import(
   "@/lib/db/repos/quotaIncidentsRepo.js"
 );
 
@@ -102,5 +102,22 @@ describe("quotaIncidentsRepo", () => {
     expect(rows[0].model).toBe("");
     await removeIncident("c", "");
     expect(await listIncidents()).toHaveLength(0);
+  });
+
+  it("removeIncidentsByConnection: hapus semua insiden satu koneksi", async () => {
+    await upsertIncident({ connectionId: "c1", model: "m1", failureCount: 1 });
+    await upsertIncident({ connectionId: "c1", model: "m2", failureCount: 2 });
+    await upsertIncident({ connectionId: "c2", model: "m1", failureCount: 1 });
+    const n = await removeIncidentsByConnection("c1");
+    expect(n).toBe(2);
+    const rows = await listIncidents();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].connectionId).toBe("c2");
+  });
+
+  it("removeIncidentsByConnection tanpa connectionId adalah no-op", async () => {
+    await upsertIncident({ connectionId: "c1", model: "m1", failureCount: 1 });
+    expect(await removeIncidentsByConnection()).toBe(0);
+    expect(await listIncidents()).toHaveLength(1);
   });
 });

@@ -280,7 +280,7 @@ export default function ReplayTab() {
                   >
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-text-muted">{formatTime(entry.ts)}</td>
                     <td className="px-3 py-2">
-                      <span className="font-medium">{entry.provider}</span>
+                      <span className="font-medium" title={entry.provider}>{entry.providerName || entry.provider}</span>
                       <span className="text-text-muted"> / </span>
                       <span className="text-xs text-text-muted">{entry.model}</span>
                     </td>
@@ -316,8 +316,8 @@ export default function ReplayTab() {
       {expanded && (
         <div className="mt-3 rounded-lg border border-border p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold">
-              {expanded.provider} / {expanded.model}
+            <h3 className="text-sm font-semibold" title={expanded.provider}>
+              {expanded.providerName || expanded.provider} / {expanded.model}
               <span className="ml-2 font-mono text-xs font-normal text-text-muted">{expanded.id}</span>
             </h3>
             <div className="ml-auto flex gap-2">

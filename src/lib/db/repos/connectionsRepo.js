@@ -283,6 +283,9 @@ export async function deleteProviderConnection(id) {
     const row = db.get(`SELECT provider FROM providerConnections WHERE id = ?`, [id]);
     if (!row) return;
     db.run(`DELETE FROM providerConnections WHERE id = ?`, [id]);
+    // Cascade: hapus insiden kuota & error milik koneksi ini agar dashboard
+    // tidak menampilkan insiden yatim setelah API key dihapus.
+    db.run(`DELETE FROM quota_incidents WHERE connection_id = ?`, [id]);
     reorderInTx(db, row.provider);
     ok = true;
   });
@@ -291,9 +294,16 @@ export async function deleteProviderConnection(id) {
 
 export async function deleteProviderConnectionsByProvider(providerId) {
   const db = await getAdapter();
-  const before = db.get(`SELECT COUNT(*) AS n FROM providerConnections WHERE provider = ?`, [providerId]);
-  db.run(`DELETE FROM providerConnections WHERE provider = ?`, [providerId]);
-  return before?.n || 0;
+  const rows = db.all(`SELECT id FROM providerConnections WHERE provider = ?`, [providerId]);
+  const before = rows.length;
+  db.transaction(() => {
+    db.run(`DELETE FROM providerConnections WHERE provider = ?`, [providerId]);
+    // Cascade: hapus insiden milik semua koneksi provider ini.
+    for (const r of rows) {
+      db.run(`DELETE FROM quota_incidents WHERE connection_id = ?`, [r.id]);
+    }
+  });
+  return before;
 }
 
 export async function reorderProviderConnections(providerId) {

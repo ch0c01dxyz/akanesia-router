@@ -417,6 +417,7 @@ const PROVIDER_MODELS_CONFIG = {
   kiro: {
     customResolver: async (connection) => {
       const credentials = {
+        connectionId: connection.id,
         accessToken: connection.accessToken,
         refreshToken: connection.refreshToken,
         providerSpecificData: connection.providerSpecificData || {}

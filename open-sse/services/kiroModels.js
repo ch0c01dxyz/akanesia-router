@@ -20,6 +20,7 @@
  */
 
 import { v4 as uuidv4 } from "uuid";
+import { autoDisableSuspendedAccount } from "../utils/accountSuspension.js";
 import { createHash } from "crypto";
 import { refreshKiroToken } from "./tokenRefresh.js";
 
@@ -282,6 +283,19 @@ export async function resolveKiroModels(credentials, options = {}) {
       }
     } else {
       options.log?.warn?.("KIRO_MODELS", `ListAvailableModels failed: ${err?.message || err}`);
+      // Auto-disable: akun Kiro terdeteksi suspend (403 + "suspend").
+      try {
+        await autoDisableSuspendedAccount({
+          connectionId: credentials?.connectionId,
+          provider: "kiro",
+          status: err?.status,
+          message: err?.message || String(err),
+          credentials,
+          log: options.log,
+        });
+      } catch {
+        // abaikan — fail-open
+      }
       return null;
     }
   }

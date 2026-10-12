@@ -256,11 +256,12 @@ export default function ModelSelectModal({
 
       // For provider-as-model kinds (webSearch/webFetch): emit a single entry where value === providerId
       if (kindFilter && PROVIDER_AS_MODEL_KINDS.has(kindFilter)) {
+        const connForName = activeProviders.find((p) => p.provider === providerId);
         groups[providerId] = {
-          name: providerInfo.name,
+          name: connForName?.name || providerInfo.name,
           alias,
           color: providerInfo.color,
-          models: [{ id: providerId, name: providerInfo.name, value: providerId }],
+          models: [{ id: providerId, name: connForName?.name || providerInfo.name, value: providerId }],
         };
         return;
       }

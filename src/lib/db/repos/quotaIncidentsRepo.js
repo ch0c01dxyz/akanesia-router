@@ -62,6 +62,15 @@ export async function removeIncident(connectionId, model) {
   db.run(`DELETE FROM quota_incidents WHERE connection_id = ? AND model = ?`, [connectionId, model || ""]);
 }
 
+// Hapus SEMUA insiden milik satu koneksi — dipakai saat koneksi/API key
+// dihapus agar dashboard tidak menampilkan insiden yatim.
+export async function removeIncidentsByConnection(connectionId) {
+  if (!connectionId) return 0;
+  const db = await getAdapter();
+  const res = db.run(`DELETE FROM quota_incidents WHERE connection_id = ?`, [connectionId]);
+  return res?.changes || 0;
+}
+
 // Daftar semua insiden, terbaru dulu (updatedAt desc).
 export async function listIncidents() {
   const db = await getAdapter();

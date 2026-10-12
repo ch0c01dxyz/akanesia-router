@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSettings } from "@/lib/localDb";
+import { getSettings, getProviderConnections } from "@/lib/localDb";
+import { enrichWithProviderName } from "@/lib/providerDisplayName.js";
 import {
   listReplayEntries,
   clearReplayLog,
@@ -21,8 +22,17 @@ export async function GET() {
     } catch {
       // Pakai batas terakhir yang tersimpan di buffer.
     }
+    // Perkaya entry dengan providerName yang terbaca (nama koneksi > nama
+    // provider > id mentah) — provider custom openai-compatible-*<uuid>
+    // tidak punya nama di AI_PROVIDERS.
+    let connections = [];
+    try {
+      connections = await getProviderConnections();
+    } catch {
+      // abaikan — fallback ke nama provider / id mentah
+    }
     return NextResponse.json({
-      entries: listReplayEntries(),
+      entries: enrichWithProviderName(listReplayEntries(), connections),
       stats: getReplayStats(),
     });
   } catch (error) {

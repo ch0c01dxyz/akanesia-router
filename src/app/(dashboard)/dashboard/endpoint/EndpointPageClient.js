@@ -27,7 +27,7 @@ function quotaIncidentDotColor(incident) {
   const cls = (incident.errorClass || "").toLowerCase();
   const status = incident.lastStatus;
   if (cls === "quota_exhausted") return "bg-purple-500";
-  if (cls === "auth_error") return "bg-red-500";
+  if (cls === "auth_error" || cls === "suspended") return "bg-red-500";
   if (cls === "server_error") return "bg-orange-500";
   if (cls === "rate_limited" || cls === "overloaded") return "bg-yellow-500";
   // Fallback dari HTTP status
@@ -1236,8 +1236,8 @@ export default function APIPageClient({ machineId }) {
                     key={`${inc.connectionId}|${inc.model}`}
                     className="grid grid-cols-12 gap-x-4 px-3 py-3 border-b border-black/[0.03] dark:border-white/[0.03] last:border-b-0 items-center"
                   >
-                    <div className="col-span-2 text-sm font-medium truncate" title={inc.provider || ""}>
-                      {inc.provider || "—"}
+                    <div className="col-span-2 text-sm font-medium truncate" title={inc.providerName || inc.provider || ""}>
+                      {inc.providerName || inc.provider || "—"}
                     </div>
                     <div className="col-span-4 text-sm font-mono truncate" title={inc.model || ""}>
                       {inc.model || "—"}

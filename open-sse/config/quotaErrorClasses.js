@@ -19,6 +19,7 @@ export const ERROR_CLASSES = {
   POLICY_REFUSAL: "policy_refusal", // 403 content-policy / SAFETY block — tidak dihitung
   SERVER_ERROR: "server_error",    // 500/502 — hitung counter
   PAYLOAD_ERROR: "payload_error",  // 400/404/413/415/422 — tidak dihitung
+  SUSPENDED: "suspended",        // 403/423 ber-body "suspend" — akun di-suspend; langsung masuk dashboard + picu auto-disable
   IGNORED: "ignored",              // 499 client closed — selalu diabaikan
   UNKNOWN: "unknown",              // status tak dikenal — netral, tidak dihitung
 };
@@ -63,6 +64,8 @@ export function clampQuotaMaxFallbacks(v) {
  */
 export const QUOTA_ERROR_CLASS_RULES = [
   // --- Aturan teks (spesifik, didahulukan) ---
+  // Akun di-suspend: sinyal paling spesifik — didahulukan sebelum AUTH_ERROR.
+  { errorClass: ERROR_CLASSES.SUSPENDED, status: [403, 423], text: ["suspend"] },
   // Kredensial bermasalah (401/403 dengan penanda body).
   { errorClass: ERROR_CLASSES.AUTH_ERROR, text: ["permission_denied", "entitlement", "invalid_api_key"] },
   // Penolakan kebijakan: content-policy / refusal / Gemini SAFETY block.

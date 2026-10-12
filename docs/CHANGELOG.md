@@ -3,6 +3,98 @@
 > Bahasa: Indonesia. Semua perubahan di bawah ini **belum dikomit**
 > (review-first). Tanggal dalam WIB.
 
+## 2026-10-13
+
+### Fix "Check Models" skipped untuk provider openai/anthropic-compatible (laporan Egar)
+
+Tombol "Check Models" di detail provider selalu `skipped` dengan alasan
+"auth type not supported for model check" untuk provider kompatibel dinamis
+(`openai-compatible-*` / `anthropic-compatible-*`) — padahal API key ada
+dan auth type-nya api-key. Akar masalah: pesan itu menyesatkan; kode jatuh
+ke fallback karena provider dinamis tidak punya entry registry/`validateUrl`,
+bukan karena auth type.
+
+`src/app/api/providers/check-models/route.js`: tambah
+`checkViaConnectionBaseUrl()` — bila tidak ada `validateUrl` tetapi koneksi
+punya `baseUrl`, cek `{baseUrl}/models` langsung memakai API key koneksi
+(logika sama dengan "Import from /models"; untuk anthropic-compatible,
+suffix `/messages` di-strip dan pakai `x-api-key`). Nama koneksi dipakai
+sebagai nama tampilan hasil. Alasan fallback yang menyesatkan diganti
+menjadi "no models endpoint for this provider".
+Test baru `tests/unit/check-models-compat-providers.test.js` (8 lolos).
+
+**Tambahan (permintaan Egar):** bila API key koneksi kosong/belum diatur,
+check tidak mengirim request sia-sia — hasil `skipped` dengan warning
+"API key belum diatur — tambahkan API key pada koneksi terlebih dahulu"
+(tampil kuning di panel hasil). Pesan "no API key on connection" pada jalur
+registry juga diselaraskan ke Bahasa Indonesia.
+
+## 2026-10-13 (lanjutan)
+
+### Nama provider custom terbaca di semua tampilan (laporan Egar)
+
+Provider kompatibel dinamis (`openai-compatible-chat-<uuid>`) selama ini
+muncul sebagai ID mentah di beberapa tempat. Helper baru
+`src/lib/providerDisplayName.js` (`providerDisplayName` /
+`enrichWithProviderName`): nama koneksi > nama AI_PROVIDERS > id mentah.
+
+- API `/api/quota-incidents` (dipakai Dashboard Endpoint & Key > Insiden
+  Kuota & Error): entry diperkaya `providerName`; UI memakai
+  `inc.providerName || inc.provider`.
+- API `/api/replay-log` + tab Replay di Console Log: entry diperkaya
+  `providerName`; UI menampilkan nama dengan tooltip id mentah.
+- Tab Logs di Console Log: id provider mentah pada teks log diganti nama
+  koneksi saat render (via `/api/providers`, client-side).
+- Log terminal server (`open-sse/handlers/chatCore.js`): 12 baris log
+  (POST, REQUEST, PROXY, ERROR, TOKEN, MODALITY, PASSTHROUGH) kini memakai
+  `providerLogLabel()` — nama koneksi untuk provider kompatibel dinamis.
+Test: `provider-display-name.test.js` (6), `quota-incidents-provider-name.test.js`
+(3) lolos; build sukses.
+
+## 2026-10-13 (fitur: auto-disable akun suspend — permintaan Egar)
+
+Mendeteksi akun Kiro ter-suspend dari log terminal (403 "temporarily is
+suspended... locked your account"). Koneksi yang terdeteksi suspend kini
+dinonaktifkan otomatis.
+
+- `open-sse/config/quotaErrorClasses.js`: kelas error baru `suspended`
+  (403/423 + body mengandung "suspend", didahulukan sebelum auth_error).
+- `src/sse/services/quotaIncidents.js`: `suspended` masuk IMMEDIATE_CLASSES
+  (langsung tampil di dashboard) dan NON_RETRYABLE_CLASSES.
+- Baru `open-sse/utils/accountSuspension.js`: `isSuspensionSignal()` (kriteria
+  ketat — 401 TIDAK termasuk agar salah ketik key tidak menonaktifkan akun)
+  dan `autoDisableSuspendedAccount()` (set isActive=false, fail-open; catat
+  insiden; log keras `⛔ AKUN DI-SUSPEND` ke terminal).
+- Hook: error path `open-sse/handlers/chatCore.js` (jalur chat) dan
+  `open-sse/services/kiroModels.js` ListAvailableModels (kasus yang
+  dilaporkan); connectionId di-thread via credentials di kedua caller
+  models route.
+- Dashboard Insiden Kuota & Error: dot merah untuk kelas `suspended`.
+- Test baru `tests/unit/account-suspension.test.js` (11 lolos).
+- Cara mengaktifkan kembali: toggle koneksi manual di dashboard setelah
+  akun dipulihkan di sisi provider.
+
+## 2026-10-13 (lanjutan sweep + cascade hapus insiden — permintaan Egar)
+
+**Sweep tampilan UUID provider (lanjutan):**
+- Halaman Usage > ProviderLimits: `providerLabel()` kini memakai nama
+  koneksi (kartu koneksi, dropdown filter, label terpilih).
+- Tab Replay (expanded view) + tabel pxpipe History: tampil
+  `providerName/model` dengan tooltip id mentah; event pxpipe kini
+  menyimpan `connectionId` dan diperkaya via `/api/pxpipe/stats`.
+- ModelSelectModal (picker webSearch/webFetch): nama koneksi untuk
+  provider custom.
+- Log server: baris ERROR di chatCore + BLOCKED di streamingHandler
+  memakai `providerLogLabel()` (helper dipindah ke
+  `open-sse/utils/providerLogLabel.js` agar reusable).
+
+**Cascade hapus insiden:** menghapus koneksi/API key
+(`deleteProviderConnection` / `deleteProviderConnectionsByProvider`)
+kini juga menghapus semua insiden kuota & error milik koneksi tersebut
+dalam transaksi yang sama — dashboard tidak lagi menampilkan insiden
+yatim. Fungsi repo baru `removeIncidentsByConnection()` (diekspos via
+`@/models`).
+
 ## 2026-10-11
 
 ### Input pencarian pada daftar model detail provider (permintaan Egar)

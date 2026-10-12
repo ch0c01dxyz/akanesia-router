@@ -123,8 +123,8 @@ function claudeGrantStatus(grant) {
   return grant.useRequiresLimit ? "at limit only" : "unavailable";
 }
 
-function providerLabel(providerId) {
-  return AI_PROVIDERS[providerId]?.name || providerId;
+function providerLabel(providerId, connection) {
+  return connection?.name || AI_PROVIDERS[providerId]?.name || providerId;
 }
 
 function formatCreditDate(value) {
@@ -826,8 +826,18 @@ export default function ProviderLimits() {
     bulkSetActive(ids, true);
   };
 
+  // Peta providerId → koneksi pertama untuk label tampilan yang terbaca
+  // (provider custom openai-compatible-*<uuid> tidak punya nama di AI_PROVIDERS).
+  const connectionByProvider = useMemo(() => {
+    const map = new Map();
+    for (const c of sortedConnections || []) {
+      if (c?.provider && !map.has(c.provider)) map.set(c.provider, c);
+    }
+    return map;
+  }, [sortedConnections]);
+
   const selectedProviderLabel =
-    providerFilter === "all" ? "All providers" : providerLabel(providerFilter);
+    providerFilter === "all" ? "All providers" : providerLabel(providerFilter, connectionByProvider.get(providerFilter));
   const hasEligibleConnections = totals.eligibleConnections > 0;
   const hasVisibleConnections = sortedConnections.length > 0;
   const emptyState = getConnectionsEmptyMessage(
@@ -966,7 +976,7 @@ export default function ProviderLimits() {
                           fallbackText={provider.slice(0, 2).toUpperCase()}
                         />
                         <span className="font-medium">
-                          {providerLabel(provider)}
+                          {providerLabel(provider, connectionByProvider.get(provider))}
                         </span>
                         {providerFilter === provider && (
                           <span className="material-symbols-outlined ml-auto text-[20px]">
@@ -1142,7 +1152,7 @@ export default function ProviderLimits() {
                     </div>
                     <div className="min-w-0">
                       <h3 className="text-sm font-semibold text-text-primary truncate">
-                        {providerLabel(conn.provider)}
+                        {providerLabel(conn.provider, conn)}
                       </h3>
                       {getConnectionLabel(conn) ? (
                         <p className="text-xs text-text-muted truncate">

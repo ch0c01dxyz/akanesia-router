@@ -38,5 +38,6 @@ export {
   isCloudEnabled,
   upsertIncident,
   removeIncident,
+  removeIncidentsByConnection,
   listIncidents,
 } from "@/lib/localDb";

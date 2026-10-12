@@ -10,6 +10,7 @@ import { buildRequestDetail, extractRequestConfig, saveUsageStats, formatDoneLin
 import { saveRequestDetail } from "@/lib/usageDb.js";
 import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
 import { upstreamResponseHeaders } from "../../utils/upstreamHeaders.js";
+import { providerLogLabel } from "../../utils/providerLogLabel.js";
 
 // Batas baca body error non-SSE (P8): hanya 16 KB pertama yang dibaca.
 // Sebelumnya `await response.text()` mem-buffer SELURUH body tanpa batas —
@@ -112,8 +113,8 @@ export async function handleStreamingResponse({ providerResponse, provider, mode
     const shortMsg = sanitizedTitle
       || (bodyText.length < 200 ? bodyText.replace(/<[^>]*>/g, '').trim().slice(0, 160) : `Upstream returned non-SSE response (${upstreamContentType})`);
     const status = providerResponse.status || 502;
-    if (log?.errorLine) log.errorLine(reqTag, "✗", `BLOCKED ${status} · ${provider}/${model} · non-SSE (${upstreamContentType})\n    ${shortMsg}`);
-    else console.warn(`[STREAM] ${provider} | ${model} | blocked pipe: ${shortMsg} [${status}]`);
+    if (log?.errorLine) log.errorLine(reqTag, "✗", `BLOCKED ${status} · ${providerLogLabel(provider, credentials)}/${model} · non-SSE (${upstreamContentType})\n    ${shortMsg}`);
+    else console.warn(`[STREAM] ${providerLogLabel(provider, credentials)} | ${model} | blocked pipe: ${shortMsg} [${status}]`);
     streamController?.handleError?.(new Error(`upstream non-SSE: ${status}`));
     return {
       success: false,
