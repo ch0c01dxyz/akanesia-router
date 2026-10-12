@@ -332,6 +332,9 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
                   </span>
                 </div>
                 {!item.ok && !item.skipped && item.error && <p className="text-red-400 break-words">{item.error}</p>}
+                {item.autoDisabled && (
+                  <p className="text-red-400 font-medium">⛔ Akun terdeteksi suspend — koneksi dinonaktifkan otomatis.</p>
+                )}
                 {item.skipped && item.reason && <p className="text-amber-400/80">{item.reason}</p>}
                 {item.ok && item.models && item.models.length > 0 && (
                   <div className="max-h-48 overflow-y-auto mt-1">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, Button } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import dynamic from "next/dynamic";
@@ -33,6 +33,25 @@ export default function TranslatorPage() {
   const [loading, setLoading] = useState({});
   // Detected from step 1: { provider, model, sourceFormat, targetFormat }
   const [meta, setMeta] = useState(null);
+  // Peta providerId → nama koneksi agar badge provider terbaca
+  // (provider custom openai-compatible-*<uuid>).
+  const [providerNames, setProviderNames] = useState({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/providers", { cache: "no-store" });
+        const data = await res.json();
+        const map = {};
+        for (const c of data.connections || []) {
+          if (c?.provider && c?.name && c.name !== c.provider) map[c.provider] = c.name;
+        }
+        setProviderNames(map);
+      } catch {
+        // abaikan
+      }
+    })();
+  }, []);
 
   const setLoad = (key, val) => setLoading(prev => ({ ...prev, [key]: val }));
   const setContent = (id, val) => setContents(prev => ({ ...prev, [id]: val }));
@@ -223,7 +242,7 @@ export default function TranslatorPage() {
             <MetaBadge label="src" value={meta.sourceFormat} color="blue" />
             <span className="material-symbols-outlined text-text-muted text-[14px]">arrow_forward</span>
             <MetaBadge label="dst" value={meta.targetFormat} color="orange" />
-            <MetaBadge label="provider" value={meta.provider} color="green" />
+            <MetaBadge label="provider" value={providerNames[meta.provider] || meta.provider} color="green" title={meta.provider} />
             <MetaBadge label="model" value={meta.model} color="purple" />
           </div>
         )}
@@ -288,7 +307,7 @@ export default function TranslatorPage() {
   );
 }
 
-function MetaBadge({ label, value, color }) {
+function MetaBadge({ label, value, color, title }) {
   const colors = {
     blue: "bg-blue-500/10 text-blue-500",
     orange: "bg-orange-500/10 text-orange-500",
@@ -296,7 +315,7 @@ function MetaBadge({ label, value, color }) {
     purple: "bg-purple-500/10 text-purple-500",
   };
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono ${colors[color]}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono ${colors[color]}`} title={title}>
       <span className="text-text-muted/70 font-sans text-[10px]">{label}:</span>{value}
     </span>
   );

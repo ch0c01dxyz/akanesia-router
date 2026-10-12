@@ -588,6 +588,14 @@ exports[`GOLDEN buildHeaders (default executor providers) > bedrock → headers 
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > bedrock-xai → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": "THROW: Cannot read properties of undefined (reading 'header')",
+  "nonStream": "THROW: Cannot read properties of undefined (reading 'header')",
+  "oauth": "THROW: Cannot read properties of undefined (reading 'header')",
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > blackbox → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -3001,6 +3009,80 @@ exports[`GOLDEN buildHeaders (default executor providers) > minimax-cn → heade
     "Anthropic-Version": "2023-06-01",
     "Content-Type": "application/json",
     "x-api-key": "<CRED>",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > minimax-code → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "User-Agent": "MiniMaxAgent",
+    "X-Mavis-Agent-Id": "main",
+    "X-Mavis-Session-Id": "c2e10dc5-44ca-414d-a323-814a880e12ed",
+    "X-Mavis-Timezone-Offset": "25200",
+    "anthropic-version": "2023-06-01",
+    "x-api-key": "sk-xxx",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "User-Agent": "MiniMaxAgent",
+    "X-Mavis-Agent-Id": "main",
+    "X-Mavis-Session-Id": "bc5657b2-56fd-4716-a3b2-9ed2a364911c",
+    "X-Mavis-Timezone-Offset": "25200",
+    "anthropic-version": "2023-06-01",
+    "x-api-key": "sk-xxx",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "User-Agent": "MiniMaxAgent",
+    "X-Mavis-Agent-Id": "main",
+    "X-Mavis-Session-Id": "5426ad01-740f-46b5-83b8-c555540c757a",
+    "X-Mavis-Timezone-Offset": "25200",
+    "anthropic-version": "2023-06-01",
+    "x-api-key": "sk-xxx",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > minimax-code-global → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "User-Agent": "MiniMaxAgent",
+    "X-Mavis-Agent-Id": "main",
+    "X-Mavis-Session-Id": "119ed767-076d-449a-8c39-68b47c33ea81",
+    "X-Mavis-Timezone-Offset": "25200",
+    "anthropic-version": "2023-06-01",
+    "x-api-key": "sk-xxx",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "User-Agent": "MiniMaxAgent",
+    "X-Mavis-Agent-Id": "main",
+    "X-Mavis-Session-Id": "165db466-e68d-4a17-8164-aaeb63429b59",
+    "X-Mavis-Timezone-Offset": "25200",
+    "anthropic-version": "2023-06-01",
+    "x-api-key": "sk-xxx",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+    "User-Agent": "MiniMaxAgent",
+    "X-Mavis-Agent-Id": "main",
+    "X-Mavis-Session-Id": "3564c29f-47fe-44d0-a038-d2ca30c70eac",
+    "X-Mavis-Timezone-Offset": "25200",
+    "anthropic-version": "2023-06-01",
+    "x-api-key": "sk-xxx",
   },
 }
 `;
@@ -5548,6 +5630,13 @@ exports[`GOLDEN buildUrl (default executor providers) > bedrock → url (stream 
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > bedrock-xai → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://bedrock-runtime.{region}.amazonaws.com",
+  "stream": "https://bedrock-runtime.{region}.amazonaws.com",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > blackbox → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://api.blackbox.ai/v1/chat/completions",
@@ -6357,6 +6446,20 @@ exports[`GOLDEN buildUrl (default executor providers) > minimax-cn → url (stre
 {
   "nonStream": "https://api.minimaxi.com/anthropic/v1/messages?beta=true",
   "stream": "https://api.minimaxi.com/anthropic/v1/messages?beta=true",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > minimax-code → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://agent.minimax.cn/mavis/api/v1/llm/v1/messages",
+  "stream": "https://agent.minimax.cn/mavis/api/v1/llm/v1/messages",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > minimax-code-global → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://agent.minimax.io/mavis/api/v1/llm/v1/messages",
+  "stream": "https://agent.minimax.io/mavis/api/v1/llm/v1/messages",
 }
 `;
 

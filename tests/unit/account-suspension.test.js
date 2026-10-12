@@ -96,3 +96,11 @@ describe("autoDisableSuspendedAccount", () => {
     expect(ok).toBe(false);
   });
 });
+
+describe("settings default", () => {
+  it("suspendAutoDisableOnCheck default OFF", async () => {
+    const { mergeWithDefaults } = await import("@/lib/db/repos/settingsRepo.js");
+    expect(mergeWithDefaults({}).suspendAutoDisableOnCheck).toBe(false);
+    expect(mergeWithDefaults({ suspendAutoDisableOnCheck: true }).suspendAutoDisableOnCheck).toBe(true);
+  });
+});

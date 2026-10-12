@@ -83,10 +83,20 @@ describe("checkViaConnectionBaseUrl", () => {
   });
 
   it("HTTP error → ok:false dengan pesan status", async () => {
-    const fetchFn = vi.fn(async () => ({ ok: false, status: 401 }));
+    const fetchFn = vi.fn(async () => ({ ok: false, status: 401, text: async () => "invalid key" }));
     const r = await checkViaConnectionBaseUrl("openai-compatible-chat-abc123", openaiConn, fetchFn);
     expect(r.ok).toBe(false);
     expect(r.error).toBe("HTTP 401");
+    expect(r.httpStatus).toBe(401);
+    expect(r.errorBody).toBe("invalid key");
+  });
+
+  it("HTTP 403 + suspend → sinyal terdeteksi via isSuspensionSignal", async () => {
+    const { isSuspensionSignal } = await import("../../open-sse/utils/accountSuspension.js");
+    const fetchFn = vi.fn(async () => ({ ok: false, status: 403, text: async () => "account suspended" }));
+    const r = await checkViaConnectionBaseUrl("openai-compatible-chat-abc123", openaiConn, fetchFn);
+    expect(r.ok).toBe(false);
+    expect(isSuspensionSignal(r.httpStatus, r.errorBody)).toBe(true);
   });
 
   it("network error → ok:false dengan pesan error", async () => {

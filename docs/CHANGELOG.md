@@ -95,6 +95,20 @@ dalam transaksi yang sama — dashboard tidak lagi menampilkan insiden
 yatim. Fungsi repo baru `removeIncidentsByConnection()` (diekspos via
 `@/models`).
 
+## 2026-10-13 (poin 1–3 — permintaan Egar)
+
+1. **Translator debug page**: badge provider kini tampil nama koneksi
+   (tooltip simpan ID mentah).
+2. **Toggle Settings** `suspendAutoDisableOnCheck` (default OFF) di
+   Dashboard > Endpoint & Key > Insiden Kuota & Error: bila ON, tombol
+   "Check Models" ikut menonaktifkan otomatis koneksi yang terdeteksi
+   suspend (403/423 + "suspend"); hasil check menandai `autoDisabled`
+   dan UI menampilkan peringatan. Auto-disable dari jalur chat & Kiro
+   models discovery tetap selalu aktif.
+3. **Badge "suspended"** pada ConnectionRow di detail provider untuk
+   koneksi yang punya insiden suspended (diambil dari
+   `/api/quota-incidents`).
+
 ## 2026-10-11
 
 ### Input pencarian pada daftar model detail provider (permintaan Egar)

@@ -54,6 +54,9 @@ export default function APIPageClient({ machineId }) {
   const [fillFirstWarmup, setFillFirstWarmup] = useState(true);
   const [warmupStatus, setWarmupStatus] = useState(null);
 
+  // Auto-disable akun suspend dari tombol "Check Models" (default OFF).
+  const [suspendAutoDisableOnCheck, setSuspendAutoDisableOnCheck] = useState(false);
+
   const [requireApiKey, setRequireApiKey] = useState(false);
   const [requireLogin, setRequireLogin] = useState(true);
   const [hasPassword, setHasPassword] = useState(true);
@@ -264,6 +267,8 @@ export default function APIPageClient({ machineId }) {
         setTunnelDashboardAccess(settingsData.tunnelDashboardAccess || false);
         // Ide #2: default ON bila key belum ada.
         setFillFirstWarmup(settingsData.fillFirstWarmupEnabled !== false);
+        // Auto-disable dari Check Models: default OFF (key belum ada → false).
+        setSuspendAutoDisableOnCheck(settingsData.suspendAutoDisableOnCheck === true);
       }
       if (statusRes.ok) {
         const data = await statusRes.json();
@@ -312,6 +317,16 @@ export default function APIPageClient({ machineId }) {
       if (updated) setFillFirstWarmup(value);
     } catch (error) {
       console.log("Error updating fillFirstWarmupEnabled:", error);
+    }
+  };
+
+  // Auto-disable akun suspend dari "Check Models": toggle ON/OFF (default OFF).
+  const handleSuspendAutoDisableOnCheck = async (value) => {
+    try {
+      const updated = await useSettingsStore.getState().patchSettings({ suspendAutoDisableOnCheck: value });
+      if (updated) setSuspendAutoDisableOnCheck(value);
+    } catch (error) {
+      console.log("Error updating suspendAutoDisableOnCheck:", error);
     }
   };
 
@@ -1186,6 +1201,19 @@ export default function APIPageClient({ machineId }) {
           Model yang baru-baru ini gagal atau kena limit kuota. Threshold hanya mengatur
           visibilitas daftar ini — koneksi tidak diblokir dan tetap digunakan.
         </p>
+
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
+          <div>
+            <p className="font-medium">Auto-disable akun suspend dari Check Models</p>
+            <p className="text-sm text-text-muted">
+              ON = koneksi langsung dinonaktifkan bila Check Models mendeteksi akun suspend (403/423 + &ldquo;suspend&rdquo;). Default OFF.
+            </p>
+          </div>
+          <Toggle
+            checked={suspendAutoDisableOnCheck}
+            onChange={handleSuspendAutoDisableOnCheck}
+          />
+        </div>
 
         {quotaIncidentsLoading ? (
           <p className="text-sm text-text-muted flex items-center gap-2 py-6">

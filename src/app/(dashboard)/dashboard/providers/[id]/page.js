@@ -46,6 +46,8 @@ export default function ProviderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [providerNode, setProviderNode] = useState(null);
   const [proxyPools, setProxyPools] = useState([]);
+  // Id koneksi yang punya insiden "suspended" — untuk badge di ConnectionRow.
+  const [suspendedConnectionIds, setSuspendedConnectionIds] = useState(new Set());
   const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [showXiaomiMimoModal, setShowXiaomiMimoModal] = useState(false);
   const [showIFlowCookieModal, setShowIFlowCookieModal] = useState(false);
@@ -311,11 +313,12 @@ export default function ProviderDetailPage() {
 
   const fetchConnections = useCallback(async () => {
     try {
-      const [connectionsRes, nodesRes, proxyPoolsRes, settingsRes] = await Promise.all([
+      const [connectionsRes, nodesRes, proxyPoolsRes, settingsRes, incidentsRes] = await Promise.all([
         fetch("/api/providers", { cache: "no-store" }),
         fetch("/api/provider-nodes", { cache: "no-store" }),
         fetch("/api/proxy-pools?isActive=true", { cache: "no-store" }),
         fetch("/api/settings", { cache: "no-store" }),
+        fetch("/api/quota-incidents", { cache: "no-store" }),
       ]);
       const connectionsData = await connectionsRes.json();
       const nodesData = await nodesRes.json();
@@ -327,6 +330,18 @@ export default function ProviderDetailPage() {
       }
       if (proxyPoolsRes.ok) {
         setProxyPools(proxyPoolsData.proxyPools || []);
+      }
+      // Kumpulkan id koneksi yang punya insiden "suspended" untuk badge.
+      try {
+        const incidentsData = incidentsRes.ok ? await incidentsRes.json() : {};
+        const ids = new Set(
+          (incidentsData.incidents || [])
+            .filter((i) => i?.errorClass === "suspended" && i?.connectionId)
+            .map((i) => i.connectionId)
+        );
+        setSuspendedConnectionIds(ids);
+      } catch {
+        setSuspendedConnectionIds(new Set());
       }
       // Load per-provider strategy override
       const override = (settingsData.providerStrategies || {})[providerId] || {};
@@ -1098,6 +1113,7 @@ export default function ProviderDetailPage() {
                 connection={conn}
                 proxyPools={proxyPools}
                 isOAuth={isOAuth}
+                isSuspended={suspendedConnectionIds.has(conn.id)}
                 isFirst={index === 0}
                 isLast={index === connections.length - 1}
                 onMoveUp={() => handleSwapPriority(index, index - 1)}

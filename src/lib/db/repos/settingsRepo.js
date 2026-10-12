@@ -23,6 +23,11 @@ const DEFAULT_SETTINGS = {
   quotaMaxFallbacks: 5,
   // TTL cache hasil "Check Models" (detik). 0 = cache mati total (bypass).
   checkModelsTtlSeconds: 3600,
+  // Auto-disable akun yang terdeteksi suspend dari tombol "Check Models"
+  // (403/423 + body "suspend"). Default OFF — hanya aktif bila pengguna
+  // menyalakan toggle di Dashboard > Endpoint & Key > Insiden Kuota & Error.
+  // (Auto-disable dari jalur chat & Kiro models discovery selalu aktif.)
+  suspendAutoDisableOnCheck: false,
   // Daftar providerId yang Auto Sync-nya ON (ide #6): modelnya di-refresh
   // otomatis tiap interval checkModelsTtlSeconds oleh scheduler server.
   autoSyncProviderIds: [],

@@ -5,6 +5,7 @@ import { getOrRefresh, invalidate } from "@/lib/checkModelsCache.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
 import { AI_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { FILTERS } from "../suggested-models/filters.js";
+import { autoDisableSuspendedAccount, isSuspensionSignal } from "open-sse/utils/accountSuspension.js";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +111,9 @@ async function checkWithConnection(providerId, connection) {
     });
     const latencyMs = Date.now() - start;
     if (!res.ok) {
-      return { ...baseResult(providerId), ok: false, error: `HTTP ${res.status}`, latencyMs, source: "connection" };
+      // Baca body error (dibatasi) untuk deteksi sinyal suspend.
+      const errorBody = await res.text().then((t) => t.slice(0, 2000)).catch(() => "");
+      return { ...baseResult(providerId), ok: false, error: `HTTP ${res.status}`, httpStatus: res.status, errorBody, latencyMs, source: "connection" };
     }
     const json = await res.json().catch(() => null);
     const models = parseModelIds(json);
@@ -171,11 +174,14 @@ export async function checkViaConnectionBaseUrl(providerId, connection, fetchFn 
     const res = await fetchFn(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     const latencyMs = Date.now() - start;
     if (!res.ok) {
+      const errorBody = await res.text().then((t) => t.slice(0, 2000)).catch(() => "");
       return {
         ...baseResult(providerId),
         name: connection.name || baseResult(providerId).name,
         ok: false,
         error: `HTTP ${res.status}`,
+        httpStatus: res.status,
+        errorBody,
         latencyMs,
         source: "connection",
         connectionName: connection.name || connection.email || null,
@@ -349,10 +355,35 @@ export async function POST(request) {
     const settings = await getSettings();
     let ttlSeconds = Number(settings?.checkModelsTtlSeconds);
     if (!Number.isFinite(ttlSeconds)) ttlSeconds = 3600;
+    // Toggle auto-disable akun suspend dari Check Models (default OFF).
+    const suspendAutoDisableOnCheck = settings?.suspendAutoDisableOnCheck === true;
 
     const results = await mapPool(targetIds, CONCURRENCY, async (pid) => {
       const conn = connByProvider.get(pid);
-      return checkProviderWithCache(pid, conn, ttlSeconds, forceRefresh);
+      const result = await checkProviderWithCache(pid, conn, ttlSeconds, forceRefresh);
+      // Auto-disable opsional dari Check Models (default OFF — toggle di
+      // Dashboard > Endpoint & Key > Insiden Kuota & Error). Hanya untuk
+      // sinyal suspend yang ketat (403/423 + "suspend"); error lain tidak
+      // memicu apa-apa.
+      if (
+        suspendAutoDisableOnCheck &&
+        !result.ok && !result.skipped &&
+        isSuspensionSignal(result.httpStatus, result.errorBody)
+      ) {
+        try {
+          const disabled = await autoDisableSuspendedAccount({
+            connectionId: conn?.id,
+            provider: pid,
+            status: result.httpStatus,
+            message: result.errorBody,
+            credentials: conn,
+          });
+          if (disabled) result.autoDisabled = true;
+        } catch {
+          // abaikan — fail-open
+        }
+      }
+      return result;
     });
 
     const summary = {

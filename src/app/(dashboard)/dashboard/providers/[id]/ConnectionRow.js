@@ -6,7 +6,7 @@ import PropTypes from "prop-types";
 import { Badge, Toggle, Tooltip } from "@/shared/components";
 import CooldownTimer from "./CooldownTimer";
 
-export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, oneByOneStatus = null, autoPing = null }) {
+export default function ConnectionRow({ connection, proxyPools, isOAuth, isSuspended = false, isFirst, isLast, onMoveUp, onMoveDown, onToggleActive, onUpdateProxy, onEdit, onDelete, oneByOneStatus = null, autoPing = null }) {
   const [showProxyDropdown, setShowProxyDropdown] = useState(false);
   const [updatingProxy, setUpdatingProxy] = useState(false);
   const proxyDropdownRef = useRef(null);
@@ -167,6 +167,11 @@ export default function ConnectionRow({ connection, proxyPools, isOAuth, isFirst
             <Badge variant={getStatusVariant()} size="sm" dot>
               {connection.isActive === false ? "disabled" : (effectiveStatus || "Unknown")}
             </Badge>
+            {isSuspended && (
+              <Badge variant="error" size="sm" dot title="Akun terdeteksi suspend — koneksi dinonaktifkan otomatis">
+                suspended
+              </Badge>
+            )}
             <Badge variant="default" size="sm">
               {authLabel}
             </Badge>
@@ -298,6 +303,7 @@ ConnectionRow.propTypes = {
     isActive: PropTypes.bool,
   })),
   isOAuth: PropTypes.bool.isRequired,
+  isSuspended: PropTypes.bool,
   isFirst: PropTypes.bool.isRequired,
   isLast: PropTypes.bool.isRequired,
   onMoveUp: PropTypes.func.isRequired,
