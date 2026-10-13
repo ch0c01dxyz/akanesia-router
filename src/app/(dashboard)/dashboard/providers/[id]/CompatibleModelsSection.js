@@ -94,7 +94,7 @@ const MODEL_TABS = [
   { id: "free", label: "Free" },
 ];
 
-export default function CompatibleModelsSection({ providerId, providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
+export default function CompatibleModelsSection({ providerId, providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onRefreshCustomModels, onDeleteCustomModel, connections, isAnthropic }) {
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -207,13 +207,33 @@ export default function CompatibleModelsSection({ providerId, providerStorageAli
         alert("No models returned from /models.");
         return;
       }
+      // Catat id yang sudah ada di Set lokal (state allModels basi selama loop).
+      // POST per model tanpa refetch; satu GET setelah loop selesai.
+      const seenIds = new Set(allModels.map((entry) => entry.id));
       let importedCount = 0;
       for (const model of models) {
         const modelId = model.id || model.name || model.model;
-        if (!modelId) continue;
-        if (allModels.some((entry) => entry.id === modelId)) continue;
-        await onAddCustomModel(modelId);
-        importedCount += 1;
+        if (!modelId || seenIds.has(modelId)) continue;
+        try {
+          const res = await fetch("/api/models/custom", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ providerAlias: providerStorageAlias, id: modelId, type: "llm" }),
+          });
+          if (res.ok) {
+            seenIds.add(modelId);
+            importedCount += 1;
+          } else {
+            const errData = await res.json().catch(() => ({}));
+            alert(errData.error || "Failed to add custom model");
+          }
+        } catch (error) {
+          console.log("Error adding model:", error);
+        }
+      }
+      if (importedCount > 0 && onRefreshCustomModels) {
+        await onRefreshCustomModels();
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("customModelChanged"));
       }
       if (importedCount === 0) {
         alert("No new models were added.");

@@ -14,7 +14,7 @@ const LOG_LEVEL_COLORS = {
 
 function colorLine(line) {
   const match = line.match(/\[(\w+)\]/g);
-  const levelTag = match ? match[1]?.replace(/\[|\]/g, "") : null;
+  const levelTag = match ? match[0].replace(/\[|\]/g, "") : null;
   const color = LOG_LEVEL_COLORS[levelTag] || "text-green-400";
   return <span className={color}>{line}</span>;
 }

@@ -103,6 +103,10 @@ export default function APIPageClient({ machineId }) {
   // Distinguishes "Checking..." (initial cold cache) from "Reconnecting..." (lost connection).
   const tunnelEverReachableRef = useRef(false);
   const tsEverReachableRef = useRef(false);
+  // Flag pembatalan loop ping: tombol Stop hanya boleh menghentikan loop,
+  // bukan sekadar menyembunyikan spinner (loop tetap jalan di background).
+  const tunnelLoopCancelRef = useRef(false);
+  const tsLoopCancelRef = useRef(false);
   const [tunnelEverReachable, setTunnelEverReachable] = useState(false);
   const [tsEverReachable, setTsEverReachable] = useState(false);
 
@@ -364,9 +368,10 @@ export default function APIPageClient({ machineId }) {
   const pingTunnelHealth = async (...urls) => {
     setTunnelLoading(true);
     setTunnelProgress("Waiting for tunnel ready...");
+    tunnelLoopCancelRef.current = false;
     const targets = urls.filter(Boolean).map((u) => `${u}/api/health`);
     const start = Date.now();
-    while (Date.now() - start < TUNNEL_PING_MAX_MS) {
+    while (Date.now() - start < TUNNEL_PING_MAX_MS && !tunnelLoopCancelRef.current) {
       await new Promise((r) => setTimeout(r, TUNNEL_PING_INTERVAL_MS));
       const ok = await Promise.any(targets.map(async (h) => {
         const p = await fetch(h, { mode: "cors", cache: "no-store" });
@@ -394,6 +399,12 @@ export default function APIPageClient({ machineId }) {
           }
         } catch { /* ignore */ }
       }
+    }
+    if (tunnelLoopCancelRef.current) {
+      // Dibatalkan via tombol Stop — jangan tampilkan error.
+      setTunnelLoading(false);
+      setTunnelProgress("");
+      return false;
     }
     setTunnelStatus({ type: "error", message: "Tunnel created but not reachable. Please try again." });
     setTunnelLoading(false);
@@ -546,9 +557,10 @@ export default function APIPageClient({ machineId }) {
   // Ping Tailscale health until reachable
   const pingTsHealth = async (url) => {
     setTsProgress("Waiting for Tailscale ready...");
+    tsLoopCancelRef.current = false;
     const healthUrl = `${url}/api/health`;
     const start = Date.now();
-    while (Date.now() - start < TUNNEL_PING_MAX_MS) {
+    while (Date.now() - start < TUNNEL_PING_MAX_MS && !tsLoopCancelRef.current) {
       await new Promise((r) => setTimeout(r, TUNNEL_PING_INTERVAL_MS));
       try {
         const ping = await fetch(healthUrl, { mode: "no-cors", cache: "no-store" });
@@ -592,7 +604,8 @@ export default function APIPageClient({ machineId }) {
       if (data.needsLogin && data.authUrl) {
         requestUserAuth(data.authUrl, "Open Login Page");
         setTsProgress("Login required — click \"Open Login Page\" to continue");
-        for (let i = 0; i < 40; i++) {
+        tsLoopCancelRef.current = false;
+        for (let i = 0; i < 40 && !tsLoopCancelRef.current; i++) {
           await new Promise((r) => setTimeout(r, 3000));
           try {
             const r2 = await fetch("/api/tunnel/tailscale-check");
@@ -887,7 +900,7 @@ export default function APIPageClient({ machineId }) {
                   {tunnelProgress || "Creating tunnel..."}
                 </div>
                 <button
-                  onClick={() => { setTunnelLoading(false); setTunnelProgress(""); }}
+                  onClick={() => { tunnelLoopCancelRef.current = true; setTunnelLoading(false); setTunnelProgress(""); }}
                   className="p-2 hover:bg-red-500/10 rounded text-red-500 transition-colors shrink-0"
                   title="Stop"
                 >

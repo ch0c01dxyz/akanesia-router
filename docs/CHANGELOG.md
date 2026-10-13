@@ -35,8 +35,34 @@ Perbaikan dikerjakan 3 sub-agent dengan disiplin ponytail.
 8. Toggle provider: hasil PUT diverifikasi; bila gagal, refetch + notifikasi.
 9. Bulk delete combo: hanya yang sukses dibuang dari UI dan di-prune strateginya.
 
-Verifikasi: 47 test terkait lolos (1 gagal pre-existing, terbukti via stash),
-0 error ESLint baru, build sukses, verifikasi live via dev server 20127
+## 2026-10-13 (batch should-fix audit — instruksi Egar "lanjutkan perbaikannya")
+
+Dikerjakan 4 sub-agent paralel dengan disiplin ponytail, direview Merlin.
+
+**Data/services:**
+- Hapus `react`/`react-dom` dari `cli/package.json` (tak dipakai).
+- Hapus script mati `scripts/translate-readme.js`, `scripts/migrate-registry.mjs`.
+- `releaseAntigravityQuota(connectionId)` — cache kuota di-evict saat koneksi dihapus.
+- `getComboByName` case-insensitive (selaras dengan gate keyAccess).
+
+**API routes:**
+- Check All Models kini menyertakan provider custom aktif.
+- `test-batch` paralel bounded (pool 5).
+- Satu helper `src/lib/compatibleModelsFetch.js` untuk 4 fetch `{baseUrl}/models`
+  (timeout 15 dtk di semua, termasuk yang tadinya tanpa timeout).
+
+**Dashboard (9 fix UI):** validasi key sebelum simpan; ConfirmModal tak bisa
+ditutup saat loading; loop tunnel/Tailscale bisa dibatalkan; warna level log;
+import model batch (tanpa refetch per model); duplikat header case-insensitive;
+scroll-lock modal; rollback toggle Token Saver; MITM autosave cek error.
+
+**Engine (7 fix):** deteksi format Claude jalan di jalur live; headroom lazy-load;
+`<think>` tak lagi menelan finish_reason/tool_calls; credentials diteruskan ke
+gemini-cli/antigravity; hook auto-disable di jalur 401→refresh→403; skip refresh
+sia-sia saat akun suspend; hapus 88 baris komentar mati di proxyFetch.
+
+Verifikasi: 0 error/warning ESLint baru, build sukses, 105 gagal test
+pre-existing (identik dengan baseline via A/B), verifikasi live dev 20127
 (dimatikan setelah selesai).
 
 ## 2026-10-13

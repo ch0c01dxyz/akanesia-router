@@ -5,6 +5,10 @@ import { cn } from "@/shared/utils/cn";
 import Button from "./Button";
 import Tooltip from "./Tooltip";
 
+// Counter modul-scope: beberapa modal bisa terbuka bersamaan (mis. modal
+// utama + ConfirmModal). body.overflow hanya di-reset saat modal terakhir tutup.
+let openModalCount = 0;
+
 export default function Modal({
   isOpen,
   onClose,
@@ -13,6 +17,7 @@ export default function Modal({
   footer,
   size = "md",
   closeOnOverlay = true,
+  closeDisabled = false,
   showTrafficLights = true,
   className,
 }) {
@@ -25,30 +30,33 @@ export default function Modal({
   };
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => { document.body.style.overflow = ""; };
+    if (!isOpen) return;
+    openModalCount += 1;
+    document.body.style.overflow = "hidden";
+    return () => {
+      openModalCount = Math.max(0, openModalCount - 1);
+      if (openModalCount === 0) document.body.style.overflow = "";
+    };
   }, [isOpen]);
 
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === "Escape" && isOpen) onClose();
+      if (e.key === "Escape" && isOpen && !closeDisabled) onClose();
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, closeDisabled]);
 
   if (!isOpen) return null;
+
+  const canClose = !closeDisabled;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px] fade-in"
-        onClick={closeOnOverlay ? onClose : undefined}
+        onClick={closeOnOverlay && canClose ? onClose : undefined}
       />
 
       {/* Modal content */}
@@ -71,10 +79,11 @@ export default function Modal({
                 <div className="hidden md:flex items-center gap-2 mr-4 ml-2">
                   <Tooltip text="Close" position="top" color="#FF5F56">
                     <button
-                      onClick={onClose}
+                      onClick={canClose ? onClose : undefined}
                       aria-label="Close"
                       title="Close"
-                      className="w-4 h-4 rounded-full bg-[#FF5F56] hover:brightness-90 transition-all cursor-pointer flex items-center justify-center group/dot"
+                      disabled={!canClose}
+                      className="w-4 h-4 rounded-full bg-[#FF5F56] hover:brightness-90 transition-all cursor-pointer flex items-center justify-center group/dot disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <span className="text-[9px] font-bold text-white opacity-0 group-hover/dot:opacity-100 transition-opacity leading-none">✕</span>
                     </button>
@@ -89,9 +98,10 @@ export default function Modal({
             </div>
             {/* X button — mobile only */}
             <button
-              onClick={onClose}
+              onClick={canClose ? onClose : undefined}
               aria-label="Close"
-              className="md:hidden p-1.5 rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors"
+              disabled={!canClose}
+              className="md:hidden p-1.5 rounded-[10px] text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors disabled:opacity-50"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
@@ -129,6 +139,7 @@ export function ConfirmModal({
       onClose={onClose}
       title={title}
       size="sm"
+      closeDisabled={loading}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={loading}>

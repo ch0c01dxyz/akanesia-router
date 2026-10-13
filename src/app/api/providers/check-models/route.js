@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getProviderConnections } from "@/models";
 import { getSettings } from "@/lib/db/repos/settingsRepo.js";
 import { getOrRefresh, invalidate } from "@/lib/checkModelsCache.js";
+import { mapPool } from "@/lib/mapPool.js";
+import { fetchCompatibleModels } from "@/lib/compatibleModelsFetch.js";
 import REGISTRY from "open-sse/providers/registry/index.js";
 import { AI_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { FILTERS } from "../suggested-models/filters.js";
@@ -9,7 +11,7 @@ import { autoDisableSuspendedAccount, isSuspensionSignal } from "open-sse/utils/
 
 export const dynamic = "force-dynamic";
 
-const FETCH_TIMEOUT_MS = 15000;
+const FETCH_TIMEOUT_MS = 60000;
 const CONCURRENCY = 5;
 
 // Build auth headers for a models-list check from the registry's auth schema.
@@ -133,9 +135,8 @@ async function checkWithConnection(providerId, connection) {
 
 // Check via koneksi untuk provider kompatibel dinamis (openai-compatible-* /
 // anthropic-compatible-*) yang tidak punya entry registry / validateUrl.
-// Memakai baseUrl koneksi + /models — logika yang sama dengan endpoint
-// "Import from /models" (GET /api/providers/[id]/models).
-// Mengembalikan objek hasil, atau null bila tidak applicable.
+// Fetch mentahnya di src/lib/compatibleModelsFetch.js (satu-satunya tempat);
+// fungsi ini hanya membungkus hasilnya ke shape check-models.
 export async function checkViaConnectionBaseUrl(providerId, connection, fetchFn = fetch) {
   const baseUrl = connection?.providerSpecificData?.baseUrl;
   if (!baseUrl || !(isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId))) {
@@ -154,62 +155,34 @@ export async function checkViaConnectionBaseUrl(providerId, connection, fetchFn 
       connectionName: connection?.name || connection?.email || null,
     };
   }
-  let url;
-  let headers;
-  if (isOpenAICompatibleProvider(providerId)) {
-    url = `${baseUrl.replace(/\/$/, "")}/models`;
-    headers = { "Content-Type": "application/json", "Authorization": `Bearer ${connection.apiKey}` };
-  } else {
-    let base = baseUrl.replace(/\/$/, "");
-    if (base.endsWith("/messages")) base = base.slice(0, -9);
-    url = `${base}/models`;
-    headers = {
-      "Content-Type": "application/json",
-      "x-api-key": connection.apiKey,
-      "anthropic-version": "2023-06-01",
-    };
-  }
   const start = Date.now();
-  try {
-    const res = await fetchFn(url, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-    const latencyMs = Date.now() - start;
-    if (!res.ok) {
-      const errorBody = await res.text().then((t) => t.slice(0, 2000)).catch(() => "");
-      return {
-        ...baseResult(providerId),
-        name: connection.name || baseResult(providerId).name,
-        ok: false,
-        error: `HTTP ${res.status}`,
-        httpStatus: res.status,
-        errorBody,
-        latencyMs,
-        source: "connection",
-        connectionName: connection.name || connection.email || null,
-      };
-    }
-    const json = await res.json().catch(() => null);
-    const models = parseModelIds(json);
+  const r = await fetchCompatibleModels({ provider: providerId, baseUrl, apiKey: connection.apiKey, fetchFn });
+  const latencyMs = Date.now() - start;
+  const name = connection.name || baseResult(providerId).name;
+  const connectionName = connection.name || connection.email || null;
+  if (!r.ok) {
     return {
       ...baseResult(providerId),
-      name: connection.name || baseResult(providerId).name,
-      ok: true,
-      modelCount: models.length,
-      models,
+      name,
+      ok: false,
+      error: r.error,
+      httpStatus: r.httpStatus,
+      errorBody: r.errorBody,
       latencyMs,
       source: "connection",
-      connectionName: connection.name || connection.email || null,
-    };
-  } catch (err) {
-    return {
-      ...baseResult(providerId),
-      name: connection.name || baseResult(providerId).name,
-      ok: false,
-      error: err?.message || "request failed",
-      latencyMs: Date.now() - start,
-      source: "connection",
-      connectionName: connection.name || connection.email || null,
+      connectionName,
     };
   }
+  return {
+    ...baseResult(providerId),
+    name,
+    ok: true,
+    modelCount: r.models.length,
+    models: r.models,
+    latencyMs,
+    source: "connection",
+    connectionName,
+  };
 }
 
 async function checkPublic(providerId) {
@@ -231,24 +204,6 @@ async function checkPublic(providerId) {
   } catch (err) {
     return { ...baseResult(providerId), ok: false, error: err?.message || "request failed", latencyMs: Date.now() - start, source: "public" };
   }
-}
-
-// Bounded concurrency pool so one slow provider can't stall the batch.
-async function mapPool(items, limit, fn) {
-  const out = new Array(items.length);
-  let next = 0;
-  const workers = new Array(Math.min(limit, items.length)).fill(null).map(async () => {
-    while (next < items.length) {
-      const i = next++;
-      try {
-        out[i] = await fn(items[i], i);
-      } catch (err) {
-        out[i] = { provider: items[i], ok: false, error: err?.message || "failed" };
-      }
-    }
-  });
-  await Promise.allSettled(workers); // satu worker gagal ≠ batch mati (ide #1)
-  return out;
 }
 
 // Lapisan cache di atas logika check per-provider.
@@ -351,6 +306,19 @@ export async function POST(request) {
       if (c?.provider && !connByProvider.has(c.provider)) connByProvider.set(c.provider, c);
     }
 
+    // Provider kompatibel dinamis (openai-compatible-*/anthropic-compatible-*)
+    // tidak punya entry registry — sertakan dari koneksi aktif agar mode "all"
+    // tidak diam-diam melewatkannya. Tanpa duplikat dengan id registry.
+    if (mode === "all") {
+      const seen = new Set(targetIds);
+      for (const pid of connByProvider.keys()) {
+        if (!seen.has(pid) && (isOpenAICompatibleProvider(pid) || isAnthropicCompatibleProvider(pid))) {
+          seen.add(pid);
+          targetIds.push(pid);
+        }
+      }
+    }
+
     // TTL cache dari settings; 0 (atau tidak valid) = cache mati total.
     const settings = await getSettings();
     let ttlSeconds = Number(settings?.checkModelsTtlSeconds);
@@ -359,31 +327,35 @@ export async function POST(request) {
     const suspendAutoDisableOnCheck = settings?.suspendAutoDisableOnCheck === true;
 
     const results = await mapPool(targetIds, CONCURRENCY, async (pid) => {
-      const conn = connByProvider.get(pid);
-      const result = await checkProviderWithCache(pid, conn, ttlSeconds, forceRefresh);
-      // Auto-disable opsional dari Check Models (default OFF — toggle di
-      // Dashboard > Endpoint & Key > Insiden Kuota & Error). Hanya untuk
-      // sinyal suspend yang ketat (403/423 + "suspend"); error lain tidak
-      // memicu apa-apa.
-      if (
-        suspendAutoDisableOnCheck &&
-        !result.ok && !result.skipped &&
-        isSuspensionSignal(result.httpStatus, result.errorBody)
-      ) {
-        try {
-          const disabled = await autoDisableSuspendedAccount({
-            connectionId: conn?.id,
-            provider: pid,
-            status: result.httpStatus,
-            message: result.errorBody,
-            credentials: conn,
-          });
-          if (disabled) result.autoDisabled = true;
-        } catch {
-          // abaikan — fail-open
+      try {
+        const conn = connByProvider.get(pid);
+        const result = await checkProviderWithCache(pid, conn, ttlSeconds, forceRefresh);
+        // Auto-disable opsional dari Check Models (default OFF — toggle di
+        // Dashboard > Endpoint & Key > Insiden Kuota & Error). Hanya untuk
+        // sinyal suspend yang ketat (403/423 + "suspend"); error lain tidak
+        // memicu apa-apa.
+        if (
+          suspendAutoDisableOnCheck &&
+          !result.ok && !result.skipped &&
+          isSuspensionSignal(result.httpStatus, result.errorBody)
+        ) {
+          try {
+            const disabled = await autoDisableSuspendedAccount({
+              connectionId: conn?.id,
+              provider: pid,
+              status: result.httpStatus,
+              message: result.errorBody,
+              credentials: conn,
+            });
+            if (disabled) result.autoDisabled = true;
+          } catch {
+            // abaikan — fail-open
+          }
         }
+        return result;
+      } catch (err) {
+        return { provider: pid, ok: false, error: err?.message || "failed" };
       }
-      return result;
     });
 
     const summary = {

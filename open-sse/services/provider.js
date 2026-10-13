@@ -75,7 +75,11 @@ export function detectFormat(body) {
       
       // Claude format has specific types: text, image, tool_use, tool_result
       // OpenAI multimodal has: text, image_url (note the difference)
-      if (firstContent?.type === "text" && !body.model?.includes("/")) {
+      // Catatan: guard model.includes("/") dihapus — body.model selalu
+      // berbentuk "provider/model" di jalur live (chat.js), jadi guard itu
+      // mematikan heuristik ini sepenuhnya; heuristik di bawah cukup
+      // membedakan tanpa guard tersebut.
+      if (firstContent?.type === "text") {
         // Could be Claude or OpenAI multimodal
         // Check for Claude-specific fields
         if (body.system || body.anthropic_version) {

@@ -1,10 +1,8 @@
-import { claudeToOpenAIRequest } from "../translator/request/claude-to-openai.js";
-import { openaiToClaudeRequest } from "../translator/request/openai-to-claude.js";
-import {
-  openaiResponsesToOpenAIRequest,
-  openaiToOpenAIResponsesRequest,
-} from "../translator/request/openai-responses.js";
-
+// Translator di-load LAZY via dynamic import di dalam compressWithHeadroom
+// (bukan static import): headroom.js diimpor chatCore.js di module scope,
+// dan static import akan memaksa 3 modul translator ter-load di setiap start,
+// menggagalkan desain lazy-load TRANSLATOR_MANIFEST (translator/index.js).
+// compressWithHeadroom fail-open — gagal import ditangkap try/catch di bawah.
 const DEFAULT_TIMEOUT_MS = 3000;
 
 function normalizeTimeout(value) {
@@ -265,6 +263,10 @@ export async function compressWithHeadroom(body, { enabled, url, model, format, 
 
     // Claude shape: translate → OpenAI → compress → translate back.
     if (format === "claude") {
+      const [{ claudeToOpenAIRequest }, { openaiToClaudeRequest }] = await Promise.all([
+        import("../translator/request/claude-to-openai.js"),
+        import("../translator/request/openai-to-claude.js"),
+      ]);
       const oai = claudeToOpenAIRequest(model, body, false);
       if (!Array.isArray(oai?.messages)) {
         setDiagnostic(diagnostics, "Claude request did not translate to messages[]");
@@ -287,6 +289,8 @@ export async function compressWithHeadroom(body, { enabled, url, model, format, 
         setDiagnostic(diagnostics, "skipped: openai-responses tool/reasoning input is not safe to compress");
         return null;
       }
+      const { openaiResponsesToOpenAIRequest, openaiToOpenAIResponsesRequest } =
+        await import("../translator/request/openai-responses.js");
       const oai = openaiResponsesToOpenAIRequest(model, body, false);
       if (!Array.isArray(oai?.messages)) {
         setDiagnostic(diagnostics, "openai-responses request did not translate to messages[]");

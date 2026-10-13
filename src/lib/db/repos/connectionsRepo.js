@@ -289,6 +289,14 @@ export async function deleteProviderConnection(id) {
     reorderInTx(db, row.provider);
     ok = true;
   });
+  if (ok) {
+    // Evict cache kuota antigravity milik koneksi ini. Dynamic import agar
+    // db layer tidak bergantung statis ke sse services (hindari siklus
+    // import); best-effort — kegagalan hanya berarti cache basi sementara.
+    import("@/sse/services/antigravityQuota.js")
+      .then((m) => m.releaseAntigravityQuota(id))
+      .catch(() => {});
+  }
   return ok;
 }
 

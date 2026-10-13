@@ -54,7 +54,8 @@ export default function CustomConfigCard({ providerId }) {
         notify.error(`Header ${name} tidak boleh di-override`);
         return;
       }
-      if (name in headers) {
+      // Header HTTP case-insensitive: "X-API-Key" dan "x-api-key" itu duplikat.
+      if (Object.keys(headers).some((k) => k.toLowerCase() === name.toLowerCase())) {
         notify.error(`Nama header duplikat: ${name}`);
         return;
       }

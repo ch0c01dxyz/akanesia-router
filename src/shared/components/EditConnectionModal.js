@@ -152,6 +152,9 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           updates.testStatus = "active";
           updates.lastError = null;
           updates.lastErrorAt = null;
+        } else {
+          // Key gagal validasi — jangan simpan key rusak ke server.
+          return;
         }
       }
       

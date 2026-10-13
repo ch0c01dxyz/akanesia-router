@@ -51,6 +51,16 @@ function applyActiveStrikeBlocks(connectionId, quotas) {
 }
 
 /**
+ * Evict seluruh state in-memory milik sebuah koneksi (dipanggil saat koneksi
+ * dihapus agar tidak bocor: quotaCache & lastRefreshAt tidak punya TTL).
+ */
+export function releaseAntigravityQuota(connectionId) {
+  quotaCache.delete(connectionId);
+  lastRefreshAt.delete(connectionId);
+  inflightRefresh.delete(connectionId);
+}
+
+/**
  * Clear strike state for a connection|model after a successful request, so
  * "consecutive" strikes means consecutive. Only removes a synthesized cache
  * entry (resetAt == our block deadline); a real upstream 0% reading stays.

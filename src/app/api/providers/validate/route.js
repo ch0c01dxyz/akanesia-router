@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getProviderNodeById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider, AI_PROVIDERS } from "@/shared/constants/providers";
+import { fetchCompatibleModels } from "@/lib/compatibleModelsFetch.js";
 import { getDefaultModel } from "open-sse/config/providerModels.js";
 import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from "open-sse/config/providers.js";
 import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
@@ -103,11 +104,9 @@ export async function POST(request) {
         if (!node) {
           return NextResponse.json({ error: "OpenAI Compatible node not found" }, { status: 404 });
         }
-        const modelsUrl = `${node.baseUrl?.replace(/\/$/, "")}/models`;
-        const res = await fetch(modelsUrl, {
-          headers: { "Authorization": `Bearer ${apiKey}` },
-        });
-        isValid = res.ok;
+        // Probe /models via helper shared (dulu tanpa timeout).
+        const r = await fetchCompatibleModels({ provider, baseUrl: node.baseUrl, apiKey });
+        isValid = r.ok;
         return NextResponse.json({
           valid: isValid,
           error: isValid ? null : "Invalid API key",
@@ -120,19 +119,17 @@ export async function POST(request) {
         if (!node) {
           return NextResponse.json({ error: "Custom Embedding node not found" }, { status: 404 });
         }
-        const baseUrl = node.baseUrl?.replace(/\/$/, "");
-        const modelsRes = await fetch(`${baseUrl}/models`, {
-          headers: { "Authorization": `Bearer ${apiKey}` },
-        });
-        if (modelsRes.ok) {
+        const r = await fetchCompatibleModels({ provider, baseUrl: node.baseUrl, apiKey });
+        if (r.ok) {
           return NextResponse.json({ valid: true });
         }
         // Auth errors are definitive
-        if (modelsRes.status === 401 || modelsRes.status === 403) {
+        if (r.httpStatus === 401 || r.httpStatus === 403) {
           return NextResponse.json({ valid: false, error: "Invalid API key" });
         }
         // Fallback: probe /embeddings with a common test model — many providers lack /models
-        const embedRes = await fetch(`${baseUrl}/embeddings`, {
+        const fallbackBase = node.baseUrl?.replace(/\/$/, "");
+        const embedRes = await fetch(`${fallbackBase}/embeddings`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({ model: "test", input: "ping" }),

@@ -170,6 +170,50 @@ Format: `hash` — subjek — file kunci — catatan.
 
 ### 2026-10-13
 
+- **(uncommitted)** — batch should-fix audit (instruksi Egar "lanjutkan
+  perbaikannya"). 4 sub-agent paralel, disiplin ponytail, review Merlin.
+  Data/services: hapus react dari cli, hapus 2 script mati,
+  `releaseAntigravityQuota`, `getComboByName` case-insensitive.
+  API: Check All sertakan provider custom, test-batch pool-5,
+  `src/lib/compatibleModelsFetch.js` + `src/lib/mapPool.js` (baru).
+  Dashboard: 9 fix UI (EditConnectionModal, Modal closeDisabled+scroll-lock,
+  EndpointPageClient cancellable, ConsoleLogsTab, CompatibleModelsSection batch,
+  CustomConfigCard, TokenSaverClient rollback, MitmToolCard).
+  Engine: detectFormat Claude, headroom dynamic import, <think> finish_reason,
+  credentials gemini-cli, kiroModels err2 hook, skip refresh saat suspend,
+  hapus komentar mati proxyFetch. 0 lint baru, build sukses,
+  105 gagal test pre-existing (A/B identik baseline), live dev 20127 OK
+  (dimatikan).
+
+- **`07ebbfd6`** — 9 must-fix hasil audit menyeluruh (instruksi Egar,
+  atas rekomendasi Merlin). Audit oleh 4 sub-agent read-only
+  (Engine/`open-sse/`, API routes, Dashboard, Data & services) +
+  Context7 + ponytail-audit; Merlin sebagai reviewer memverifikasi
+  temuan kritis langsung di kode. 35 file, 626+/121-.
+  - Keamanan: `src/lib/providerSanitize.js` (baru, allowlist) —
+    `GET /api/providers` tidak lagi membocorkan `clientSecret` Kiro IDC /
+    `mimoPassToken` Xiaomi; `api/keys/route.js` + `maskApiKey.js` — nilai
+    `sk_9router_*` di-mask, penuh hanya di respons create & reveal eksplisit
+    per key; `safeMarkdown.js` (baru) — ChangelogModal disanitasi
+    (tutup XSS `marked` + `dangerouslySetInnerHTML` tanpa sanitasi).
+  - Behavior: `claude-to-openai.js` + `openai-to-claude.js` —
+    `tool_choice: "none"` dihormati kedua arah translator; `codex.js` —
+    flag `_isCompact` tidak bocor antar request (executor singleton);
+    `bacaBodyTerbatas.js` (baru) + `error.js` — error body dibatasi 16KB
+    (tutup vektor OOM `parseUpstreamError` tanpa batas).
+  - Data/UI: `db/backup.js` — regex `CREATE TABLE bak.IF NOT EXISTS`
+    diperbaiki (backup pengaman migrasi kini benar-benar jalan); toggle
+    provider (`providers/page.js`, `EndpointPageClient.js`) verifikasi hasil
+    PUT + rollback bila gagal (pola optimistik tanpa cek hasil diperbaiki);
+    `combos/page.js` — bulk delete hanya menghapus yang sukses.
+  - Verifikasi: 47 test lolos (1 gagal pre-existing, terbukti via stash A/B
+    bukan dari kita), 0 error ESLint baru, build sukses; live check via dev
+    server 20127 (endpoint merespons 401 guard, bukan 500) → server dimatikan.
+  - `devin-desktop.js` (`convertToolChoice` sendiri) dicek terpisah:
+    AMAN, tidak perlu diperbaiki.
+  - ~25 temuan SHOULD-FIX (mis. Check All Models lewati provider custom,
+    4 kopi `fetch {baseUrl}/models`, test koneksi serial) BELUM dikerjakan
+    — staged sebagai batch berikutnya, menunggu instruksi Egar.
 - **`eb775de7`** — Poin 1-3 (permintaan Egar). 11 file.
   - `EndpointPageClient.js`: state + handler + Toggle `suspendAutoDisableOnCheck`
     di kartu Insiden Kuota & Error (default OFF).
@@ -258,7 +302,9 @@ Format: `hash` — subjek — file kunci — catatan.
   ("oke commit + push sekarang", "oke, commit dan push kalau begitu").
 - "Cuman tanya" → jangan ubah/instal/tawarkan kerjaan.
 - "Analisa dulu, untuk perubahan tunggu konfirmasi saya" → diagnosis saja.
-- Port gateway Egar: **20127** (dev server 20127 jangan dinyalakan).
+- Port gateway Egar: **20127**. Aturan Egar 2026-10-13 (menggantikan aturan lama
+  "tetap mati"): dev server BOLEH dinyalakan untuk pengecekan + verifikasi
+  perbaikan secara menyeluruh, WAJIB dimatikan setelah selesai.
 - Teks user-visible: Bahasa Indonesia. Jangan tampilkan secret/API key.
 - `node --check` RUSAK untuk ESM di Node v24 (selalu exit 0) → pakai ESLint/build.
 - Vitest: `npx vitest run --config tests/vitest.config.js <file>`.

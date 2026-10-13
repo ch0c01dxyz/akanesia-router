@@ -275,6 +275,19 @@ export async function resolveKiroModels(credentials, options = {}) {
           if (next.refreshToken) credentials.refreshToken = next.refreshToken;
         } catch (err2) {
           options.log?.warn?.("KIRO_MODELS", `Retry after refresh failed: ${err2?.message || err2}`);
+          // Auto-disable juga di jalur 401→refresh→403: retry bisa kena suspend.
+          try {
+            await autoDisableSuspendedAccount({
+              connectionId: credentials?.connectionId,
+              provider: "kiro",
+              status: err2?.status,
+              message: err2?.message || String(err2),
+              credentials,
+              log: options.log,
+            });
+          } catch {
+            // abaikan — fail-open
+          }
           return null;
         }
       } else {

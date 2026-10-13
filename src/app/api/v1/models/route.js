@@ -22,6 +22,7 @@ import { isReservedProviderPrefix } from "@/sse/services/model.js";
 import { koneksiPunyaKredensial, cariKoneksiBerkredensial, ROUTE_MASKING_OWNED_BY, ROUTE_MASK_NAME_REGEX } from "@/lib/routeMasking.js";
 import { getModelsCache, setModelsCache, invalidateModelsCache } from "@/lib/modelsCache.js";
 export { invalidateModelsCache };
+import { fetchCompatibleModels } from "@/lib/compatibleModelsFetch.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 
@@ -164,11 +165,6 @@ const LIVE_MODEL_RESOLVERS = {
   },
 };
 
-const parseOpenAIStyleModels = (data) => {
-  if (Array.isArray(data)) return data;
-  return data?.data || data?.models || data?.results || [];
-};
-
 // Header sent by fetchCompatibleModelIds to detect cross-instance /models fetches
 // and break recursive loops between 9router instances connected to each other.
 const INTERNAL_MODELS_FETCH_HEADER = "x-9r-internal-models-fetch";
@@ -205,59 +201,14 @@ function inferKindFromUnknownModelId(modelId) {
 
 async function fetchCompatibleModelIds(connection) {
   if (!connection?.apiKey) return [];
-
-  const baseUrl = typeof connection?.providerSpecificData?.baseUrl === "string"
-    ? connection.providerSpecificData.baseUrl.trim().replace(/\/$/, "")
-    : "";
-
-  if (!baseUrl) return [];
-
-  let url = `${baseUrl}/models`;
-  const headers = {
-    "Content-Type": "application/json",
-  };
-
-  if (isOpenAICompatibleProvider(connection.provider)) {
-    headers.Authorization = `Bearer ${connection.apiKey}`;
-  } else if (isAnthropicCompatibleProvider(connection.provider)) {
-    if (url.endsWith("/messages/models")) {
-      url = url.slice(0, -9);
-    } else if (url.endsWith("/messages")) {
-      url = `${url.slice(0, -9)}/models`;
-    }
-    headers["x-api-key"] = connection.apiKey;
-    headers["anthropic-version"] = "2023-06-01";
-    headers.Authorization = `Bearer ${connection.apiKey}`;
-  } else {
-    return [];
-  }
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { ...headers, [INTERNAL_MODELS_FETCH_HEADER]: "1" },
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-
-    if (!response.ok) return [];
-
-    const data = await response.json();
-    const rawModels = parseOpenAIStyleModels(data);
-
-    return Array.from(
-      new Set(
-        rawModels
-          .map((model) => model?.id || model?.name || model?.model)
-          .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "")
-      )
-    );
-  } catch {
-    return [];
-  }
+  // Fetch mentah di src/lib/compatibleModelsFetch.js (satu-satunya tempat).
+  const r = await fetchCompatibleModels({
+    provider: connection.provider,
+    baseUrl: connection.providerSpecificData?.baseUrl,
+    apiKey: connection.apiKey,
+    extraHeaders: { [INTERNAL_MODELS_FETCH_HEADER]: "1" },
+  });
+  return r.ok ? r.models : [];
 }
 
 // Koneksi dianggap punya kredensial bila salah satu field kredensial

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getProviderConnections } from "@/models";
+import { mapPool } from "@/lib/mapPool.js";
 import {
   FREE_PROVIDERS,
   OAUTH_PROVIDERS,
@@ -81,11 +82,12 @@ export async function POST(request) {
       });
     }
 
-    const results = [];
-    for (const conn of connectionsToTest) {
+    // Bounded pool (maks 5 paralel) — 20 koneksi × 15 dtk timeout tidak lagi
+    // menahan request sampai 5 menit bila serial.
+    const results = await mapPool(connectionsToTest, 5, async (conn) => {
       try {
         const data = await testSingleConnection(conn.id);
-        results.push({
+        return {
           provider: conn.provider,
           connectionId: conn.id,
           connectionName: conn.name || conn.email || conn.provider,
@@ -96,9 +98,9 @@ export async function POST(request) {
           diagnosis: data.diagnosis || null,
           statusCode: data.statusCode || null,
           testedAt: data.testedAt || new Date().toISOString(),
-        });
+        };
       } catch (error) {
-        results.push({
+        return {
           provider: conn.provider,
           connectionId: conn.id,
           connectionName: conn.name || conn.email || conn.provider,
@@ -109,9 +111,9 @@ export async function POST(request) {
           diagnosis: { type: "network_error", source: "local", code: null, message: error.message },
           statusCode: null,
           testedAt: new Date().toISOString(),
-        });
+        };
       }
-    }
+    });
 
     return NextResponse.json({
       mode,

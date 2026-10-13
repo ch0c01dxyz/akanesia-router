@@ -77,18 +77,31 @@ export default function TokenSaverClient() {
     const current = CAVEMAN_LEVELS.find((lvl) => lvl.id === cavemanLevel);
     if (current?.wenyan && !isWenyanLocale) {
       setCavemanLevel("ultra");
-      patchSetting({ cavemanLevel: "ultra" });
+      patchSetting({ cavemanLevel: "ultra" }).catch(() => {});
     }
   }, [isWenyanLocale, cavemanLevel]);
 
   const patchSetting = async (patch) => {
+    const res = await fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error(`PATCH /api/settings gagal (${res.status})`);
+    return res.json().catch(() => ({}));
+  };
+
+  // Optimistic update dengan rollback: bila PATCH gagal, kembalikan state
+  // dan tampilkan pesan error kecil agar UI tidak berbohong.
+  const [saveError, setSaveError] = useState("");
+  const optimisticPatch = async (apply, rollback, patch) => {
+    apply();
+    setSaveError("");
     try {
-      await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
+      await patchSetting(patch);
     } catch (error) {
+      rollback();
+      setSaveError(error.message || "Gagal menyimpan pengaturan.");
       console.log("Error updating setting:", error);
     }
   };
@@ -107,21 +120,36 @@ export default function TokenSaverClient() {
   };
 
   const handleCavemanEnabled = (value) => {
-    setCavemanEnabled(value);
-    patchSetting({ cavemanEnabled: value });
+    const prev = cavemanEnabled;
+    optimisticPatch(
+      () => setCavemanEnabled(value),
+      () => setCavemanEnabled(prev),
+      { cavemanEnabled: value },
+    );
   };
 
   const handleHeadroomEnabled = (value) => {
     const nextUrl = headroomUrl.trim() || "http://localhost:8787";
-    setHeadroomUrl(nextUrl);
-    setHeadroomEnabled(value);
-    patchSetting({ headroomEnabled: value, headroomUrl: nextUrl });
+    const prevEnabled = headroomEnabled;
+    const prevUrl = headroomUrl;
+    optimisticPatch(
+      () => { setHeadroomUrl(nextUrl); setHeadroomEnabled(value); },
+      () => { setHeadroomUrl(prevUrl); setHeadroomEnabled(prevEnabled); },
+      { headroomEnabled: value, headroomUrl: nextUrl },
+    );
   };
 
   const handleHeadroomUrlBlur = async () => {
     const next = headroomUrl.trim() || "http://localhost:8787";
+    const prev = headroomUrl;
     setHeadroomUrl(next);
-    await patchSetting({ headroomUrl: next });
+    setSaveError("");
+    try {
+      await patchSetting({ headroomUrl: next });
+    } catch (error) {
+      setHeadroomUrl(prev);
+      setSaveError(error.message || "Gagal menyimpan pengaturan.");
+    }
     refreshHeadroomStatus();
   };
 
@@ -336,7 +364,15 @@ export default function TokenSaverClient() {
     if (extra === "code") setCodeAware(value);
     if (extra === "ml") setKompress(value);
     const key = extra === "code" ? "headroomCodeAware" : "headroomKompress";
-    await patchSetting({ [key]: value });
+    try {
+      await patchSetting({ [key]: value });
+    } catch (e) {
+      // Rollback optimistic update agar UI tidak berbohong.
+      if (extra === "code") setCodeAware(!value);
+      if (extra === "ml") setKompress(!value);
+      setExtrasActionError(e.message);
+      return;
+    }
     if (!headroomStatus.running) return;
     setRestartingProxy(true);
     try {
@@ -352,18 +388,30 @@ export default function TokenSaverClient() {
   }, [headroomStatus.running, refreshHeadroomStatus]);
 
   const handleCavemanLevel = (level) => {
-    setCavemanLevel(level);
-    patchSetting({ cavemanLevel: level });
+    const prev = cavemanLevel;
+    optimisticPatch(
+      () => setCavemanLevel(level),
+      () => setCavemanLevel(prev),
+      { cavemanLevel: level },
+    );
   };
 
   const handlePonytailEnabled = (value) => {
-    setPonytailEnabled(value);
-    patchSetting({ ponytailEnabled: value });
+    const prev = ponytailEnabled;
+    optimisticPatch(
+      () => setPonytailEnabled(value),
+      () => setPonytailEnabled(prev),
+      { ponytailEnabled: value },
+    );
   };
 
   const handlePonytailLevel = (level) => {
-    setPonytailLevel(level);
-    patchSetting({ ponytailLevel: level });
+    const prev = ponytailLevel;
+    optimisticPatch(
+      () => setPonytailLevel(level),
+      () => setPonytailLevel(prev),
+      { ponytailLevel: level },
+    );
   };
 
   const refreshPxpipeStatus = useCallback(async () => {
@@ -409,21 +457,33 @@ export default function TokenSaverClient() {
   );
 
   const handlePxpipeEnabled = (value) => {
-    setPxpipeEnabled(value);
-    patchSetting({ pxpipeEnabled: value });
+    const prev = pxpipeEnabled;
+    optimisticPatch(
+      () => setPxpipeEnabled(value),
+      () => setPxpipeEnabled(prev),
+      { pxpipeEnabled: value },
+    );
   };
 
   const handlePxpipeMinCharsBlur = () => {
     const next = Math.max(0, Number(pxpipeMinChars) || 25000);
-    setPxpipeMinChars(next);
-    patchSetting({ pxpipeMinChars: next });
+    const prev = pxpipeMinChars;
+    optimisticPatch(
+      () => setPxpipeMinChars(next),
+      () => setPxpipeMinChars(prev),
+      { pxpipeMinChars: next },
+    );
   };
 
   const handleHeadroomTimeoutBlur = () => {
     const raw = Math.round(Number(headroomTimeoutMs));
     const next = Number.isFinite(raw) && raw > 0 ? raw : 3000;
-    setHeadroomTimeoutMs(next);
-    patchSetting({ headroomTimeoutMs: next });
+    const prev = headroomTimeoutMs;
+    optimisticPatch(
+      () => setHeadroomTimeoutMs(next),
+      () => setHeadroomTimeoutMs(prev),
+      { headroomTimeoutMs: next },
+    );
   };
 
   useEffect(() => {
@@ -487,6 +547,12 @@ export default function TokenSaverClient() {
 
   return (
     <div className="space-y-6 p-6">
+      {saveError && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded border border-red-300 dark:border-red-800 bg-red-500/5 text-sm text-red-600 dark:text-red-400">
+          <span className="material-symbols-outlined text-sm">error</span>
+          {saveError}
+        </div>
+      )}
       <Card id="rtk">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-semibold flex items-center gap-2">

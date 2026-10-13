@@ -32,7 +32,8 @@ import { compressWithPxpipe } from "../rtk/pxpipe.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { stripUnsupportedModalities } from "../translator/concerns/modality.js";
 import { providerLogLabel as providerLabelForLog } from "../utils/providerLogLabel.js";
-import { autoDisableSuspendedAccount } from "../utils/accountSuspension.js";
+import { autoDisableSuspendedAccount, isSuspensionSignal } from "../utils/accountSuspension.js";
+import { bacaBodyTerbatas } from "../utils/bacaBodyTerbatas.js";
 import { prefetchRemoteImages } from "../translator/concerns/prefetch.js";
 import { defaultClaudeToolType, shouldDefaultClaudeToolType } from "../translator/concerns/toolCall.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
@@ -478,49 +479,60 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
 
   // Handle 401/403 - try token refresh (skip for noAuth providers)
   if (!executor.noAuth && (providerResponse.status === HTTP_STATUS.UNAUTHORIZED || providerResponse.status === HTTP_STATUS.FORBIDDEN)) {
+    // Intip dulu sinyal suspend (bounded, via clone agar body tetap bisa dibaca
+    // parseUpstreamError nanti): akun yang jelas ter-suspend tidak perlu
+    // membakar 3x refresh sia-sia — langsung ke auto-disable di bawah.
+    let skipRefresh = false;
     try {
-      // Mutate credentials after each successful refresh: rotating refresh_token
-      // providers (xAI/grok-cli) issue a new RT on every refresh; without this,
-      // refreshWithRetry's 2nd/3rd attempt reuses the already-consumed RT →
-      // invalid_grant → auth_failed retryable=false.
-      const newCredentials = await refreshWithRetry(async () => {
-        const result = await executor.refreshCredentials(credentials, log);
-        if (result?.refreshToken && result.refreshToken !== credentials.refreshToken) {
-          if (result.accessToken) credentials.accessToken = result.accessToken;
-          credentials.refreshToken = result.refreshToken;
-        }
-        return result;
-      }, 3, log);
-      if (newCredentials?.accessToken || newCredentials?.copilotToken) {
-        if (log?.line) log.line(reqTag, "🔑", `TOKEN REFRESHED · ${providerLogLabel()}/${model}`);
-        Object.assign(credentials, newCredentials);
-        if (onCredentialsRefreshed) {
-          try { await onCredentialsRefreshed(newCredentials); } catch (e) { log?.warn?.("TOKEN", `onCredentialsRefreshed failed: ${e.message}`); }
-        }
-        try {
-          const retryResult = await executor.execute({
-            model,
-            body: translatedBody,
-            stream,
-            credentials,
-            providerSessionId: sessionSeed,
-            clientTool,
-            signal: streamController.signal,
-            log,
-            proxyOptions,
-            providerOverrides,
-          });
-          if (retryResult.response.ok) {
-            providerResponse = retryResult.response;
-            providerUrl = retryResult.url;
-            providerResponseFormat = retryResult.responseFormat || targetFormat;
+      const peekText = await bacaBodyTerbatas(providerResponse.clone());
+      skipRefresh = isSuspensionSignal(providerResponse.status, peekText);
+      if (skipRefresh && log?.warn) log.warn("TOKEN", `${providerLogLabel().toUpperCase()} | skip refresh: akun terdeteksi suspend`);
+    } catch { /* abaikan — anggap bukan suspend, lanjut refresh normal */ }
+    if (!skipRefresh) {
+      try {
+        // Mutate credentials after each successful refresh: rotating refresh_token
+        // providers (xAI/grok-cli) issue a new RT on every refresh; without this,
+        // refreshWithRetry's 2nd/3rd attempt reuses the already-consumed RT →
+        // invalid_grant → auth_failed retryable=false.
+        const newCredentials = await refreshWithRetry(async () => {
+          const result = await executor.refreshCredentials(credentials, log);
+          if (result?.refreshToken && result.refreshToken !== credentials.refreshToken) {
+            if (result.accessToken) credentials.accessToken = result.accessToken;
+            credentials.refreshToken = result.refreshToken;
           }
-        } catch { log?.warn?.("TOKEN", `${providerLogLabel().toUpperCase()} | retry after refresh failed`); }
-      } else {
-        log?.warn?.("TOKEN", `${providerLogLabel().toUpperCase()} | refresh failed`);
+          return result;
+        }, 3, log);
+        if (newCredentials?.accessToken || newCredentials?.copilotToken) {
+          if (log?.line) log.line(reqTag, "🔑", `TOKEN REFRESHED · ${providerLogLabel()}/${model}`);
+          Object.assign(credentials, newCredentials);
+          if (onCredentialsRefreshed) {
+            try { await onCredentialsRefreshed(newCredentials); } catch (e) { log?.warn?.("TOKEN", `onCredentialsRefreshed failed: ${e.message}`); }
+          }
+          try {
+            const retryResult = await executor.execute({
+              model,
+              body: translatedBody,
+              stream,
+              credentials,
+              providerSessionId: sessionSeed,
+              clientTool,
+              signal: streamController.signal,
+              log,
+              proxyOptions,
+              providerOverrides,
+            });
+            if (retryResult.response.ok) {
+              providerResponse = retryResult.response;
+              providerUrl = retryResult.url;
+              providerResponseFormat = retryResult.responseFormat || targetFormat;
+            }
+          } catch { log?.warn?.("TOKEN", `${providerLogLabel().toUpperCase()} | retry after refresh failed`); }
+        } else {
+          log?.warn?.("TOKEN", `${providerLogLabel().toUpperCase()} | refresh failed`);
+        }
+      } catch (e) {
+        log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh threw: ${e.message}`);
       }
-    } catch (e) {
-      log?.warn?.("TOKEN", `${provider.toUpperCase()} | refresh threw: ${e.message}`);
     }
   }
 

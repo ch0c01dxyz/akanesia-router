@@ -34,17 +34,14 @@ export default function MitmToolCard({
   const [pendingDnsAction, setPendingDnsAction] = useState(null);
   const [modalError, setModalError] = useState(null);
   const [modelMappings, setModelMappings] = useState({});
+  const [mappingSaveError, setMappingSaveError] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [currentEditingAlias, setCurrentEditingAlias] = useState(null);
 
   const mitmHosts = TOOL_HOSTS[tool.id] ?? [];
   const canRunWithoutPassword = isWin || hasCachedPassword || needsSudoPassword === false;
 
-  useEffect(() => {
-    if (isExpanded) loadSavedMappings();
-  }, [isExpanded]);
-
-  const loadSavedMappings = async () => {
+  const loadSavedMappings = useCallback(async () => {
     try {
       const res = await fetch(`/api/cli-tools/antigravity-mitm/alias?tool=${tool.id}`);
       if (res.ok) {
@@ -52,17 +49,28 @@ export default function MitmToolCard({
         if (Object.keys(data.aliases || {}).length > 0) setModelMappings(data.aliases);
       }
     } catch { /* ignore */ }
-  };
+  }, [tool.id]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- disengaja: fetch awal saat kartu dibuka; jangan di-refactor
+    if (isExpanded) loadSavedMappings();
+  }, [isExpanded, loadSavedMappings]);
 
   const saveMappings = useCallback(async (mappings) => {
+    setMappingSaveError("");
     try {
-      await fetch("/api/cli-tools/antigravity-mitm/alias", {
+      const res = await fetch("/api/cli-tools/antigravity-mitm/alias", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tool: tool.id, mappings }),
       });
-    } catch { /* ignore */ }
-  }, [tool.id]);
+      if (!res.ok) throw new Error(`Gagal menyimpan mapping (${res.status})`);
+    } catch (error) {
+      // Rollback ke nilai server agar UI tidak berbohong.
+      setMappingSaveError(error.message || "Gagal menyimpan mapping.");
+      loadSavedMappings();
+    }
+  }, [tool.id, loadSavedMappings]);
 
   const handleMappingBlur = (alias, value) => {
     saveMappings({ ...modelMappings, [alias]: value });
@@ -192,6 +200,12 @@ export default function MitmToolCard({
             </div>
 
             {/* Model Mappings */}
+            {mappingSaveError && (
+              <div className="flex items-center gap-2 px-2 py-1.5 rounded text-xs text-red-500">
+                <span className="material-symbols-outlined text-[14px]">error</span>
+                <span>{mappingSaveError}</span>
+              </div>
+            )}
             {tool.defaultModels?.length > 0 && (
               <div className="flex flex-col gap-2">
                 {tool.defaultModels.map((model) => (

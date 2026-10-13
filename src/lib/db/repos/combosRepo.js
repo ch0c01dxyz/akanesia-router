@@ -28,7 +28,9 @@ export async function getComboById(id) {
 
 export async function getComboByName(name) {
   const db = await getAdapter();
-  const row = db.get(`SELECT * FROM combos WHERE name = ?`, [name]);
+  // Case-insensitive agar selaras dengan access gate (keyAccess.js) yang
+  // membandingkan nama combo tanpa memperhatikan kapitalisasi.
+  const row = db.get(`SELECT * FROM combos WHERE lower(name) = lower(?)`, [name]);
   return rowToCombo(row);
 }
 

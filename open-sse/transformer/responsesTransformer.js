@@ -328,11 +328,10 @@ export function createResponsesApiTransformStream(logger = null) {
 
           if (state.inThinking && content) {
             emitReasoningDelta(controller, content);
-            continue;
-          }
-
-          // Regular text content
-          if (content) {
+            // SENGAJA tanpa `continue`: finish_reason/tool_calls yang menempel
+            // di chunk yang sama harus tetap diproses di bawah.
+          } else if (content) {
+            // Regular text content
             // The answer starts, so thinking is over. Upstreams that send reasoning via
             // reasoning_content never emit "</think>", so close it here rather than at finish.
             closeReasoning(controller);
