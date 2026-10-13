@@ -11,48 +11,7 @@ import { saveRequestDetail } from "@/lib/usageDb.js";
 import { SSE_HEADERS_CORS as SSE_HEADERS } from "../../utils/sseConstants.js";
 import { upstreamResponseHeaders } from "../../utils/upstreamHeaders.js";
 import { providerLogLabel } from "../../utils/providerLogLabel.js";
-
-// Batas baca body error non-SSE (P8): hanya 16 KB pertama yang dibaca.
-// Sebelumnya `await response.text()` mem-buffer SELURUH body tanpa batas —
-// upstream jahat/rusak bisa mengirim body tak terbatas → memory exhaustion
-// (undici maxResponseSize default -1 = unbounded). Kode di bawah hanya memakai
-// ≤160 char, jadi membaca lebih dari 16 KB tidak ada gunanya.
-const BATAS_BACA_BODY_ERROR = 16 * 1024;
-
-/**
- * Baca body response secara terbatas (fail-open → string kosong).
- * Setelah batas tercapai, stream di-cancel agar upstream berhenti mengirim
- * (hemat bandwidth + waktu, bukan sekadar memotong hasil).
- */
-async function bacaBodyTerbatas(response, maxBytes = BATAS_BACA_BODY_ERROR) {
-  try {
-    const stream = response?.body;
-    if (!stream || typeof stream.getReader !== "function") return "";
-    const reader = stream.getReader();
-    const decoder = new TextDecoder();
-    let teks = "";
-    let total = 0;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done || !value) break;
-        const sisa = maxBytes - total;
-        if (sisa <= 0) break;
-        const potong = value.subarray(0, Math.min(value.byteLength, sisa));
-        teks += decoder.decode(potong, { stream: true });
-        total += potong.byteLength;
-        if (total >= maxBytes) break;
-      }
-      teks += decoder.decode();
-    } finally {
-      await reader.cancel().catch(() => {});
-      reader.releaseLock();
-    }
-    return teks;
-  } catch {
-    return "";
-  }
-}
+import { bacaBodyTerbatas, BATAS_BACA_BODY_ERROR } from "../../utils/bacaBodyTerbatas.js";
 
 // Codex returns Responses API SSE → which client format to translate INTO, by request sourceFormat.
 // Gemini-family all map to ANTIGRAVITY decoder; unknown sources fall back to OPENAI.

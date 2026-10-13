@@ -70,7 +70,16 @@ export function TtsExampleCard({ providerId }) {
     setLocalEndpoint(window.location.origin);
     fetch("/api/keys")
       .then((r) => r.json())
-      .then((d) => { setApiKey((d.keys || []).find((k) => k.isActive !== false)?.key || ""); })
+      .then(async (d) => {
+        // Daftar key hanya membawa masked value — ambil full via single endpoint.
+        const first = (d.keys || []).find((k) => k.isActive !== false);
+        if (!first?.id) { setApiKey(""); return; }
+        try {
+          const r = await fetch(`/api/keys/${first.id}`, { cache: "no-store" });
+          const jd = r.ok ? await r.json() : null;
+          setApiKey(jd?.key?.key || "");
+        } catch { setApiKey(""); }
+      })
       .catch(() => {});
     fetch("/api/providers", { cache: "no-store" })
       .then((r) => r.json())

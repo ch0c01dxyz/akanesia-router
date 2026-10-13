@@ -1,14 +1,20 @@
 import { NextResponse } from "next/server";
 import { getApiKeys, createApiKey } from "@/lib/localDb";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
+import { maskApiKey } from "@/shared/utils/maskApiKey";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/keys - List API keys
+// GET /api/keys - List API keys.
+// Nilai key di-mask satu arah: nilai penuh TIDAK PERNAH keluar dari endpoint
+// list. Nilai penuh hanya ada di respons POST (saat create) dan
+// GET /api/keys/[id] (reveal eksplisit per key).
 export async function GET() {
   try {
     const keys = await getApiKeys();
-    return NextResponse.json({ keys });
+    return NextResponse.json({
+      keys: keys.map((k) => ({ ...k, key: maskApiKey(k.key) })),
+    });
   } catch (error) {
     console.log("Error fetching keys:", error);
     return NextResponse.json({ error: "Failed to fetch keys" }, { status: 500 });

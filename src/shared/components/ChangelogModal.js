@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import PropTypes from "prop-types";
 import { GITHUB_CONFIG } from "@/shared/constants/config";
+import { renderMarkdownSafe } from "@/shared/utils/safeMarkdown";
 
 export default function ChangelogModal({ isOpen, onClose }) {
   const [html, setHtml] = useState("");
@@ -24,7 +25,8 @@ export default function ChangelogModal({ isOpen, onClose }) {
     ])
       .then(([md, { marked }]) => {
         marked.setOptions({ gfm: true, breaks: true });
-        setHtml(marked.parse(md));
+        // Tanpa DOMPurify: netralkan HTML mentah + skema URL berbahaya.
+        setHtml(renderMarkdownSafe(md, marked));
       })
       .catch((err) => setError(err.message || "Failed to load"))
       .finally(() => setLoading(false));

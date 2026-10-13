@@ -18,9 +18,12 @@ export default function ApiKeySelect({ value, onChange, apiKeys = [], cloudEnabl
     return subscribeKeyPresets(sync);
   }, []);
 
+  // Cache masked -> full untuk gateway key yang sudah di-fetch eksplisit.
+  const [fullKeys, setFullKeys] = useState({});
+
   const options = useMemo(
     () => [
-      ...apiKeys.map((k) => ({ value: k.key, label: k.key })),
+      ...apiKeys.map((k) => ({ value: k.key, label: k.key, id: k.id })),
       ...savedKeys.map((p) => ({ value: `saved:${p.name}`, label: p.key, url: p.key, saved: true })),
       { value: CUSTOM_VALUE, label: "Custom...", url: "" },
     ],
@@ -28,12 +31,12 @@ export default function ApiKeySelect({ value, onChange, apiKeys = [], cloudEnabl
   );
 
   // Derive the active option from value — no sync effects needed when the parent updates it
-  const matched = value ? options.find((o) => o.value === value || o.url === value) : null;
+  const matched = value ? options.find((o) => o.value === value || o.url === value || fullKeys[o.value] === value) : null;
   const mode = matched ? matched.value : (customMode || value ? CUSTOM_VALUE : (options[0]?.value ?? CUSTOM_VALUE));
   const inputValue = customMode ? customInput : (value || "");
   const isSaved = typeof mode === "string" && mode.startsWith("saved:");
   const isCustom = mode === CUSTOM_VALUE;
-  const canSave = isCustom && (value || "").trim().length > 0 && !apiKeys.some((k) => k.key === value);
+  const canSave = isCustom && (value || "").trim().length > 0 && !apiKeys.some((k) => k.key === value) && !Object.values(fullKeys).includes(value);
   const noKeys = apiKeys.length === 0 && savedKeys.length === 0 && !customMode && !value;
 
   const handleSelect = (e) => {
@@ -51,7 +54,24 @@ export default function ApiKeySelect({ value, onChange, apiKeys = [], cloudEnabl
     setCustomMode(false);
     setCustomInput("");
     const opt = options.find((o) => o.value === next);
-    if (opt) onChange(opt.url ?? opt.value);
+    if (!opt) return;
+    if (opt.id && !fullKeys[opt.value]) {
+      // Gateway key: list hanya membawa masked value — ambil full via single endpoint.
+      fetch(`/api/keys/${opt.id}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          const full = d?.key?.key;
+          if (full) {
+            setFullKeys((prev) => ({ ...prev, [opt.value]: full }));
+            onChange(full);
+          } else {
+            onChange(opt.value);
+          }
+        })
+        .catch(() => onChange(opt.value));
+      return;
+    }
+    onChange(fullKeys[opt.value] ?? opt.url ?? opt.value);
   };
 
   const handleCustomInput = (e) => {
@@ -67,7 +87,7 @@ export default function ApiKeySelect({ value, onChange, apiKeys = [], cloudEnabl
     setCustomMode(false);
     setCustomInput("");
     const fallback = options.find((o) => o.value !== CUSTOM_VALUE && o.value !== mode);
-    onChange(fallback ? (fallback.url ?? fallback.value) : "");
+    onChange(fallback ? (fullKeys[fallback.value] ?? fallback.url ?? fallback.value) : "");
   };
 
   if (noKeys) {

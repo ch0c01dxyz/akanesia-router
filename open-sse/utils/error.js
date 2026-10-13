@@ -1,4 +1,5 @@
 import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES } from "../config/errorConfig.js";
+import { bacaBodyTerbatas } from "./bacaBodyTerbatas.js";
 
 /**
  * Build OpenAI-compatible error response body
@@ -57,12 +58,9 @@ export async function writeStreamError(writer, statusCode, message) {
  * @returns {Promise<{statusCode: number, message: string, resetsAtMs?: number}>}
  */
 export async function parseUpstreamError(response, executor = null) {
-  let bodyText = "";
-  try {
-    bodyText = await response.text();
-  } catch {
-    bodyText = "";
-  }
+  // Baca terbatas 16 KB (bukan response.text() tanpa batas): body error yang
+  // besar dari upstream jahat/rusak bisa menyebabkan memory exhaustion.
+  const bodyText = await bacaBodyTerbatas(response);
 
   // Let executor-specific parser extract provider-specific fields (e.g. codex resetsAtMs)
   if (executor && typeof executor.parseError === "function") {

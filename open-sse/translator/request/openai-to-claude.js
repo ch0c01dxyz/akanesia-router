@@ -303,8 +303,9 @@ function convertOpenAIToolChoice(choice) {
 
   // OpenAI string forms: "auto" | "none" | "required"
   if (typeof choice === "string") {
+    if (choice === "none") return { type: "none" }; // jangan pernah panggil tool
     if (choice === "required") return { type: "any" };
-    return { type: "auto" }; // "auto", "none", or anything unexpected
+    return { type: "auto" }; // "auto", atau apapun yang tak dikenal
   }
 
   if (typeof choice === "object") {

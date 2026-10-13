@@ -75,7 +75,17 @@ export default function ComboDetailPage() {
       if (aliasesRes.ok) setModelAliases((await aliasesRes.json()).aliases || {});
       if (keysRes.ok) {
         const k = await keysRes.json();
-        setApiKey((k.keys || []).find((x) => x.isActive !== false)?.key || "");
+        // Daftar key hanya membawa masked value — ambil full via single endpoint.
+        const first = (k.keys || []).find((x) => x.isActive !== false);
+        if (first?.id) {
+          try {
+            const kr = await fetch(`/api/keys/${first.id}`, { cache: "no-store" });
+            const kd = kr.ok ? await kr.json() : null;
+            setApiKey(kd?.key?.key || "");
+          } catch { setApiKey(""); }
+        } else {
+          setApiKey("");
+        }
       }
       if (connsRes.ok) setConnections((await connsRes.json()).connections || []);
       if (!comboRes.ok) { setCombo(null); setLoading(false); return; }

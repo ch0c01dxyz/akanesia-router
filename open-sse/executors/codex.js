@@ -277,6 +277,10 @@ export class CodexExecutor extends BaseExecutor {
   }
 
   async execute(args) {
+    // Flag compact harus dibaca SEBELUM super.execute() (yang memanggil
+    // buildUrl sebelum transformRequest). Executor di-cache sebagai singleton,
+    // jadi flag tidak boleh diset di transformRequest — bocor ke request berikut.
+    this._isCompact = !!args.body?._compact;
     const imgCount = Array.isArray(args.body?.input) ? args.body.input.reduce((n, it) => n + (Array.isArray(it.content) ? it.content.filter(c => c.type === "image_url").length : 0), 0) : 0;
     const inputLen = Array.isArray(args.body?.input) ? args.body.input.length : 0;
     dbg("CODEX", `execute start | inputItems=${inputLen} | images=${imgCount} | sessionId=${this._currentSessionId || "pending"}`);
@@ -412,7 +416,6 @@ export class CodexExecutor extends BaseExecutor {
    * Image fetching is handled separately in prefetchImages() so this stays sync.
    */
   transformRequest(model, body, stream, credentials) {
-    this._isCompact = !!body._compact;
     delete body._compact;
     // Resolve conversation-stable session_id (priority: body → assistant-text → workspace → machine)
     this._currentSessionId = resolveCacheSessionId(body, credentials);

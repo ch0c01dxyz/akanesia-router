@@ -194,7 +194,19 @@ export default function MitmServerCard({ apiKeys, cloudEnabled, onStatusChange }
                   type="text"
                   list="mitm-api-keys"
                   value={selectedApiKey}
-                  onChange={(e) => setSelectedApiKey(e.target.value)}
+                  onChange={(e) => {
+                    const picked = e.target.value;
+                    const hit = (apiKeys || []).find((k) => k.key === picked);
+                    // Daftar key hanya membawa masked value — ambil full via single endpoint.
+                    if (hit?.id) {
+                      fetch(`/api/keys/${hit.id}`)
+                        .then((r) => (r.ok ? r.json() : null))
+                        .then((d) => setSelectedApiKey(d?.key?.key || picked))
+                        .catch(() => setSelectedApiKey(picked));
+                    } else {
+                      setSelectedApiKey(picked);
+                    }
+                  }}
                   placeholder={cloudEnabled ? "Enter or pick API key" : "sk_9router (default)"}
                   className="flex-1 min-w-0 px-2 py-1.5 bg-surface rounded border border-border text-xs text-text-main focus:outline-none focus:ring-1 focus:ring-primary/50"
                 />

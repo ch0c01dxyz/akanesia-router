@@ -778,12 +778,25 @@ export default function APIPageClient({ machineId }) {
     }
   };
 
-  const maskKey = (fullKey) => {
-    if (!fullKey || fullKey.length <= 10) return fullKey || "";
-    return fullKey.slice(0, 6) + "•".repeat(fullKey.length - 10) + fullKey.slice(-4);
+  // Ambil full key sekali saat reveal — GET /api/keys hanya mengembalikan masked.
+  const ensureFullKey = async (keyId) => {
+    const k = keys.find((x) => x.id === keyId);
+    if (!k || k._full) return k?.key;
+    try {
+      const res = await fetch(`/api/keys/${keyId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.key?.key) {
+          setKeys((prev) => prev.map((x) => (x.id === keyId ? { ...x, key: data.key.key, _full: true } : x)));
+          return data.key.key;
+        }
+      }
+    } catch { /* abaikan, tetap tampilkan masked */ }
+    return k.key;
   };
 
-  const toggleKeyVisibility = (keyId) => {
+  const toggleKeyVisibility = async (keyId) => {
+    if (!visibleKeys.has(keyId)) await ensureFullKey(keyId);
     setVisibleKeys(prev => {
       const next = new Set(prev);
       if (next.has(keyId)) next.delete(keyId);
@@ -1112,7 +1125,7 @@ export default function APIPageClient({ machineId }) {
                   <p className="text-sm font-medium">{key.name}</p>
                   <div className="flex items-center gap-2 mt-1 min-w-0 flex-wrap">
                     <code className="text-xs text-text-muted font-mono break-all min-w-0">
-                      {visibleKeys.has(key.id) ? key.key : maskKey(key.key)}
+                      {key.key}
                     </code>
                     <div className="flex items-center gap-1 shrink-0">
                       <button
@@ -1125,7 +1138,7 @@ export default function APIPageClient({ machineId }) {
                         </span>
                       </button>
                       <button
-                        onClick={() => copy(key.key, key.id)}
+                        onClick={async () => copy(await ensureFullKey(key.id), key.id)}
                         className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded text-text-muted hover:text-primary transition-all"
                       >
                         <span className="material-symbols-outlined text-[14px]">

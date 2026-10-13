@@ -33,6 +33,13 @@ export function backupFile(srcPath, destDir, destName = null) {
   return dest;
 }
 
+// Rewrite a CREATE TABLE statement so it targets the attached backup DB.
+// Menangani "CREATE TABLE t" maupun "CREATE TABLE IF NOT EXISTS t"
+// (semua tabel schema.js memakai IF NOT EXISTS).
+export function toBackupTableSql(sql) {
+  return sql.replace(/CREATE TABLE(\s+IF NOT EXISTS)?\s+/i, "CREATE TABLE bak.");
+}
+
 // Lightweight DB backup via ATTACH: create an empty sqlite file, copy every
 // table EXCEPT the excluded ones into it. Avoids duplicating the huge
 // observability log, so the backup stays small regardless of DB size.
@@ -51,7 +58,7 @@ export function backupDbLite(adapter, destDir, destName = "data.sqlite") {
     adapter.transaction(() => {
       for (const t of tables) {
         // Recreate table structure in backup DB, then copy rows.
-        const createSql = t.sql.replace(/CREATE TABLE\s+/i, "CREATE TABLE bak.");
+        const createSql = toBackupTableSql(t.sql);
         adapter.exec(createSql);
         adapter.exec(`INSERT INTO bak.${t.name} SELECT * FROM main.${t.name}`);
       }

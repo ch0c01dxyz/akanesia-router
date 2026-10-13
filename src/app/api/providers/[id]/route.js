@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sanitizeConnection } from "@/lib/providerSanitize";
 import {
   getProviderConnectionById,
   getProxyPoolById,
@@ -69,14 +70,8 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
-    // Hide sensitive fields
-    const result = { ...connection };
-    delete result.apiKey;
-    delete result.accessToken;
-    delete result.refreshToken;
-    delete result.idToken;
-
-    return NextResponse.json({ connection: result });
+    // Hide sensitive fields (allowlist)
+    return NextResponse.json({ connection: sanitizeConnection(connection, true) });
   } catch (error) {
     console.log("Error fetching connection:", error);
     return NextResponse.json({ error: "Failed to fetch connection" }, { status: 500 });

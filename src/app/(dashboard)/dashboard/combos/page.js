@@ -290,13 +290,18 @@ export default function CombosPage() {
         setBulkBusy(true);
         try {
           const ids = selectedCombos.map((c) => c.id);
-          const names = selectedCombos.map((c) => c.name);
-          const results = await Promise.all(
+          const results = await Promise.allSettled(
             ids.map((id) => fetch(`/api/combos/${id}`, { method: "DELETE" }))
           );
-          const failed = results.filter((r) => !r.ok).length;
-          await persistComboStrategies(pruneStrategiesForNames(names));
-          setCombos((prev) => prev.filter((c) => !ids.includes(c.id)));
+          // Hanya yang benar-benar terhapus boleh hilang dari UI dan
+          // kehilangan strateginya; yang gagal tetap tampil agar bisa di-retry.
+          const okIds = new Set(
+            ids.filter((id, i) => results[i].status === "fulfilled" && results[i].value.ok)
+          );
+          const okNames = selectedCombos.filter((c) => okIds.has(c.id)).map((c) => c.name);
+          const failed = ids.length - okIds.size;
+          await persistComboStrategies(pruneStrategiesForNames(okNames));
+          setCombos((prev) => prev.filter((c) => !okIds.has(c.id)));
           clearSelection();
           setConfirmState(null);
           if (failed > 0) alert(`Deleted with ${failed} failure${failed === 1 ? "" : "s"}.`);

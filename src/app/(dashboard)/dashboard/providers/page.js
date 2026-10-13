@@ -229,7 +229,7 @@ export default function ProvidersPage() {
     setConnections((prev) =>
       prev.map((c) => (matches(c) ? { ...c, isActive: newActive } : c)),
     );
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       providerConns.map((c) =>
         fetch(`/api/providers/${c.id}`, {
           method: "PUT",
@@ -238,6 +238,25 @@ export default function ProvidersPage() {
         }),
       ),
     );
+    // Bila ada PUT yang gagal, sinkronkan ulang dari server agar UI
+    // tidak menampilkan status yang berbeda dari kondisi sebenarnya.
+    const failed = results.filter(
+      (r) => r.status === "rejected" || !r.value?.ok,
+    ).length;
+    if (failed > 0) {
+      try {
+        const res = await fetch("/api/providers", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          setConnections(data.connections || []);
+        }
+      } catch {
+        // abaikan — notifikasi di bawah sudah menjelaskan kondisinya
+      }
+      notify.error(
+        `${failed} dari ${providerConns.length} koneksi gagal di${newActive ? "aktifkan" : "nonaktifkan"} — daftar disinkronkan ulang dari server.`,
+      );
+    }
   };
 
   const handleBatchTest = async (mode, providerId = null) => {

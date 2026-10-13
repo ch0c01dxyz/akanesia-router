@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { maskApiKey } from "@/shared/utils/maskApiKey";
 import { Card, Button, ModelSelectModal, ManualConfigModal } from "@/shared/components";
 import Image from "next/image";
 import BaseUrlSelect from "./BaseUrlSelect";
@@ -83,7 +84,8 @@ export default function OpenClawToolCard({
       if (provider) {
         const primaryModel = openclawStatus.settings?.agents?.defaults?.model?.primary;
         if (primaryModel) setSelectedModel(primaryModel.replace("9router/", ""));
-        if (provider.apiKey && apiKeys?.some(k => k.key === provider.apiKey)) {
+        // Daftar key hanya membawa masked value — bandingkan versi mask-nya.
+        if (provider.apiKey && apiKeys?.some(k => k.key === maskApiKey(provider.apiKey))) {
           setSelectedApiKey(provider.apiKey);
         }
       }

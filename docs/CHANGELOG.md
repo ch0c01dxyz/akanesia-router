@@ -3,6 +3,42 @@
 > Bahasa: Indonesia. Semua perubahan di bawah ini **belum dikomit**
 > (review-first). Tanggal dalam WIB.
 
+## 2026-10-13 (audit menyeluruh + 9 must-fix — instruksi Egar)
+
+Audit codebase oleh 4 sub-agent (skill ponytail-audit + context7),
+direview Merlin; temuan kritis diverifikasi langsung di kode.
+Perbaikan dikerjakan 3 sub-agent dengan disiplin ponytail.
+
+**Keamanan:**
+1. `GET /api/providers` & `/api/providers/[id]` tidak lagi membocorkan
+   secret di `providerSpecificData` (`clientSecret` Kiro IDC,
+   `mimoPassToken` Xiaomi): modul baru `src/lib/providerSanitize.js`
+   (allowlist `SAFE_FIELDS`/`SAFE_PSD_FIELDS`, dipakai juga oleh
+   `client/route.js` yang sudah aman).
+2. `GET /api/keys` kini mengembalikan key ter-mask satu arah
+   (`src/shared/utils/maskApiKey.js`); nilai penuh hanya di respons POST
+   create dan `GET /api/keys/[id]` (reveal eksplisit).
+3. `ChangelogModal`: markdown di-sanitasi via `src/shared/utils/safeMarkdown.js`
+   (tanpa dependensi baru) — menutup XSS via `dangerouslySetInnerHTML`.
+
+**Behavior:**
+4. `tool_choice: "none"` tidak lagi jadi `"auto"` di kedua arah translator
+   (OpenAI→Claude & Claude→OpenAI).
+5. Flag `_isCompact` codex executor tidak lagi bocor ke request berikutnya
+   (dibaca di awal `execute()`, bukan di `transformRequest`).
+6. `parseUpstreamError` baca body terbatas 16KB (`open-sse/utils/bacaBodyTerbatas.js`)
+   — menutup vektor OOM.
+
+**Data/UI:**
+7. Regex backup DB diperbaiki (menangani `IF NOT EXISTS`) — backup pengaman
+   migrasi kini benar-benar jalan.
+8. Toggle provider: hasil PUT diverifikasi; bila gagal, refetch + notifikasi.
+9. Bulk delete combo: hanya yang sukses dibuang dari UI dan di-prune strateginya.
+
+Verifikasi: 47 test terkait lolos (1 gagal pre-existing, terbukti via stash),
+0 error ESLint baru, build sukses, verifikasi live via dev server 20127
+(dimatikan setelah selesai).
+
 ## 2026-10-13
 
 ### Fix "Check Models" skipped untuk provider openai/anthropic-compatible (laporan Egar)
