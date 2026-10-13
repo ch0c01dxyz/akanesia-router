@@ -3,6 +3,14 @@
 > Bahasa: Indonesia. Semua perubahan di bawah ini **belum dikomit**
 > (review-first). Tanggal dalam WIB.
 
+## 2026-10-14 (uncommitted)
+
+- Fix bug playground: `usePlaygroundApiKey` memakai key ter-mask dari
+  `GET /api/keys` (mengandung "•" non-Latin1) di header `Authorization`
+  sehingga browser menolak fetch ("String contains non ISO-8859-1 code
+  point"). Kini resolve key penuh via `GET /api/keys/[id]` dulu. Efek
+  samping dari must-fix #2 (masking key) yang kelewat satu konsumen.
+
 ## 2026-10-13 (audit menyeluruh + 9 must-fix — instruksi Egar)
 
 Audit codebase oleh 4 sub-agent (skill ponytail-audit + context7),

@@ -37,6 +37,17 @@ export function usePlaygroundApiKey() {
           } catch { /* fall through */ }
         }
         const first = keys.find((k) => k.isActive !== false) || keys[0];
+        // GET /api/keys mengembalikan key ter-mask (mengandung "•" yang tidak
+        // valid di header HTTP) — ambil nilai penuh via endpoint reveal per key.
+        if (!cancelled && first?.id) {
+          try {
+            const res = await fetch(`/api/keys/${first.id}`, { cache: "no-store" });
+            if (res.ok) {
+              const data = await res.json();
+              if (!cancelled && data.key?.key) { setApiKey(data.key.key); return; }
+            }
+          } catch { /* fall through ke masked */ }
+        }
         if (!cancelled && first?.key) setApiKey(first.key);
       } catch { /* playground tetap keyless; error server akan muncul sendiri */ }
     })();
