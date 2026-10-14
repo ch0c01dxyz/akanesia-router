@@ -7,6 +7,8 @@ import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from
 import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
 import { resolveQoderCredentials, resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
+import { validateAihordeKey } from "@/lib/validateAihordeKey.js";
+import { exchangeCursorApiKey } from "open-sse/services/cursorApiKeyAuth.js";
 
 // Probe a webSearch/webFetch provider using its searchConfig/fetchConfig.
 // Returns true if API key is accepted (status !== 401 && !== 403).
@@ -590,6 +592,25 @@ export async function POST(request) {
           } catch (err) {
             isValid = false;
             error = err.message;
+          }
+          break;
+        }
+
+        case "aihorde": {
+          // /v1/models-nya publik — key salah pun lolos. Validasi via endpoint
+          // terautentikasi /v2/find_user agar key salah/expired terdeteksi.
+          return NextResponse.json(await validateAihordeKey(apiKey));
+        }
+
+        case "cursor-api": {
+          // crsr_ key bukan Bearer yang valid — validasi dengan menukarnya
+          // ke session token (sekaligus menghangatkan cache exchange).
+          try {
+            await exchangeCursorApiKey(apiKey);
+            isValid = true;
+          } catch (err) {
+            isValid = false;
+            error = err.status === 401 ? "Invalid API key" : err.message;
           }
           break;
         }

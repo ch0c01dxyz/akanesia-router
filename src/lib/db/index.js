@@ -71,7 +71,7 @@ export {
 
 // Quota incidents (insiden kuota & error — ide #4 "Fill-first sadar kuota"; hanya visibilitas dashboard)
 export {
-  upsertIncident, removeIncident, removeIncidentsByConnection, listIncidents,
+  upsertIncident, removeIncident, removeIncidentsByConnection, listIncidents, getErrorBreakdown,
 } from "./repos/quotaIncidentsRepo.js";
 
 // Export/import full DB

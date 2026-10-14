@@ -13,6 +13,7 @@ import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { handleComboChat } from "open-sse/services/combo.js";
+import { clampMaxGlobalAttempts } from "open-sse/config/quotaErrorClasses.js";
 import * as log from "../utils/logger.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
 
@@ -87,6 +88,7 @@ export async function handleImageGeneration(request) {
       comboName: modelStr,
       comboStrategy,
       comboStickyLimit,
+      maxGlobalAttempts: clampMaxGlobalAttempts(settings.maxGlobalAttempts),
     });
   }
 

@@ -80,3 +80,25 @@ export async function listIncidents() {
   );
   return rows.map(rowToIncident);
 }
+
+// Breakdown insiden per kelas error untuk usage analytics (GET /api/usage/stats).
+// Bentuk: { [errorClass]: { incidents, failures } } — incidents = jumlah
+// pasangan (connectionId, model) dalam kelas ini; failures = total
+// failure_count (deret kegagalan beruntun) kelas ini.
+// Ini snapshot status terkini (entri dihapus saat koneksi pulih), bukan
+// agregat historis — jadi tidak terikat periode waktu pemanggil.
+export async function getErrorBreakdown() {
+  const db = await getAdapter();
+  const rows = db.all(
+    `SELECT error_class, COUNT(*) AS incidents, COALESCE(SUM(failure_count), 0) AS failures
+     FROM quota_incidents GROUP BY error_class`
+  );
+  const out = {};
+  for (const r of rows) {
+    out[r.error_class || "unknown"] = {
+      incidents: Number(r.incidents) || 0,
+      failures: Number(r.failures) || 0,
+    };
+  }
+  return out;
+}

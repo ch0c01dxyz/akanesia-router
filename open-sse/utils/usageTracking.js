@@ -73,26 +73,26 @@ export function filterUsageForFormat(usage, targetFormat) {
   // Define allowed fields for each format
   const formatFields = {
     [FORMATS.CLAUDE]: [
-      'input_tokens', 'output_tokens', 
+      'input_tokens', 'output_tokens',
       'cache_read_input_tokens', 'cache_creation_input_tokens',
-      'estimated'
+      'estimated', 'tokens_per_second'
     ],
     [FORMATS.GEMINI]: [
       'promptTokenCount', 'candidatesTokenCount', 'totalTokenCount',
       'cachedContentTokenCount', 'thoughtsTokenCount',
-      'estimated'
+      'estimated', 'tokens_per_second'
     ],
     [FORMATS.OPENAI_RESPONSES]: [
       'input_tokens', 'output_tokens',
       'input_tokens_details', 'output_tokens_details',
-      'estimated'
+      'estimated', 'tokens_per_second'
     ],
     // OpenAI format (default for OPENAI, CODEX, KIRO, etc.)
     default: [
       'prompt_tokens', 'completion_tokens', 'total_tokens',
       'cached_tokens', 'reasoning_tokens',
       'prompt_tokens_details', 'completion_tokens_details',
-      'estimated'
+      'estimated', 'tokens_per_second'
     ]
   };
 
@@ -109,6 +109,34 @@ export function filterUsageForFormat(usage, targetFormat) {
   }
 
   return pickFields(fields);
+}
+
+/**
+ * Throughput generasi (tokens/second). TTFT WAJIB dikecualikan: generationMs
+ * dihitung sejak token konten PERTAMA di-stream, bukan sejak request masuk.
+ * Kembalikan null bila durasi/token tak diketahui — field di-omit, jangan menebak.
+ */
+export function tokensPerSecond(outputTokens, generationMs) {
+  if (generationMs == null || !Number.isFinite(generationMs) || generationMs <= 0) return null;
+  if (!Number.isFinite(outputTokens) || outputTokens <= 0) return null;
+  return outputTokens / (generationMs / 1000);
+}
+
+function countOutputTokens(usage) {
+  const raw =
+    usage.completion_tokens ??
+    usage.output_tokens ??
+    usage.candidatesTokenCount;
+  const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Tambahkan `tokens_per_second` ke objek usage bila durasi generasi diketahui. */
+export function attachTokensPerSecond(usage, generationMs) {
+  if (!usage || typeof usage !== "object" || Array.isArray(usage)) return usage;
+  const tps = tokensPerSecond(countOutputTokens(usage), generationMs);
+  if (tps == null) return usage;
+  return { ...usage, tokens_per_second: Number(tps.toFixed(3)) };
 }
 
 /**

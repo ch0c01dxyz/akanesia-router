@@ -13,6 +13,7 @@ import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo.js";
+import { clampMaxGlobalAttempts } from "open-sse/config/quotaErrorClasses.js";
 import { getKeyAccessContext, enforceKeyAccessProvider } from "../services/keyAccess.js";
 import { assertPublicUrlResolved } from "@/shared/utils/ssrfGuard.js";
 
@@ -109,7 +110,8 @@ export async function handleFetch(request) {
       log,
       comboName: providerInput,
       comboStrategy,
-      comboStickyLimit
+      comboStickyLimit,
+      maxGlobalAttempts: clampMaxGlobalAttempts(settings.maxGlobalAttempts)
     });
   }
 

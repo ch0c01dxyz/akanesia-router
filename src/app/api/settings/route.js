@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSettings, updateSettings } from "@/lib/localDb";
+import { invalidateModelsCache } from "@/lib/modelsCache";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import { normalizeProviderOverridesMap } from "@/lib/providerOverrides";
@@ -106,6 +107,14 @@ export async function PATCH(request) {
       Object.prototype.hasOwnProperty.call(body, "comboStrategies")
     ) {
       resetComboRotation();
+    }
+
+    // Daftar model yang diiklankan /v1/models ikut berubah -> kosongkan cache.
+    if (
+      Object.prototype.hasOwnProperty.call(body, "modelVisibilityAllowlist") ||
+      Object.prototype.hasOwnProperty.call(body, "modelVisibilityDenylist")
+    ) {
+      invalidateModelsCache();
     }
 
     if (

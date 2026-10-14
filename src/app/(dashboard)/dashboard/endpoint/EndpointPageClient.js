@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
-import { Card, Button, Input, Modal, CardSkeleton, Toggle, ConfirmModal } from "@/shared/components";
+import { Card, Button, Input, Modal, CardSkeleton, Toggle, ConfirmModal, Select } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import {
   TUNNEL_BENEFITS,
@@ -19,6 +19,7 @@ import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
 import KeyAccessControls from "./components/KeyAccessControls";
+import RecentRequestsCard from "./components/RecentRequestsCard";
 
 // Ide #4 "Fill-first sadar kuota": warna dot insiden kuota & error.
 // Dipetakan dari errorClass; lastStatus dipakai sebagai fallback bila errorClass kosong.
@@ -56,6 +57,8 @@ export default function APIPageClient({ machineId }) {
 
   // Auto-disable akun suspend dari tombol "Check Models" (default OFF).
   const [suspendAutoDisableOnCheck, setSuspendAutoDisableOnCheck] = useState(false);
+  // Cakupan auto-disable akun suspend: "all" | "oauth-only" (default "all").
+  const [autoDisableBannedScope, setAutoDisableBannedScope] = useState("all");
 
   const [requireApiKey, setRequireApiKey] = useState(false);
   const [requireLogin, setRequireLogin] = useState(true);
@@ -273,6 +276,10 @@ export default function APIPageClient({ machineId }) {
         setFillFirstWarmup(settingsData.fillFirstWarmupEnabled !== false);
         // Auto-disable dari Check Models: default OFF (key belum ada → false).
         setSuspendAutoDisableOnCheck(settingsData.suspendAutoDisableOnCheck === true);
+        // Cakupan auto-disable: nilai tak dikenal → "all" (backward compatible).
+        setAutoDisableBannedScope(
+          settingsData.autoDisableBannedScope === "oauth-only" ? "oauth-only" : "all"
+        );
       }
       if (statusRes.ok) {
         const data = await statusRes.json();
@@ -331,6 +338,17 @@ export default function APIPageClient({ machineId }) {
       if (updated) setSuspendAutoDisableOnCheck(value);
     } catch (error) {
       console.log("Error updating suspendAutoDisableOnCheck:", error);
+    }
+  };
+
+  // Cakupan auto-disable akun suspend: "all" | "oauth-only".
+  const handleAutoDisableBannedScope = async (value) => {
+    const scope = value === "oauth-only" ? "oauth-only" : "all";
+    try {
+      const updated = await useSettingsStore.getState().patchSettings({ autoDisableBannedScope: scope });
+      if (updated) setAutoDisableBannedScope(scope);
+    } catch (error) {
+      console.log("Error updating autoDisableBannedScope:", error);
     }
   };
 
@@ -1085,6 +1103,9 @@ export default function APIPageClient({ machineId }) {
         )}
       </Card>
 
+      {/* Request Terakhir: 10 request terbaru, polling 3 detik */}
+      <RecentRequestsCard />
+
       {/* API Keys */}
       <Card id="require-api-key">
         <div className="flex items-center justify-between mb-4">
@@ -1238,6 +1259,25 @@ export default function APIPageClient({ machineId }) {
           <Toggle
             checked={suspendAutoDisableOnCheck}
             onChange={handleSuspendAutoDisableOnCheck}
+          />
+        </div>
+
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-border">
+          <div className="pr-4">
+            <p className="font-medium">Cakupan auto-disable akun suspend</p>
+            <p className="text-sm text-text-muted">
+              &ldquo;Semua koneksi&rdquo; = perilaku lama. &ldquo;Hanya akun OAuth&rdquo; = koneksi API key
+              prepaid yang kena sinyal suspend tetap aktif di pool routing.
+            </p>
+          </div>
+          <Select
+            value={autoDisableBannedScope}
+            onChange={(e) => handleAutoDisableBannedScope(e.target.value)}
+            options={[
+              { value: "all", label: "Semua koneksi" },
+              { value: "oauth-only", label: "Hanya akun OAuth" },
+            ]}
+            className="w-48 shrink-0"
           />
         </div>
 

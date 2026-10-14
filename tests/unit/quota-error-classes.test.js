@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 
-import { classifyQuotaError, ERROR_CLASSES } from "../../open-sse/config/quotaErrorClasses.js";
+import {
+  classifyQuotaError,
+  sanitizeProviderErrorRules,
+  MAX_PROVIDER_ERROR_RULES,
+  ERROR_CLASSES,
+} from "../../open-sse/config/quotaErrorClasses.js";
 
 describe("classifyQuotaError", () => {
   describe("rate_limited", () => {
@@ -123,6 +128,87 @@ describe("classifyQuotaError", () => {
     });
     it("403 ber-body content-policy tidak jatuh ke auth_error", () => {
       expect(classifyQuotaError(403, "content_policy_violation: blocked")).toBe(ERROR_CLASSES.POLICY_REFUSAL);
+    });
+  });
+});
+
+describe("settings.providerErrorRules (rule operator)", () => {
+  const rules = [
+    { provider: "fooai", match: "credits exhausted", errorClass: "quota_exhausted" },
+  ];
+
+  it("rule cocok bila provider sama persis dan substring ada di body", () => {
+    expect(
+      classifyQuotaError(429, "credits exhausted for key", { provider: "fooai", rules })
+    ).toBe(ERROR_CLASSES.QUOTA_EXHAUSTED);
+  });
+  it("match case-insensitive", () => {
+    expect(
+      classifyQuotaError(429, "CREDITS EXHAUSTED", { provider: "fooai", rules })
+    ).toBe(ERROR_CLASSES.QUOTA_EXHAUSTED);
+  });
+  it("provider beda → jatuh ke aturan katalog (rule tidak berlaku)", () => {
+    expect(
+      classifyQuotaError(429, "credits exhausted for key", { provider: "barai", rules })
+    ).toBe(ERROR_CLASSES.RATE_LIMITED);
+  });
+  it("rule operator menang atas aturan katalog bila provider cocok", () => {
+    // Tanpa rule, 429 polos → rate_limited; rule mengarahkannya ke custom class.
+    const custom = [{ provider: "fooai", match: "too many requests", errorClass: "overloaded" }];
+    expect(classifyQuotaError(429, "Too Many Requests")).toBe(ERROR_CLASSES.RATE_LIMITED);
+    expect(classifyQuotaError(429, "Too Many Requests", { provider: "fooai", rules: custom })).toBe(
+      ERROR_CLASSES.OVERLOADED
+    );
+  });
+  it("499 selalu menang atas rule operator", () => {
+    expect(
+      classifyQuotaError(499, "credits exhausted", { provider: "fooai", rules })
+    ).toBe(ERROR_CLASSES.IGNORED);
+  });
+  it("tanpa provider atau tanpa rules → perilaku katalog (backward compatible)", () => {
+    // "credits exhausted" bukan substring katalog ("credit_balance_exhausted"/"quota"),
+    // jadi 429 ini → rate_limited; rule operator hanya aktif bila provider+rules diberikan.
+    expect(classifyQuotaError(429, "credits exhausted for key")).toBe(ERROR_CLASSES.RATE_LIMITED);
+    expect(classifyQuotaError(429, "credits exhausted for key", { provider: "fooai" })).toBe(
+      ERROR_CLASSES.RATE_LIMITED
+    );
+  });
+
+  describe("sanitizeProviderErrorRules (fail-open)", () => {
+    it("bukan array → []", () => {
+      expect(sanitizeProviderErrorRules(null)).toEqual([]);
+      expect(sanitizeProviderErrorRules("x")).toEqual([]);
+      expect(sanitizeProviderErrorRules({})).toEqual([]);
+    });
+    it("rule invalid di-skip: errorClass tidak dikenal, field kosong/hilang", () => {
+      const raw = [
+        { provider: "a", match: "x", errorClass: "quota_exhausted" },
+        { provider: "a", match: "x", errorClass: "bukan_kelas" },
+        { provider: "", match: "x", errorClass: "quota_exhausted" },
+        { provider: "a", match: "", errorClass: "quota_exhausted" },
+        { provider: "a", errorClass: "quota_exhausted" },
+        null,
+        "teks",
+      ];
+      expect(sanitizeProviderErrorRules(raw)).toEqual([
+        { provider: "a", match: "x", errorClass: "quota_exhausted" },
+      ]);
+    });
+    it("maksimal 50 rule; kelebihan dipotong", () => {
+      const raw = Array.from({ length: 60 }, (_, i) => ({
+        provider: `p${i}`,
+        match: `m${i}`,
+        errorClass: "rate_limited",
+      }));
+      const out = sanitizeProviderErrorRules(raw);
+      expect(out).toHaveLength(MAX_PROVIDER_ERROR_RULES);
+      expect(out[0].provider).toBe("p0");
+      expect(out[49].provider).toBe("p49");
+    });
+    it("whitespace dirapikan, match dilowercase", () => {
+      expect(
+        sanitizeProviderErrorRules([{ provider: " a ", match: "  Foo  ", errorClass: " rate_limited " }])
+      ).toEqual([{ provider: "a", match: "foo", errorClass: "rate_limited" }]);
     });
   });
 });

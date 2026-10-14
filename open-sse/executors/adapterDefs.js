@@ -23,6 +23,8 @@ export const ADAPTER_DEFS = {
   codex: { file: "./codex.js", exportName: "CodexExecutor", args: [] },
   cursor: { file: "./cursor.js", exportName: "CursorExecutor", args: [] },
   cu: { file: "./cursor.js", exportName: "CursorExecutor", args: [] },
+  "cursor-api": { file: "./cursor.js", exportName: "CursorExecutor", args: ["cursor-api"] },
+  cua: { file: "./cursor.js", exportName: "CursorExecutor", args: ["cursor-api"] },
   vertex: { file: "./vertex.js", exportName: "VertexExecutor", args: ["vertex"] },
   "vertex-partner": { file: "./vertex.js", exportName: "VertexExecutor", args: ["vertex-partner"] },
   opencode: { file: "./opencode.js", exportName: "OpenCodeExecutor", args: [] },

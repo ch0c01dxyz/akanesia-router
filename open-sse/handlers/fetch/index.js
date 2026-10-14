@@ -1,4 +1,4 @@
-// Web Fetch handler — dispatches to firecrawl, jina-reader, tavily, exa, ollama, tinyfish
+// Web Fetch handler — dispatches to firecrawl, jina-reader, tavily, exa, ollama, tinyfish, nimble
 // Returns normalized shape across all providers
 
 const DEFAULT_TIMEOUT_MS = 15000;
@@ -131,6 +131,9 @@ export async function handleFetchCore({ url, format, maxCharacters, provider, pr
     }
     if (provider === "tinyfish") {
       return await runTinyfish({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt, baseUrl: providerConfig?.baseUrl });
+    }
+    if (provider === "nimble-search") {
+      return await runNimble({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt, baseUrl: providerConfig?.baseUrl });
     }
     return { success: false, status: 400, error: `Unsupported provider: ${provider}` };
   } catch (err) {
@@ -281,6 +284,44 @@ async function runExa({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery
     success: true,
     data: buildData({
       provider: "exa", url, title: first.title || null, format: fmt, text,
+      costUsd: costPerQuery, responseMs: Date.now() - startedAt, upstreamMs
+    })
+  };
+}
+
+// Nimble Extract: POST {baseUrl} { url, formats: ["markdown"|"html"] } → { data: { markdown, html, links } }.
+// One API key covers both search and fetch; auth is Authorization: Bearer.
+async function runNimble({ url, fmt, timeoutMs, apiKey, maxCharacters, costPerQuery, startedAt, baseUrl }) {
+  if (!["markdown", "html"].includes(fmt)) {
+    return { success: false, status: 400, error: `Unsupported Nimble format: ${fmt}` };
+  }
+  const upstreamStart = Date.now();
+  const r = await tryFetch(baseUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
+      "X-Client-Source": "akanesia-router",
+    },
+    body: JSON.stringify({ url, formats: [fmt] }),
+  }, timeoutMs);
+  if (!r.ok) return { success: false, status: r.timeout ? 504 : 502, error: r.error };
+  const upstreamMs = Date.now() - upstreamStart;
+  const { json } = await readJsonOrText(r.res);
+  if (!r.res.ok) {
+    const err = json?.error?.message || json?.error || json?.message || `Nimble error: ${r.res.status}`;
+    return { success: false, status: r.res.status, error: err };
+  }
+  const d = json?.data || {};
+  // An absent format key means Extract succeeded but produced nothing requested —
+  // an empty value is legitimate (blank page) and passes through.
+  if (!(fmt in d)) return { success: false, status: 502, error: `Nimble returned no ${fmt} content` };
+  const text = truncate(d[fmt] || "", maxCharacters);
+  const links = Array.isArray(d.links) ? d.links.map(String) : undefined;
+  return {
+    success: true,
+    data: buildData({
+      provider: "nimble-search", url, title: null, format: fmt, text, links,
       costUsd: costPerQuery, responseMs: Date.now() - startedAt, upstreamMs
     })
   };

@@ -24,11 +24,56 @@ export const ERROR_CLASSES = {
   UNKNOWN: "unknown",              // status tak dikenal — netral, tidak dihitung
 };
 
-// Default setting terkait kuota (mirror DEFAULT_SETTINGS di settingsRepo;
+// Jumlah maksimum rule operator di settings.providerErrorRules.
+export const MAX_PROVIDER_ERROR_RULES = 50;
+
+const VALID_ERROR_CLASSES = new Set(Object.values(ERROR_CLASSES));
+
+// Rule yang tersimpan di DB bisa tidak valid permanen — log tiap rule
+// invalid cukup sekali supaya tidak spam console di setiap error upstream.
+const invalidRuleWarned = new Set();
+function warnInvalidRule(rule) {
+  const key = JSON.stringify(rule);
+  if (invalidRuleWarned.has(key)) return;
+  invalidRuleWarned.add(key);
+  console.warn(
+    `[quota] providerErrorRules: rule tidak valid, dilewati (fail-open): ${key}. ` +
+      `Bentuk valid: { provider, match, errorClass } dengan errorClass salah satu dari: ` +
+      `${[...VALID_ERROR_CLASSES].join(", ")}`
+  );
+}
+
+/**
+ * Sanitasi rule operator dari settings.providerErrorRules (fail-open).
+ * Bentuk rule valid: { provider, match, errorClass } —
+ *   - provider: id provider (string non-kosong; harus sama persis dengan
+ *     provider id yang dicatat di recordFailure, mis. "openai")
+ *   - match: substring pada body error (string non-kosong; case-insensitive)
+ *   - errorClass: salah satu nilai ERROR_CLASSES
+ * Maksimal 50 rule; rule invalid dilewati dengan log, bukan crash.
+ * @param {*} rules - nilai mentah settings.providerErrorRules
+ * @returns {Array<{provider:string,match:string,errorClass:string}>}
+ */
+export function sanitizeProviderErrorRules(rules) {
+  if (!Array.isArray(rules)) return [];
+  const out = [];
+  for (const rule of rules.slice(0, MAX_PROVIDER_ERROR_RULES)) {
+    const provider = typeof rule?.provider === "string" ? rule.provider.trim() : "";
+    const match = typeof rule?.match === "string" ? rule.match.trim().toLowerCase() : "";
+    const errorClass = typeof rule?.errorClass === "string" ? rule.errorClass.trim() : "";
+    if (!provider || !match || !VALID_ERROR_CLASSES.has(errorClass)) {
+      warnInvalidRule(rule);
+      continue;
+    }
+    out.push({ provider, match, errorClass });
+  }
+  return out;
+}
 // dipakai bila getSettings() belum punya nilainya).
 export const QUOTA_DEFAULTS = {
   failureThreshold: 3, // quotaFailureThreshold: clamp 1–10
   maxFallbacks: 5,     // quotaMaxFallbacks: clamp min 1
+  maxGlobalAttempts: 30, // maxGlobalAttempts: clamp 1–200
 };
 
 /**
@@ -51,6 +96,19 @@ export function clampQuotaMaxFallbacks(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return QUOTA_DEFAULTS.maxFallbacks;
   return Math.max(1, Math.floor(n));
+}
+
+/**
+ * Clamp budget total percobaan combo per request (pola clamp-di-konsumsi,
+ * port OmniRoute #11134). Hard cap 200 agar budget tak terbatas tidak
+ * menyebabkan request background yang tak terkendali.
+ * @param {*} v - nilai mentah dari settings.maxGlobalAttempts
+ * @returns {number} 1–200, default 30
+ */
+export function clampMaxGlobalAttempts(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return QUOTA_DEFAULTS.maxGlobalAttempts;
+  return Math.min(200, Math.max(1, Math.floor(n)));
 }
 
 /**
@@ -121,14 +179,30 @@ function ruleMatches(rule, statusCode, lowerText) {
  * Pure function — tanpa side effect, tanpa I/O.
  * @param {number|string} status - kode status HTTP upstream
  * @param {string} errorText - body/pesan error upstream
+ * @param {object} [options]
+ * @param {string} [options.provider] - id provider koneksi yang error
+ * @param {Array} [options.rules] - rule mentah settings.providerErrorRules
+ *   (disanitasi fail-open); dievaluasi SETELAH 499 tetapi SEBELUM aturan
+ *   katalog — rule operator menang atas aturan bawaan.
  * @returns {string} salah satu nilai ERROR_CLASSES
  */
-export function classifyQuotaError(status, errorText) {
+export function classifyQuotaError(status, errorText, options = {}) {
   const statusCode = Number(status);
   const lowerText = String(errorText ?? "").toLowerCase();
 
   // 499 (client closed request) selalu diabaikan — dievaluasi pertama, tanpa kecuali.
   if (statusCode === 499) return ERROR_CLASSES.IGNORED;
+
+  // Rule operator (settings.providerErrorRules): operator bisa mendeklarasikan
+  // klasifikasi per-provider tanpa patch katalog. Hanya berlaku bila provider
+  // cocok persis dengan id provider koneksi yang error.
+  if (options?.provider && options?.rules) {
+    for (const rule of sanitizeProviderErrorRules(options.rules)) {
+      if (rule.provider === options.provider && lowerText.includes(rule.match)) {
+        return rule.errorClass;
+      }
+    }
+  }
 
   // Nuansa OpenRouter limit_source: sinyal paling presisi, didahulukan
   // sebelum aturan generik.

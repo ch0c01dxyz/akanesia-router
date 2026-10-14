@@ -6,7 +6,8 @@ import {
   isAnthropicCompatibleProvider,
   isOpenAICompatibleProvider,
 } from "@/shared/constants/providers";
-import { getProviderConnections, getCombos, getCustomModels, getModelAliases } from "@/lib/localDb";
+import { getProviderConnections, getCombos, getCustomModels, getModelAliases, getSettings } from "@/lib/localDb";
+import { filterModelsByVisibility } from "@/lib/modelVisibility.js";
 import { getKeyAccessContext, filterModelsListForKey } from "@/sse/services/keyAccess.js";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
@@ -643,7 +644,16 @@ async function buildModelsListUncached(kindFilter, options = {}) {
     }
   }
 
-  return dedupedModels;
+  // Kurasi operator (modelVisibilityAllowlist/Denylist): exact match pada id
+  // penuh. Combo adalah entri list biasa (id = nama combo) sehingga kandidat
+  // combo ikut terfilter oleh helper yang sama.
+  let visibilitySettings = null;
+  try {
+    visibilitySettings = await getSettings();
+  } catch (e) {
+    console.log("Could not fetch settings for model visibility filter");
+  }
+  return filterModelsByVisibility(dedupedModels, visibilitySettings);
 }
 
 /**

@@ -1,16 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { classifyQuotaError, ERROR_CLASSES } from "../../open-sse/config/quotaErrorClasses.js";
-import { isSuspensionSignal } from "../../open-sse/utils/accountSuspension.js";
+import {
+  isSuspensionSignal,
+  normalizeAutoDisableBannedScope,
+  isSubscriptionStyleAuthType,
+  shouldAutoDisableForScope,
+} from "../../open-sse/utils/accountSuspension.js";
 
 vi.mock("@/lib/db/repos/connectionsRepo.js", () => ({
+  getProviderConnectionById: vi.fn(async () => null),
   updateProviderConnection: vi.fn(async (id, data) => ({ id, ...data })),
 }));
+vi.mock("@/lib/db/repos/settingsRepo.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, getSettings: vi.fn(async () => ({})) };
+});
 vi.mock("@/sse/services/quotaIncidents.js", () => ({
   recordFailure: vi.fn(async () => ({ errorClass: "suspended", retryable: false })),
 }));
 
 const { autoDisableSuspendedAccount } = await import("../../open-sse/utils/accountSuspension.js");
-const { updateProviderConnection } = await import("@/lib/db/repos/connectionsRepo.js");
+const { getProviderConnectionById, updateProviderConnection } = await import("@/lib/db/repos/connectionsRepo.js");
+const { getSettings } = await import("@/lib/db/repos/settingsRepo.js");
 const { recordFailure } = await import("@/sse/services/quotaIncidents.js");
 
 const KIRO_MSG =
@@ -102,5 +113,96 @@ describe("settings default", () => {
     const { mergeWithDefaults } = await import("@/lib/db/repos/settingsRepo.js");
     expect(mergeWithDefaults({}).suspendAutoDisableOnCheck).toBe(false);
     expect(mergeWithDefaults({ suspendAutoDisableOnCheck: true }).suspendAutoDisableOnCheck).toBe(true);
+  });
+
+  it("autoDisableBannedScope default 'all' (backward compatible)", async () => {
+    const { mergeWithDefaults } = await import("@/lib/db/repos/settingsRepo.js");
+    expect(mergeWithDefaults({}).autoDisableBannedScope).toBe("all");
+    expect(mergeWithDefaults({ autoDisableBannedScope: "oauth-only" }).autoDisableBannedScope).toBe("oauth-only");
+  });
+});
+
+describe("normalizeAutoDisableBannedScope", () => {
+  it("'oauth-only' dipertahankan", () => {
+    expect(normalizeAutoDisableBannedScope("oauth-only")).toBe("oauth-only");
+  });
+  it("nilai tak dikenal → 'all'", () => {
+    expect(normalizeAutoDisableBannedScope("all")).toBe("all");
+    expect(normalizeAutoDisableBannedScope(undefined)).toBe("all");
+    expect(normalizeAutoDisableBannedScope("subscription")).toBe("all");
+  });
+});
+
+describe("isSubscriptionStyleAuthType", () => {
+  it("oauth/access_token/cookie → true", () => {
+    expect(isSubscriptionStyleAuthType("oauth")).toBe(true);
+    expect(isSubscriptionStyleAuthType("access_token")).toBe(true);
+    expect(isSubscriptionStyleAuthType("cookie")).toBe(true);
+    expect(isSubscriptionStyleAuthType("OAuth")).toBe(true);
+  });
+  it("apikey → false", () => {
+    expect(isSubscriptionStyleAuthType("apikey")).toBe(false);
+    expect(isSubscriptionStyleAuthType(undefined)).toBe(false);
+  });
+});
+
+describe("shouldAutoDisableForScope", () => {
+  it("scope 'all' → selalu true", () => {
+    expect(shouldAutoDisableForScope({ scope: "all", authType: "apikey" })).toBe(true);
+    expect(shouldAutoDisableForScope({ scope: undefined, authType: "apikey" })).toBe(true);
+  });
+  it("scope 'oauth-only' + apikey → false", () => {
+    expect(shouldAutoDisableForScope({ scope: "oauth-only", authType: "apikey" })).toBe(false);
+  });
+  it("scope 'oauth-only' + oauth → true", () => {
+    expect(shouldAutoDisableForScope({ scope: "oauth-only", authType: "oauth" })).toBe(true);
+  });
+  it("scope 'oauth-only' + authType tak dikenal → true (konservatif)", () => {
+    expect(shouldAutoDisableForScope({ scope: "oauth-only", authType: undefined })).toBe(true);
+    expect(shouldAutoDisableForScope({ scope: "oauth-only", authType: "" })).toBe(true);
+  });
+});
+
+describe("autoDisableSuspendedAccount — cakupan oauth-only", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const suspendInput = {
+    connectionId: "conn-1",
+    provider: "openai",
+    status: 403,
+    message: KIRO_MSG,
+    log: { errorLine: vi.fn() },
+  };
+
+  it("melewatkan koneksi apikey saat scope=oauth-only", async () => {
+    getSettings.mockResolvedValueOnce({ autoDisableBannedScope: "oauth-only" });
+    getProviderConnectionById.mockResolvedValueOnce({ id: "conn-1", authType: "apikey" });
+    const ok = await autoDisableSuspendedAccount(suspendInput);
+    expect(ok).toBe(false);
+    expect(updateProviderConnection).not.toHaveBeenCalled();
+    expect(recordFailure).not.toHaveBeenCalled();
+  });
+
+  it("tetap menonaktifkan koneksi oauth saat scope=oauth-only", async () => {
+    getSettings.mockResolvedValueOnce({ autoDisableBannedScope: "oauth-only" });
+    getProviderConnectionById.mockResolvedValueOnce({ id: "conn-1", authType: "oauth" });
+    const ok = await autoDisableSuspendedAccount(suspendInput);
+    expect(ok).toBe(true);
+    expect(updateProviderConnection).toHaveBeenCalledWith("conn-1", { isActive: false });
+  });
+
+  it("fail-open ke 'all' bila getSettings gagal", async () => {
+    getSettings.mockRejectedValueOnce(new Error("db down"));
+    const ok = await autoDisableSuspendedAccount(suspendInput);
+    expect(ok).toBe(true);
+    expect(updateProviderConnection).toHaveBeenCalledWith("conn-1", { isActive: false });
+  });
+
+  it("konservatif (tetap disable) bila koneksi tak ditemukan", async () => {
+    getSettings.mockResolvedValueOnce({ autoDisableBannedScope: "oauth-only" });
+    getProviderConnectionById.mockResolvedValueOnce(null);
+    const ok = await autoDisableSuspendedAccount(suspendInput);
+    expect(ok).toBe(true);
+    expect(updateProviderConnection).toHaveBeenCalledWith("conn-1", { isActive: false });
   });
 });

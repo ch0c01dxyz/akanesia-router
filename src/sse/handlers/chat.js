@@ -17,6 +17,7 @@ import { appendPxpipeEvent } from "@/lib/pxpipe/events.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { upstreamResponseHeaders } from "open-sse/utils/upstreamHeaders.js";
 import { handleComboChat, handleFusionChat, detectRequiredCapabilities } from "open-sse/services/combo.js";
+import { clampQuotaMaxFallbacks, clampMaxGlobalAttempts } from "open-sse/config/quotaErrorClasses.js";
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { ensureTranslatorsFor } from "open-sse/translator/index.js";
@@ -147,7 +148,8 @@ export async function handleChat(request, clientRawRequest = null) {
       log,
       comboName: modelStr,
       comboStrategy,
-      comboStickyLimit
+      comboStickyLimit,
+      maxGlobalAttempts: clampMaxGlobalAttempts(settings.maxGlobalAttempts)
     });
   }
 
@@ -167,7 +169,8 @@ export async function handleChat(request, clientRawRequest = null) {
       log,
       comboName: modelStr,
       comboStrategy: getActiveAdapterStrategy(requiredCapabilities, settings),
-      maxFallbacks: clampQuotaMaxFallbacks(settings.quotaMaxFallbacks)
+      maxFallbacks: clampQuotaMaxFallbacks(settings.quotaMaxFallbacks),
+      maxGlobalAttempts: clampMaxGlobalAttempts(settings.maxGlobalAttempts)
     });
   }
 
@@ -235,7 +238,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
         comboStrategy,
         comboStickyLimit,
         // Ide #4: batas kedalaman fallback dari settings (dibaca sekali per request).
-        maxFallbacks: clampQuotaMaxFallbacks(chatSettings.quotaMaxFallbacks)
+        maxFallbacks: clampQuotaMaxFallbacks(chatSettings.quotaMaxFallbacks),
+        maxGlobalAttempts: clampMaxGlobalAttempts(chatSettings.maxGlobalAttempts)
       });
     }
     log.warn("CHAT", "Invalid model format", { model: modelStr });

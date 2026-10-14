@@ -18,7 +18,7 @@ vi.mock("@/lib/db/driver.js", () => ({
   getAdapter: async () => fakeAdapter,
 }));
 
-const { upsertIncident, removeIncident, removeIncidentsByConnection, listIncidents } = await import(
+const { upsertIncident, removeIncident, removeIncidentsByConnection, listIncidents, getErrorBreakdown } = await import(
   "@/lib/db/repos/quotaIncidentsRepo.js"
 );
 
@@ -119,5 +119,24 @@ describe("quotaIncidentsRepo", () => {
     await upsertIncident({ connectionId: "c1", model: "m1", failureCount: 1 });
     expect(await removeIncidentsByConnection()).toBe(0);
     expect(await listIncidents()).toHaveLength(1);
+  });
+
+  it("getErrorBreakdown: kosong → objek kosong", async () => {
+    expect(await getErrorBreakdown()).toEqual({});
+  });
+
+  it("getErrorBreakdown: agregat incidents + failures per error_class", async () => {
+    await upsertIncident({ connectionId: "c1", model: "m1", errorClass: "rate_limited", failureCount: 3 });
+    await upsertIncident({ connectionId: "c1", model: "m2", errorClass: "rate_limited", failureCount: 5 });
+    await upsertIncident({ connectionId: "c2", model: "m1", errorClass: "quota_exhausted", failureCount: 1 });
+    expect(await getErrorBreakdown()).toEqual({
+      rate_limited: { incidents: 2, failures: 8 },
+      quota_exhausted: { incidents: 1, failures: 1 },
+    });
+  });
+
+  it("getErrorBreakdown: error_class NULL dipetakan ke 'unknown'", async () => {
+    await upsertIncident({ connectionId: "c1", model: "m1", failureCount: 2 });
+    expect(await getErrorBreakdown()).toEqual({ unknown: { incidents: 1, failures: 2 } });
   });
 });

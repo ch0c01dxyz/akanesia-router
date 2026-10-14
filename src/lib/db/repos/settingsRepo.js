@@ -21,6 +21,18 @@ const DEFAULT_SETTINGS = {
   // Batas kedalaman fallback dalam satu request: jumlah maksimum koneksi/model
   // cadangan yang dicoba sebelum request dinyatakan gagal.
   quotaMaxFallbacks: 5,
+  // Budget total percobaan per request combo (port OmniRoute #11134):
+  // batas atas jumlah model yang dicoba dalam satu request combo, dibaca
+  // di titik konsumsi (clamp 1-200, default 30). Kecilkan untuk fail-fast
+  // saat target mati, besarkan untuk combo besar. Diatur via PATCH /api/settings.
+  maxGlobalAttempts: 30,
+  // Rule error per-provider dari operator (settings.providerErrorRules):
+  // [{ provider, match, errorClass }] — dimerge ke klasifikasi error ide #4
+  // saat runtime sehingga operator bisa menambah rule tanpa patch kode.
+  // Maks 50 item; field wajib provider/match/errorClass; errorClass harus
+  // salah satu nilai ERROR_CLASSES (sanitasi fail-open di quotaErrorClasses.js).
+  // Diatur via PATCH /api/settings (tanpa UI editor).
+  providerErrorRules: [],
   // TTL cache hasil "Check Models" (detik). 0 = cache mati total (bypass).
   checkModelsTtlSeconds: 3600,
   // Auto-disable akun yang terdeteksi suspend dari tombol "Check Models"
@@ -28,6 +40,11 @@ const DEFAULT_SETTINGS = {
   // menyalakan toggle di Dashboard > Endpoint & Key > Insiden Kuota & Error.
   // (Auto-disable dari jalur chat & Kiro models discovery selalu aktif.)
   suspendAutoDisableOnCheck: false,
+  // Cakupan auto-disable akun suspend/banned (port OmniRoute #10617):
+  // "all" = semua koneksi yang kena sinyal suspend dinonaktifkan (perilaku
+  // lama, backward compatible); "oauth-only" = hanya koneksi akun
+  // subscription/OAuth, koneksi API key prepaid tetap aktif di pool routing.
+  autoDisableBannedScope: "all",
   // Daftar providerId yang Auto Sync-nya ON (ide #6): modelnya di-refresh
   // otomatis tiap interval checkModelsTtlSeconds oleh scheduler server.
   autoSyncProviderIds: [],
@@ -92,6 +109,12 @@ const DEFAULT_SETTINGS = {
   // { [providerId]: { headers: {..} } }. Berdampingan dengan custom header
   // per-node ide #8 (level koneksi) — lihat urutan merge di base.js execute().
   providerOverrides: {},
+  // Kurasi model yang diiklankan di /v1/models (exact match pada id penuh,
+  // mis. "openai/gpt-4o" atau nama combo). Allowlist non-kosong -> hanya yang
+  // terdaftar yang tampil; denylist selalu mengecualikan (menang atas
+  // allowlist). Diatur via PATCH /api/settings.
+  modelVisibilityAllowlist: [],
+  modelVisibilityDenylist: [],
 };
 
 async function readRaw() {

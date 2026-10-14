@@ -295,6 +295,24 @@ function normalizeGlmSearch(data, _query, _searchType) {
   return { results, totalResults: results.length };
 }
 
+function normalizeNimble(data, _query, _searchType) {
+  const now = new Date().toISOString();
+  // Response: { total_results, results: [{ title, url, description, content }] }.
+  // `description` carries the snippet at lite depth; `content` only at deep.
+  const items = Array.isArray(data?.results) ? data.results : [];
+  const results = items.map((item, idx) =>
+    makeResult("nimble-search", {
+      title: item.title,
+      url: item.url,
+      snippet: item.description || "",
+      full_text: item.content || undefined,
+      text_format: "text",
+    }, idx, now)
+  );
+  const total = data?.total_results;
+  return { results, totalResults: typeof total === "number" ? total : results.length };
+}
+
 const NORMALIZERS = {
   "serper": normalizeSerper,
   "brave-search": normalizeBrave,
@@ -309,6 +327,7 @@ const NORMALIZERS = {
   "xquik": normalizeXquik,
   "tinyfish": normalizeTinyfish,
   "ollama-search": normalizeOllamaSearch,
+  "nimble-search": normalizeNimble,
   "glm": normalizeGlmSearch,
 };
 

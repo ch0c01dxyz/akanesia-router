@@ -1,7 +1,7 @@
 import { translateResponse, initState } from "../translator/index.js";
 import { FORMATS } from "../translator/formats.js";
 import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
-import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, COLORS } from "./usageTracking.js";
+import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, attachTokensPerSecond, COLORS } from "./usageTracking.js";
 import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
 import { dbg, isDebugEnabled } from "./debugLog.js";
@@ -211,6 +211,17 @@ export function createSSEStream(options = {}) {
     if (!firstClientByteAt) firstClientByteAt = Date.now();
     ctrl.enqueue(bytes);
   };
+  // Waktu token KONTEN pertama di-stream (bedakan dari firstClientByteAt yang
+  // bisa berupa chunk role-only tanpa konten). Dipakai untuk tokens_per_second:
+  // throughput dihitung sejak token pertama keluar, TTFT dikecualikan.
+  let firstContentTokenAt = null;
+  const tandaiTokenKontenPertama = () => {
+    if (!firstContentTokenAt) firstContentTokenAt = Date.now();
+  };
+  // Lampirkan tokens_per_second ke usage final (chunk SSE terakhir ke klien
+  // sekaligus catatan server). Di-omit bila tak diketahui — jangan menebak.
+  const denganTokensPerSecond = (usageObj) =>
+    attachTokensPerSecond(usageObj, firstContentTokenAt ? Date.now() - firstContentTokenAt : null);
   let sseLineCount = 0;
   let sseEmittedCount = 0;
   const eventTypeCounts = {};
@@ -308,6 +319,7 @@ export function createSSEStream(options = {}) {
           if (cepat) {
             // Replikasi efek samping jalur lama untuk logging/estimasi usage.
             totalContentLength += cepat.content.length + cepat.thinking.length;
+            if (cepat.content || cepat.thinking) tandaiTokenKontenPertama();
             accumulatedContent += cepat.content;
             accumulatedThinking += cepat.thinking;
             reqLogger?.appendConvertedChunk?.(cepat.output);
@@ -370,10 +382,12 @@ export function createSSEStream(options = {}) {
               if (content && typeof content === "string") {
                 totalContentLength += content.length;
                 accumulatedContent += content;
+                tandaiTokenKontenPertama();
               }
               if (reasoning && typeof reasoning === "string") {
                 totalContentLength += reasoning.length;
                 accumulatedThinking += reasoning;
+                tandaiTokenKontenPertama();
               }
 
               const extracted = extractUsage(parsed);
@@ -386,11 +400,12 @@ export function createSSEStream(options = {}) {
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
                 const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
-                parsed.usage = filterUsageForFormat(estimated, FORMATS.OPENAI);
+                usage = denganTokensPerSecond(estimated);
+                parsed.usage = filterUsageForFormat(usage, FORMATS.OPENAI);
                 output = `data: ${JSON.stringify(parsed)}\n`;
-                usage = estimated;
                 injectedUsage = true;
               } else if (isFinishChunk && usage) {
+                usage = denganTokensPerSecond(usage);
                 const buffered = addBufferToUsage(usage);
                 parsed.usage = filterUsageForFormat(buffered, FORMATS.OPENAI);
                 output = `data: ${JSON.stringify(parsed)}\n`;
@@ -473,29 +488,34 @@ export function createSSEStream(options = {}) {
         if (parsed.delta?.text) {
           totalContentLength += parsed.delta.text.length;
           accumulatedContent += parsed.delta.text;
+          tandaiTokenKontenPertama();
         }
         // Claude format - thinking
         if (parsed.delta?.thinking) {
           totalContentLength += parsed.delta.thinking.length;
           accumulatedThinking += parsed.delta.thinking;
+          tandaiTokenKontenPertama();
         }
-        
+
         // OpenAI format - content
         if (parsed.choices?.[0]?.delta?.content) {
           totalContentLength += parsed.choices[0].delta.content.length;
           accumulatedContent += parsed.choices[0].delta.content;
+          tandaiTokenKontenPertama();
         }
         // OpenAI format - reasoning
         if (parsed.choices?.[0]?.delta?.reasoning_content) {
           totalContentLength += parsed.choices[0].delta.reasoning_content.length;
           accumulatedThinking += parsed.choices[0].delta.reasoning_content;
+          tandaiTokenKontenPertama();
         }
-        
+
         // Gemini format
         if (parsed.candidates?.[0]?.content?.parts) {
           for (const part of parsed.candidates[0].content.parts) {
             if (part.text && typeof part.text === "string") {
               totalContentLength += part.text.length;
+              tandaiTokenKontenPertama();
               // Check if this is thinking content
               if (part.thought === true) {
                 accumulatedThinking += part.text;
@@ -547,10 +567,11 @@ export function createSSEStream(options = {}) {
             const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
             if (state.finishReason && isFinishChunk && !hasValidUsage(item.usage) && totalContentLength > 0) {
               const estimated = estimateUsage(body, totalContentLength, sourceFormat);
-              item.usage = filterUsageForFormat(estimated, sourceFormat); // Filter + already has buffer
-              state.usage = estimated;
+              state.usage = denganTokensPerSecond(estimated);
+              item.usage = filterUsageForFormat(state.usage, sourceFormat); // Filter + already has buffer
             } else if (state.finishReason && isFinishChunk && state.usage) {
               // Add buffer and filter usage for client (but keep original in state.usage for logging)
+              state.usage = denganTokensPerSecond(state.usage);
               const buffered = addBufferToUsage(state.usage);
               item.usage = filterUsageForFormat(buffered, sourceFormat);
             }

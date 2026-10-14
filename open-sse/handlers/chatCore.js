@@ -144,7 +144,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // the source body before translation. Every other pair translates the tool
   // shapes 1:1 — keep the post-translate pass there so those providers are
   // untouched (and a retry never re-compresses an already-compressed body).
-  const preTranslateRtk = provider === "cursor"
+  const preTranslateRtk = provider === "cursor" || provider === "cursor-api"
     ? compressMessages(body, tokenSaverEnabled && rtkEnabled)
     : null;
   const preTranslateRtkLine = formatRtkLog(preTranslateRtk);

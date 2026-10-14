@@ -18,6 +18,11 @@ import { chatChunkSse, sseChunk } from "../utils/sse.js";
 import { FORMATS } from "../translator/formats.js";
 import { ROLE, OPENAI_BLOCK } from "../translator/schema/index.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
+import {
+  isCursorApiKey,
+  resolveCursorSessionToken,
+  CursorApiKeyExchangeError,
+} from "../services/cursorApiKeyAuth.js";
 import zlib from "zlib";
 import crypto from "crypto";
 
@@ -355,8 +360,43 @@ function createErrorResponse(jsonError) {
 }
 
 export class CursorExecutor extends BaseExecutor {
-  constructor() {
-    super("cursor", PROVIDERS.cursor);
+  constructor(providerId = "cursor") {
+    super(providerId, PROVIDERS[providerId]);
+  }
+
+  /**
+   * Tukar crsr_ API key menjadi session token 1-jam (di-cache per key)
+   * sebelum dial. Koneksi OAuth (accessToken) lewat tanpa perubahan.
+   * Mengembalikan Response 401 bila Cursor menolak key — tidak pernah
+   * membocorkan key mentah ke pesan error.
+   */
+  async resolveExecutionCredentials(credentials) {
+    if (!isCursorApiKey(credentials?.apiKey)) return credentials;
+    let session;
+    try {
+      session = await resolveCursorSessionToken(credentials.apiKey);
+    } catch (err) {
+      if (err instanceof CursorApiKeyExchangeError && err.status === 401) {
+        return new Response(JSON.stringify({
+          error: { message: "Invalid Cursor API key", type: "authentication_error", code: "" },
+        }), {
+          status: HTTP_STATUS.UNAUTHORIZED,
+          headers: { "Content-Type": "application/json" }
+        });
+      }
+      throw err;
+    }
+    return {
+      ...credentials,
+      accessToken: session.accessToken,
+      providerSpecificData: {
+        ...credentials.providerSpecificData,
+        // Koneksi API-key tidak menyimpan machineId — turunkan deterministik
+        // dari key agar header stabil antar refresh token.
+        machineId: credentials.providerSpecificData?.machineId
+          || crypto.createHash("sha256").update(credentials.apiKey).digest("hex").slice(0, 16),
+      },
+    };
   }
 
   buildUrl() {
@@ -853,6 +893,12 @@ export class CursorExecutor extends BaseExecutor {
   }
 
   async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null }) {
+    const resolved = await this.resolveExecutionCredentials(credentials);
+    if (resolved instanceof Response) {
+      return { response: resolved, url: this.buildUrl(), headers: {}, transformedBody: body };
+    }
+    credentials = resolved;
+
     if (isAgentCapableRequest(body)) {
       try {
         return await this.executeAgent({ model, body, stream, credentials, signal, log, providerOverrides });

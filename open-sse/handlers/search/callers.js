@@ -445,6 +445,39 @@ function buildGlmSearchRequest(config, params) {
   };
 }
 
+// ── Nimble web search ─────────────────────────────────────────────────────
+// POST https://sdk.nimbleway.com/v1/search { query, max_results, search_depth,
+// focus, include_domains, exclude_domains, time_range, country, locale }
+// Auth: Authorization: Bearer <key>; Nimble asks every integration to send
+// X-Client-Source for attribution.
+function buildNimbleSearchRequest(config, params) {
+  const { includes, excludes } = parseDomainFilter(params.domainFilter);
+  const body = {
+    query: params.query,
+    max_results: params.maxResults,
+    search_depth: "lite",
+    output_format: "plain_text",
+    focus: params.searchType === "news" ? "news" : "general",
+  };
+  if (includes.length) body.include_domains = includes;
+  if (excludes.length) body.exclude_domains = excludes;
+  if (params.country) body.country = params.country.toUpperCase();
+  if (params.language) body.locale = params.language;
+  if (params.timeRange && params.timeRange !== "any") body.time_range = params.timeRange;
+  return {
+    url: resolveBaseUrl(config, params),
+    init: {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${params.token}`,
+        "X-Client-Source": "akanesia-router",
+      },
+      body: JSON.stringify(body),
+    },
+  };
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────────────
 
 const BUILDERS = {
@@ -461,6 +494,7 @@ const BUILDERS = {
   "xquik": buildXquikRequest,
   "tinyfish": buildTinyfishRequest,
   "ollama-search": buildOllamaSearchRequest,
+  "nimble-search": buildNimbleSearchRequest,
   "glm": buildGlmSearchRequest,
 };
 
