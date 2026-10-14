@@ -6,7 +6,7 @@ import { checkFallbackError, formatRetryAfter } from "./accountFallback.js";
 import { unavailableResponse } from "../utils/error.js";
 import { getCapabilitiesForModel } from "../providers/capabilities.js";
 import { extractTextContent } from "../translator/formats/gemini.js";
-import { QUOTA_DEFAULTS, clampQuotaMaxFallbacks, clampMaxGlobalAttempts } from "../config/quotaErrorClasses.js";
+import { QUOTA_DEFAULTS, clampQuotaMaxFallbacks } from "../config/quotaErrorClasses.js";
 
 // Hard capabilities = input modalities; missing one drops request data (e.g. image
 // stripped). Must be prioritized. Soft (e.g. search) only degrades a feature.
@@ -279,13 +279,9 @@ export function getComboModelsFromData(modelStr, combosData) {
  * @param {number|string} [options.maxFallbacks] - Ide #4: batas fallback dalam-request
  *   (1 percobaan awal + maksimal maxFallbacks fallback); default QUOTA_DEFAULTS.maxFallbacks.
  *   Pemanggil (mis. chat.js) mengisi dari settings.quotaMaxFallbacks.
- * @param {number|string} [options.maxGlobalAttempts] - Port OmniRoute #11134:
- *   budget total percobaan per request (batas atas jumlah model yang dicoba,
- *   clamp 1-200); default QUOTA_DEFAULTS.maxGlobalAttempts. Pemanggil mengisi
- *   dari settings.maxGlobalAttempts.
  * @returns {Promise<Response>}
  */
-export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, maxFallbacks = QUOTA_DEFAULTS.maxFallbacks, maxGlobalAttempts = QUOTA_DEFAULTS.maxGlobalAttempts }) {
+export async function handleComboChat({ body, models, handleSingleModel, log, comboName, comboStrategy, comboStickyLimit = 1, autoSwitch = true, maxFallbacks = QUOTA_DEFAULTS.maxFallbacks }) {
   // Apply rotation strategy if enabled
   let rotatedModels = getRotatedModels(models, comboName, comboStrategy, comboStickyLimit);
 
@@ -309,13 +305,8 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
   // dicoba dua kali dalam satu request; fallbacksUsed membatasi kedalaman
   // fallback (1 percobaan awal + maksimal maxFallbacks fallback).
   const fallbackLimit = clampQuotaMaxFallbacks(maxFallbacks);
-  // Port OmniRoute #11134: budget total percobaan per request — batas atas
-  // jumlah model yang dicoba dalam request ini, terlepas dari kedalaman
-  // fallback (clamp 1-200 di titik konsumsi, default 30).
-  const attemptBudget = clampMaxGlobalAttempts(maxGlobalAttempts);
   const attemptedModels = new Set();
   let fallbacksUsed = 0;
-  let attempts = 0;
 
   for (let i = 0; i < rotatedModels.length; i++) {
     const modelStr = rotatedModels[i];
@@ -332,13 +323,6 @@ export async function handleComboChat({ body, models, handleSingleModel, log, co
       log.warn("COMBO", `Batas fallback tercapai (${fallbackLimit}) — hentikan loop`);
       break;
     }
-
-    // Budget total percobaan tercapai → hentikan seperti "semua gagal".
-    if (attempts >= attemptBudget) {
-      log.warn("COMBO", `Budget percobaan tercapai (${attemptBudget}) — hentikan loop`);
-      break;
-    }
-    attempts++;
 
     log.info("COMBO", `Trying model ${i + 1}/${rotatedModels.length}: ${modelStr}`);
 

@@ -100,11 +100,7 @@ export async function recordFailure({ connectionId, model, provider, status, err
   if (!connectionId || connectionId === "noauth") {
     return { errorClass: ERROR_CLASSES.IGNORED, retryable: true };
   }
-  const settings = await safeGetSettings();
-  const errorClass = classifyQuotaError(status, errorText, {
-    provider,
-    rules: settings?.providerErrorRules,
-  });
+  const errorClass = classifyQuotaError(status, errorText);
   const retryable = !NON_RETRYABLE_CLASSES.has(errorClass);
 
   // Kelas netral: tidak hitung, tidak masuk dashboard.
@@ -118,7 +114,7 @@ export async function recordFailure({ connectionId, model, provider, status, err
   entry.count += 1;
   counts.set(key, entry);
 
-  const threshold = clampQuotaFailureThreshold(settings?.quotaFailureThreshold);
+  const threshold = clampQuotaFailureThreshold((await safeGetSettings())?.quotaFailureThreshold);
 
   if (IMMEDIATE_CLASSES.has(errorClass) || entry.count >= threshold) {
     const repo = await loadRepo();

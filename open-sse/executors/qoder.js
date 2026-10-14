@@ -29,7 +29,7 @@ import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { SSE_DONE } from "../utils/sseConstants.js";
-import { resolveFetchTimeoutMs, HTTP_STATUS } from "../config/runtimeConfig.js";
+import { FETCH_CONNECT_TIMEOUT_MS, HTTP_STATUS } from "../config/runtimeConfig.js";
 import {
   QODER_CHAT_SIG_PATH,
   QODER_CONTEXT_TIER_ENV,
@@ -702,8 +702,7 @@ export class QoderExecutor extends BaseExecutor {
     };
 
     // Abort if upstream doesn't return response headers within connect timeout.
-    // Prioritas: per-koneksi (providerSpecificData.timeoutMs) → tier registry → global.
-    const timeoutMs = resolveFetchTimeoutMs(credentials?.providerSpecificData?.timeoutMs, this.config?.timeoutMs);
+    const timeoutMs = this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS;
     const connectCtrl = new AbortController();
     const connectTimer = setTimeout(() => connectCtrl.abort(new Error("fetch connect timeout")), timeoutMs);
     const mergedSignal = signal ? AbortSignal.any([signal, connectCtrl.signal]) : connectCtrl.signal;

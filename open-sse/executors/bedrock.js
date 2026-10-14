@@ -10,7 +10,7 @@ import { escapeUri, signAwsRequest } from "../utils/awsSigv4.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { SSE_DONE, SSE_HEADERS } from "../utils/sseConstants.js";
 import { FORMATS } from "../translator/formats.js";
-import { resolveFetchTimeoutMs } from "../config/runtimeConfig.js";
+import { FETCH_CONNECT_TIMEOUT_MS } from "../config/runtimeConfig.js";
 
 /**
  * BedrockExecutor — Amazon Bedrock runtime.
@@ -124,11 +124,9 @@ export class BedrockExecutor extends BaseExecutor {
     });
 
     const connectCtrl = new AbortController();
-    // Prioritas timeout: per-koneksi (providerSpecificData.timeoutMs) →
-    // tier registry (config.timeoutMs) → global FETCH_CONNECT_TIMEOUT_MS.
     const connectTimer = setTimeout(
       () => connectCtrl.abort(new Error("Bedrock fetch connect timeout")),
-      resolveFetchTimeoutMs(credentials?.providerSpecificData?.timeoutMs, this.config?.timeoutMs),
+      this.config?.timeoutMs || FETCH_CONNECT_TIMEOUT_MS,
     );
     const fetchSignal = signal ? AbortSignal.any([signal, connectCtrl.signal]) : connectCtrl.signal;
     let response;

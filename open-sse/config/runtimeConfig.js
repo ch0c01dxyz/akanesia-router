@@ -59,22 +59,6 @@ export const STREAM_FIRST_CHUNK_TIMEOUT_MS = envMs("STREAM_FIRST_CHUNK_TIMEOUT_M
 // Fetch connect timeout: abort if upstream doesn't return response headers within this duration
 export const FETCH_CONNECT_TIMEOUT_MS = envMs("FETCH_CONNECT_TIMEOUT_MS", 60 * 1000);
 
-// Urutan prioritas timeout fetch upstream (port pola OmniRoute:
-// providerSpecificData.timeoutMs mengalahkan tier registry, lalu global):
-//   1. timeoutMs per-koneksi (data koneksi / providerSpecificData),
-//   2. timeout tier registry provider (config.timeoutMs),
-//   3. global FETCH_CONNECT_TIMEOUT_MS.
-// Nilai invalid (bukan integer positif) fail-open ke prioritas berikutnya.
-export function resolveFetchTimeoutMs(connectionTimeoutMs, registryTimeoutMs) {
-  for (const raw of [connectionTimeoutMs, registryTimeoutMs]) {
-    if (typeof raw === "number" || (typeof raw === "string" && raw.trim() !== "")) {
-      const n = Number(raw);
-      if (Number.isInteger(n) && n > 0) return n;
-    }
-  }
-  return FETCH_CONNECT_TIMEOUT_MS;
-}
-
 // Gemini native TTS fetch timeout: abort if Google does not return response headers in time.
 export const GEMINI_NATIVE_TTS_FETCH_TIMEOUT_MS = envMs("GEMINI_NATIVE_TTS_FETCH_TIMEOUT_MS", 45 * 1000);
 

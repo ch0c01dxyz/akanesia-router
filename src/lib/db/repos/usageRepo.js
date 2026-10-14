@@ -664,17 +664,6 @@ export async function getUsageStats(period = "all") {
     }
   }
 
-  // Error breakdown per kelas error (ide #4) untuk usage analytics.
-  // Snapshot status terkini dari quota_incidents — bukan per periode, karena
-  // tabelnya hanya berisi pasangan (connection, model) yang sedang bermasalah
-  // (entri dihapus saat koneksi pulih). Fail-open: analytics tidak boleh
-  // rusak gara-gara query ini.
-  stats.errorBreakdown = {};
-  try {
-    const { getErrorBreakdown } = await import("./quotaIncidentsRepo.js");
-    stats.errorBreakdown = await getErrorBreakdown();
-  } catch {}
-
   stats.totalRequests = Object.values(stats.byProvider).reduce((sum, p) => sum + (p.requests || 0), 0);
   return stats;
 }
