@@ -161,9 +161,26 @@ export function kiroToClaudeResponse(chunk, state) {
   if (delta.tool_calls) {
     if (!state.toolCalls) state.toolCalls = new Map();
     if (!state.toolArgBuffers) state.toolArgBuffers = new Map();
+    // Isolasi index: lihat penjelasan di openai-to-claude.js
+    if (!state.toolIdToIdx) state.toolIdToIdx = new Map();
+    if (state.nextFreeToolIdx === undefined) state.nextFreeToolIdx = 0;
+
     for (const tc of delta.tool_calls) {
-      const idx = tc.index ?? 0;
+      const upstreamIdx = tc.index ?? 0;
+      let idx = upstreamIdx;
       if (tc.id) {
+        if (!state.toolIdToIdx.has(tc.id)) {
+          idx = state.nextFreeToolIdx++;
+          state.toolIdToIdx.set(tc.id, idx);
+        } else {
+          idx = state.toolIdToIdx.get(tc.id);
+        }
+      } else if (state.toolIdToIdx.size > 0) {
+        const lastIdx = [...state.toolIdToIdx.values()].pop();
+        if (lastIdx !== undefined) idx = lastIdx;
+      }
+
+      if (tc.id && !state.toolCalls.has(idx)) {
         stopThinkingBlock(state, results);
         stopTextBlock(state, results);
         const toolBlockIndex = state.nextBlockIndex++;

@@ -182,7 +182,30 @@ export function openaiToClaudeResponse(chunk, state) {
   // Tool calls
   if (delta?.tool_calls) {
     for (const tc of delta.tool_calls) {
-      const idx = tc.index ?? 0;
+      const upstreamIdx = tc.index ?? 0;
+
+      // Isolasi index: upstream (OpenCode free / Gemini bridges) sering me-reuse
+      // index yang sama untuk tool call berbeda, menyebabkan argumen tergabung
+      // menjadi JSON cacat {"a":1}{"b":2}. Solusi: track by id, alokasikan
+      // internal idx baru via nextFreeToolIdx untuk setiap id yang belum dikenal.
+      if (!state.toolIdToIdx) state.toolIdToIdx = new Map();
+      if (state.nextFreeToolIdx === undefined) state.nextFreeToolIdx = 0;
+
+      let idx = upstreamIdx;
+      if (tc.id) {
+        if (!state.toolIdToIdx.has(tc.id)) {
+          // ID baru: alokasikan idx internal yang bebas (tidak tabrakan)
+          idx = state.nextFreeToolIdx++;
+          state.toolIdToIdx.set(tc.id, idx);
+        } else {
+          idx = state.toolIdToIdx.get(tc.id);
+        }
+      } else if (state.toolIdToIdx.size > 0) {
+        // Chunk lanjutan tanpa id: cari idx dari tool call terakhir yang aktif
+        // (fallback ke upstreamIdx bila tidak ada mapping)
+        const lastIdx = [...state.toolIdToIdx.values()].pop();
+        if (lastIdx !== undefined) idx = lastIdx;
+      }
 
       // GLM/fireworks repeats id+null-name on every arg chunk; open block once per idx
       if (tc.id && !state.toolCalls.has(idx)) {
