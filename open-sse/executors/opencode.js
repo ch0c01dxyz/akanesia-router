@@ -433,6 +433,10 @@ export class OpenCodeExecutor extends BaseExecutor {
       }
       delete body.max_tokens;
       delete body.max_completion_tokens;
+      // OpenCode Zen menolak max_output_tokens < 16 (400 invalid_request_error).
+      if (typeof body.max_output_tokens === "number") {
+        body.max_output_tokens = Math.min(Math.max(body.max_output_tokens, 16), 65536);
+      }
       normalizeOpencodeReasoning(model, body);
       body.stream = true;
       body.store = false;

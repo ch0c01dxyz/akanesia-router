@@ -170,6 +170,10 @@ export class OpenCodeGoExecutor extends DefaultExecutor {
     }
     delete out.max_tokens;
     delete out.max_completion_tokens;
+    // OpenCode Zen menolak max_output_tokens < 16 (400 invalid_request_error).
+    if (typeof out.max_output_tokens === "number") {
+      out.max_output_tokens = Math.min(Math.max(out.max_output_tokens, 16), 65536);
+    }
     if (out.reasoning_effort !== undefined && out.reasoning === undefined) {
       out.reasoning = { effort: out.reasoning_effort, summary: "auto" };
     }
