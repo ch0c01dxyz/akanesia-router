@@ -122,18 +122,10 @@ export async function POST(request) {
 
     await fs.writeFile(getOmpModelsYmlPath(), ymlContent, "utf-8");
 
-    // Best-effort update to agent.db if better-sqlite3 or node:sqlite is present
+    // Best-effort update to agent.db via node:sqlite (built-in, no native build)
     try {
-      let Database;
-      try {
-        const mod = await import("better-sqlite3");
-        Database = mod.default || mod;
-      } catch {
-        // fallback ignored
-      }
-      if (Database) {
-        const dbPath = getOmpDbPath();
-        const db = new Database(dbPath);
+      const { withSqliteFile } = await import("@/lib/db/withSqliteFile.js");
+      await withSqliteFile(getOmpDbPath(), (db) => {
         db.prepare("DELETE FROM auth_credentials WHERE provider = ?").run(PROVIDER_ID);
         db.prepare(
           "INSERT INTO auth_credentials (provider, credential_type, data, disabled_cause, identity_key, created_at, updated_at) VALUES (?, ?, ?, NULL, NULL, ?, ?)"
@@ -144,8 +136,7 @@ export async function POST(request) {
           Math.floor(Date.now() / 1000),
           Math.floor(Date.now() / 1000)
         );
-        db.close();
-      }
+      }, { readOnly: false });
     } catch {
       // Non-critical: models.yml is primary
     }

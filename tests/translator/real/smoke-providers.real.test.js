@@ -105,13 +105,13 @@ describe.skipIf(!RUN_REAL).concurrent("REAL provider smoke", () => {
 // Tolerates any failure (returns []).
 function targetProviders() {
   try {
-    const Database = require("better-sqlite3");
+    const { DatabaseSync } = require("node:sqlite");
     const os = require("os");
     const path = require("path");
     const dbPath = process.env.DATA_DIR
       ? path.join(process.env.DATA_DIR, "db", "data.sqlite")
       : path.join(os.homedir(), ".9router", "db", "data.sqlite");
-    const db = new Database(dbPath, { readonly: true });
+    const db = new DatabaseSync(dbPath, { readOnly: true });
     const rows = db.prepare("SELECT DISTINCT provider FROM providerConnections WHERE isActive = 1").all();
     db.close();
     let list = rows.map((r) => r.provider).sort();

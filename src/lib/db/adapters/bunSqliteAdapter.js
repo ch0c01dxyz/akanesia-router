@@ -49,7 +49,7 @@ export async function createBunSqliteAdapter(filePath) {
     },
     exec(sql) { return db.exec(sql); },
     transaction(fn) {
-      // bun:sqlite has db.transaction() API (similar to better-sqlite3)
+      // bun:sqlite has db.transaction() API
       const tx = db.transaction(fn);
       return tx();
     },

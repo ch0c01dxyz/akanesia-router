@@ -18,7 +18,7 @@
 
 | Komponen | Teknologi | Keterangan |
 |---|---|---|
-| Database | SQLite | 4-driver fallback: `bun:sqlite` → `better-sqlite3` (optional) → `node:sqlite` (≥22.5) → `sql.js` (pure JS) |
+| Database | SQLite | 3-driver fallback: `bun:sqlite` → `node:sqlite` (≥24, built-in) → `sql.js` (pure JS) |
 | Lokasi DB | `~/.9router/db/data.sqlite` | via `DATA_DIR` env atau default per-OS |
 | Usage/log | `usage.json` + `log.txt` | di `~/.9router`, tidak ikut `DATA_DIR` |
 | State frontend | zustand | 5.0.10 (`src/store/`) |

@@ -177,7 +177,7 @@ embedding, tts, stt, search, video), di-stream kembali dalam format klien.
 Driver fallback chain (`src/lib/db/driver.js`):
 
 ```
-bun:sqlite → better-sqlite3 (optional) → node:sqlite (Node ≥22.5) → sql.js (pure JS)
+bun:sqlite → node:sqlite (Node ≥24) → sql.js (pure JS)
 ```
 
 - Barrel publik: `src/lib/db/index.js`; shim kompatibel: `src/lib/localDb.js`, `src/lib/usageDb.js`.

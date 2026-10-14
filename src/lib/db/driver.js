@@ -16,27 +16,9 @@ async function tryBunSqlite() {
   }
 }
 
-async function tryBetterSqlite() {
-  // Skip on Bun — better-sqlite3 native bindings unsupported
-  if (process.versions.bun) return null;
-  // Skip on Node >= 24: the native addon SIGSEGVs on load there, which is a
-  // process-level crash the try/catch below cannot recover from. node:sqlite covers it.
-  const [nodeMajor] = process.versions.node.split(".").map(Number);
-  if (nodeMajor >= 24) return null;
-  try {
-    const { createBetterSqliteAdapter } = await import("./adapters/betterSqliteAdapter.js");
-    return createBetterSqliteAdapter(DATA_FILE);
-  } catch (e) {
-    console.warn(`[DB] better-sqlite3 unavailable: ${e.message}`);
-    return null;
-  }
-}
-
 async function tryNodeSqlite() {
-  // Built-in since Node 22.5.0 — no install needed. Skip under Bun (no node:sqlite).
+  // Built-in since Node 22 — no install needed. Skip under Bun (no node:sqlite).
   if (process.versions.bun) return null;
-  const [maj, min] = process.versions.node.split(".").map(Number);
-  if (maj < 22 || (maj === 22 && min < 5)) return null;
   try {
     const { createNodeSqliteAdapter } = await import("./adapters/nodeSqliteAdapter.js");
     return await createNodeSqliteAdapter(DATA_FILE);
@@ -58,14 +40,13 @@ async function trySqlJs() {
 
 async function initAdapter() {
   ensureDirs();
-  // Order per runtime:
+  // Order per runtime (Node >= 24 required — see package.json engines):
   //   Bun:  bun:sqlite → sql.js
-  //   Node: better-sqlite3 → node:sqlite (≥22.5) → sql.js
+  //   Node: node:sqlite → sql.js
   let adapter = await tryBunSqlite();
-  if (!adapter) adapter = await tryBetterSqlite();
   if (!adapter) adapter = await tryNodeSqlite();
   if (!adapter) adapter = await trySqlJs();
-  if (!adapter) throw new Error("[DB] No SQLite driver available (bun/better/node/sql.js all failed)");
+  if (!adapter) throw new Error("[DB] No SQLite driver available (bun/node/sql.js all failed)");
 
   if (!state.logged) {
     console.log(`[DB] Driver: ${adapter.driver} | file: ${DATA_FILE}`);

@@ -3,6 +3,9 @@
   "version": "1.5.0",
   "description": "Akanesia-Gateway web dashboard",
   "private": true,
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "next dev --port 20127",
     "dev:webpack": "next dev --webpack --port 20127",
@@ -52,10 +55,7 @@
     "ws": "^8.22.0",
     "zustand": "^5.0.10"
   },
-  "optionalDependencies": {
-    "better-sqlite3": "^12.6.2"
-  },
-  "comment_better_sqlite3": "kept in optionalDependencies so npm install doesn't fail on systems without build tools — sql.js is used as fallback at runtime",
+  "optionalDependencies": {},
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
     "eslint": "^9",

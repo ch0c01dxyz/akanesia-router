@@ -1,5 +1,5 @@
-// Built-in node:sqlite adapter — available in Node >= 22.5.0.
-// No native build, no npm install. API mirrors betterSqliteAdapter.
+// Built-in node:sqlite adapter — available in Node >= 22.
+// No native build, no npm install.
 import { PRAGMA_SQL } from "../schema.js";
 
 const CHECKPOINT_INTERVAL_MS = 60 * 1000;

@@ -31,16 +31,19 @@ const mockDbInstance = {
   __throwOnConstruct: false,
 };
 
-// Mock better-sqlite3 as a class so `new Database(...)` works
-vi.mock("better-sqlite3", () => ({
-  default: class MockDatabase {
-    constructor() {
-      if (mockDbInstance.__throwOnConstruct) {
-        throw new Error("SQLITE_CANTOPEN");
-      }
-      return mockDbInstance;
+// Mock withSqliteFile so `new DatabaseSync(...)` never runs — the mock db
+// object is passed to fn(), and close() is called in finally (like the real helper).
+vi.mock("@/lib/db/withSqliteFile.js", () => ({
+  withSqliteFile: vi.fn(async (dbPath, fn, opts) => {
+    if (mockDbInstance.__throwOnConstruct) {
+      throw new Error("SQLITE_CANTOPEN");
     }
-  },
+    try {
+      return await fn(mockDbInstance);
+    } finally {
+      mockDbInstance.close();
+    }
+  }),
 }));
 
 // We need to dynamically import after mocks are registered

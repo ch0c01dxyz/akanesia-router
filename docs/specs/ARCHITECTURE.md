@@ -60,8 +60,8 @@ CLI Tools (Claude Code, Codex, Cursor, Cline, ...)
 - **Config-driven:** seluruh definisi provider di registry; `open-sse/config/` hanya derivasi.
 - **Fail-open token savers:** error di RTK/headroom/caveman tidak boleh menggagalkan request.
 - **Fallback berlapis:** combo model → akun lain → refresh token → error.
-- **SQLite multi-driver:** `bun:sqlite` → `better-sqlite3` → `node:sqlite` → `sql.js`
-  agar install tidak pernah gagal di platform mana pun.
+- **SQLite multi-driver:** `bun:sqlite` → `node:sqlite` → `sql.js`
+  agar install tidak pernah gagal di platform mana pun (tanpa native build).
 
 ## Status operasional yang perlu diketahui
 

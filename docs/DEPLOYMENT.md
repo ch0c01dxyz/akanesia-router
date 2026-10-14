@@ -95,7 +95,7 @@ npm install -g akanesia-router
 akanesia-router
 ```
 
-Native deps (sql.js/better-sqlite3, systray) tidak dibundle; diinstal lazy ke
+Native deps (systray) tidak dibundle; diinstal lazy ke
 `~/.9router/runtime/node_modules` oleh `hooks/postinstall.js`.
 
 ## Checklist verifikasi deployment
