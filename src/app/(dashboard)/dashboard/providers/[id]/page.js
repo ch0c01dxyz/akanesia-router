@@ -85,6 +85,10 @@ export default function ProviderDetailPage() {
   const [disabledModelIds, setDisabledModelIds] = useState([]);
   const [confirmState, setConfirmState] = useState(null);
   const [showAgRiskModal, setShowAgRiskModal] = useState(false);
+  // Export/Import koneksi per provider
+  const [importingConnections, setImportingConnections] = useState(false);
+  const [importPreview, setImportPreview] = useState(null);
+  const importFileRef = useRef(null);
   const [oneByOneRunning, setOneByOneRunning] = useState(false);
   const [oneByOneStopping, setOneByOneStopping] = useState(false);
   const [oneByOneCurrentConnectionId, setOneByOneCurrentConnectionId] = useState(null);
@@ -135,6 +139,104 @@ export default function ProviderDetailPage() {
       return;
     }
     triggerApiKeyConnection();
+  };
+
+  // Export koneksi provider ke file JSON (dengan konfirmasi karena berisi apiKey asli)
+  const handleExportConnections = () => {
+    if (connections.length === 0) return;
+    setConfirmState({
+      title: "Export Connections",
+      message: `File export berisi ${connections.length} koneksi dengan API key ASLI untuk provider ini. Simpan file di tempat yang aman dan jangan bagikan ke siapa pun.`,
+      confirmText: "Export",
+      onConfirm: async () => {
+        setConfirmState(null);
+        try {
+          const res = await fetch(`/api/providers/${providerId}/export`);
+          if (!res.ok) throw new Error("Export gagal");
+          const data = await res.json();
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${providerId}-connections-${new Date().toISOString().slice(0, 10)}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (error) {
+          console.log("Error exporting connections:", error);
+        }
+      },
+    });
+  };
+
+  // Import: baca file JSON, validasi ringan, tampilkan preview
+  const handleImportFileSelect = async (e) => {
+    const file = e.target?.files?.[0];
+    if (importFileRef.current) importFileRef.current.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data || typeof data !== "object" || data.providerId !== providerId) {
+        setConfirmState({
+          title: "Import Gagal",
+          message: "File tidak valid untuk provider ini (providerId tidak cocok).",
+          confirmText: "OK",
+          variant: "danger",
+          onConfirm: () => setConfirmState(null),
+        });
+        return;
+      }
+      if (!Array.isArray(data.connections) || data.connections.length === 0) {
+        setConfirmState({
+          title: "Import Gagal",
+          message: "File tidak berisi koneksi yang valid.",
+          confirmText: "OK",
+          variant: "danger",
+          onConfirm: () => setConfirmState(null),
+        });
+        return;
+      }
+      setImportPreview(data);
+    } catch {
+      setConfirmState({
+        title: "Import Gagal",
+        message: "File bukan JSON yang valid.",
+        confirmText: "OK",
+        variant: "danger",
+        onConfirm: () => setConfirmState(null),
+      });
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importPreview) return;
+    setImportingConnections(true);
+    try {
+      const res = await fetch(`/api/providers/${providerId}/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(importPreview),
+      });
+      const result = await res.json();
+      setImportPreview(null);
+      const parts = [`${result.imported?.length || 0} ditambahkan`];
+      if (result.skipped?.length) parts.push(`${result.skipped.length} duplikat di-skip`);
+      if (result.errors?.length) parts.push(`${result.errors.length} gagal`);
+      setConfirmState({
+        title: "Import Selesai",
+        message: parts.join(", ") + ".",
+        confirmText: "OK",
+        variant: "info",
+        onConfirm: () => setConfirmState(null),
+      });
+      await fetchConnections();
+    } catch (error) {
+      console.log("Error importing connections:", error);
+    } finally {
+      setImportingConnections(false);
+    }
   };
 
   const handleAgRiskConfirm = () => {
@@ -1553,6 +1655,33 @@ export default function ProviderDetailPage() {
             <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
               <Button
                 size="sm"
+                variant="secondary"
+                icon="download"
+                onClick={handleExportConnections}
+                disabled={connections.length === 0}
+                title={connections.length === 0 ? "Belum ada koneksi untuk di-export" : `Export ${connections.length} koneksi ke JSON`}
+                className="w-full sm:w-auto"
+              >
+                Export
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="upload"
+                onClick={() => importFileRef.current?.click()}
+                className="w-full sm:w-auto"
+              >
+                Import
+              </Button>
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleImportFileSelect}
+              />
+              <Button
+                size="sm"
                 icon="add"
                 onClick={() => {
                   setAddConnectionError("");
@@ -2105,8 +2234,39 @@ export default function ProviderDetailPage() {
         onConfirm={confirmState?.onConfirm}
         title={confirmState?.title || "Confirm"}
         message={confirmState?.message}
-        variant="danger"
+        confirmText={confirmState?.confirmText || "Confirm"}
+        variant={confirmState?.variant || "danger"}
       />
+
+      {/* Import Preview Modal */}
+      <Modal
+        isOpen={!!importPreview}
+        onClose={() => setImportPreview(null)}
+        title={`Import ${importPreview?.connections?.length || 0} Connections`}
+        size="md"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setImportPreview(null)} disabled={importingConnections}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmImport} loading={importingConnections}>
+              Import
+            </Button>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-text-muted">
+          Koneksi berikut akan ditambahkan. Duplikat (apiKey/email sudah ada) otomatis di-skip.
+        </p>
+        <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
+          {(importPreview?.connections || []).map((c, i) => (
+            <div key={i} className="flex items-center justify-between border-b border-border px-3 py-2 text-sm last:border-0">
+              <span className="font-medium">{c.name || c.email || `Connection ${i + 1}`}</span>
+              <span className="text-xs text-text-muted">{c.authType}</span>
+            </div>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }
