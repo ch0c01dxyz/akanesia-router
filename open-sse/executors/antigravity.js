@@ -182,13 +182,17 @@ export class AntigravityExecutor extends BaseExecutor {
       // Strip model name suffixes for the actual API model name
       const cleanModel = model.replace(/-(\d+)x(\d+)$/, "");
 
-      // Build simplified contents — text-only, merge all user messages
+      // Build simplified contents — text-only, merge all user messages.
+      // Merge turn bersebelahan dengan role sama agar Gemini tidak 400.
       const contents = [];
       const srcContents = body.request?.contents || body.contents || [];
       for (const c of srcContents) {
         const textParts = (c.parts || []).filter(p => p.text !== undefined).map(p => ({ text: p.text }));
         if (textParts.length > 0) {
-          contents.push({ role: c.role || "user", parts: textParts });
+          const role = c.role || "user";
+          const last = contents.at(-1);
+          if (last && last.role === role) last.parts.push(...textParts);
+          else contents.push({ role, parts: textParts });
         }
       }
 

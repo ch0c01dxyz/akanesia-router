@@ -18,13 +18,30 @@ function sanitizeToolArgs(toolName, argsJson) {
       ? toolName.slice(CLAUDE_OAUTH_TOOL_PREFIX.length)
       : toolName;
     if (name === "Read") sanitizeReadArgs(args);
+    else if (name === "Bash") sanitizeBashArgs(args);
+    else if (name === "Edit") sanitizeEditArgs(args);
+    else if (name === "Write") sanitizeWriteArgs(args);
     return JSON.stringify(args);
   } catch {
     return argsJson;
   }
 }
 
+// Pindahkan nilai dari nama alias ke nama kanonis bila kanonis belum ada.
+// Model non-Anthropic sering memakai path/filePath/cmd/input/dll.
+function applyAlias(args, canonical, ...aliases) {
+  if (args[canonical] !== undefined) return;
+  for (const a of aliases) {
+    if (args[a] !== undefined) {
+      args[canonical] = args[a];
+      return;
+    }
+  }
+}
+
 function sanitizeReadArgs(args) {
+  applyAlias(args, "file_path", "filePath", "filepath", "path");
+
   if (typeof args.limit === "string" && /^\d+$/.test(args.limit)) args.limit = Number(args.limit);
   if (typeof args.offset === "string" && /^-?\d+$/.test(args.offset)) args.offset = Number(args.offset);
 
@@ -37,6 +54,21 @@ function sanitizeReadArgs(args) {
   if ("pages" in args && !isValidPdfPagesArg(args.file_path, args.pages)) {
     delete args.pages;
   }
+}
+
+function sanitizeBashArgs(args) {
+  applyAlias(args, "command", "cmd", "input", "cmdline");
+}
+
+function sanitizeEditArgs(args) {
+  applyAlias(args, "file_path", "filePath", "filepath", "path");
+  applyAlias(args, "old_string", "oldText", "old_text");
+  applyAlias(args, "new_string", "newText", "new_text");
+}
+
+function sanitizeWriteArgs(args) {
+  applyAlias(args, "file_path", "filePath", "filepath", "path");
+  applyAlias(args, "content", "text");
 }
 
 function isValidPdfPagesArg(filePath, pages) {

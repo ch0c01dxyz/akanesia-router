@@ -35,6 +35,33 @@ function shouldExclude(name) {
   });
 }
 
+// Windows: file/direktori yang sedang dipakai proses aktif mengunci (EBUSY/
+// EPERM/ENOTEMPTY) sehingga rm/copy gagal. Retry dengan backoff eksponensial.
+function isLockError(err) {
+  return err && ["EBUSY", "EPERM", "ENOTEMPTY"].includes(err.code);
+}
+
+function retryOnLock(fn, { retries = 5, delay = 500 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isLockError(err) || attempt === retries) throw err;
+      const wait = delay * 2 ** attempt;
+      console.warn(`⚠️  ${err.code} — retry ${attempt + 1}/${retries} dalam ${wait}ms...`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, wait);
+    }
+  }
+  throw lastErr;
+}
+
+function rmRecursiveLocked(target) {
+  if (!fs.existsSync(target)) return;
+  retryOnLock(() => fs.rmSync(target, { recursive: true, force: true }));
+}
+
 function copyRecursive(src, dest) {
   if (!fs.existsSync(src)) {
     console.warn(`Warning: Source ${src} does not exist`);
@@ -192,9 +219,7 @@ function buildCliPackage() {
 
   // Step 2: Clean old app/cli/app if exists
   console.log("2️⃣  Cleaning old app/cli/app...");
-  if (fs.existsSync(cliAppDir)) {
-    fs.rmSync(cliAppDir, { recursive: true, force: true });
-  }
+  rmRecursiveLocked(cliAppDir);
   console.log("✅ Cleaned\n");
 
   // Step 3: Copy Next.js standalone build to app/cli/app.
@@ -252,7 +277,7 @@ function buildCliPackage() {
   ensureModuleInBundle("open");
   const betterDir = path.join(cliAppDir, "node_modules", "better-sqlite3");
   if (fs.existsSync(betterDir)) {
-    fs.rmSync(betterDir, { recursive: true, force: true });
+    rmRecursiveLocked(betterDir);
     console.log("✅ Stripped better-sqlite3 (lives in ~/.9router/runtime)");
   }
   console.log("");
