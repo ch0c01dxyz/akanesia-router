@@ -1,8 +1,6 @@
 import crypto from "node:crypto";
 import { DefaultExecutor } from "./default.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
-import { isMuseSparkModel } from "../providers/models/helpers.js";
-import { FINGERPRINT_TOOL_DEFINITIONS } from "../utils/opencodeFingerprint.js";
 import {
   normalizeResponsesInput,
   clampResponsesCallId,
@@ -16,13 +14,9 @@ const MAX_SESSION_LENGTH = 256;
 
 const RESPONSES_BASE_URL = "https://opencode.ai/inference/v1/responses";
 const MAX_TOOL_NAME_LEN = 128;
-const OPENCODE_UA = "opencode/latest/2.0.26/cli";
+const OPENCODE_UA = "opencode/latest/2.0.29/cli";
 export const OPENCODE_SESSION_RE = /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
 const BASE62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-// Free-tier fingerprint (v2 contract): upstream 403s requests without the
-// glob/grep/read/shell quartet (exact CLI schemas) and without stream:true.
-// x-opencode-request is rejected by the v2 gate.
-const OPENCODE_FINGERPRINT_TOOLS = ["glob", "grep", "read", "shell"];
 
 function hasValidOpencodeVersion(ua) {
   const s = String(ua || "");
@@ -78,56 +72,6 @@ function toolNameOf(tool) {
   return raw.trim();
 }
 
-function ensureChatFingerprintTools(body) {
-  if (!body || typeof body !== "object") return;
-  const present = new Set();
-  if (Array.isArray(body.tools)) {
-    for (const tool of body.tools) {
-      const name = toolNameOf(tool);
-      if (name) present.add(name);
-    }
-  } else {
-    body.tools = [];
-  }
-  for (const name of OPENCODE_FINGERPRINT_TOOLS) {
-    if (present.has(name)) continue;
-    const { description, parameters } = FINGERPRINT_TOOL_DEFINITIONS[name];
-    body.tools.push({
-      type: "function",
-      function: {
-        name,
-        description,
-        parameters,
-      },
-    });
-    present.add(name);
-  }
-}
-
-function ensureResponsesFingerprintTools(body) {
-  if (!body || typeof body !== "object") return;
-  const present = new Set();
-  if (Array.isArray(body.tools)) {
-    for (const tool of body.tools) {
-      const name = toolNameOf(tool);
-      if (name) present.add(name);
-    }
-  } else {
-    body.tools = [];
-  }
-  for (const name of OPENCODE_FINGERPRINT_TOOLS) {
-    if (present.has(name)) continue;
-    const { description, parameters } = FINGERPRINT_TOOL_DEFINITIONS[name];
-    body.tools.push({
-      type: "function",
-      name,
-      description,
-      parameters,
-    });
-    present.add(name);
-  }
-}
-
 function normalizeSession(value) {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
@@ -153,10 +97,6 @@ function translatedSession(sessionId, clientTool) {
 // Strip the thinking suffix "model(level)" so checks hit the base id.
 function baseModelId(model) {
   return String(model || "").replace(/\([^()]+\)\s*$/, "").trim();
-}
-
-function isResponsesModel(model) {
-  return isMuseSparkModel(baseModelId(model));
 }
 
 // Flatten Chat Completions tool declarations into the Responses flat shape and
@@ -228,9 +168,8 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
   }
 
   buildUrl(model, stream, urlIndex = 0, credentials = null) {
-    // Muse Spark lives on /responses even when a stale runtimeTransport leaks in.
-    if (isResponsesModel(model)) return RESPONSES_BASE_URL;
-    return super.buildUrl(model, stream, urlIndex, credentials);
+    // MITM capture: ALL free models go to /responses.
+    return RESPONSES_BASE_URL;
   }
 
   prepareRequestCredentials({ body, credentials, providerSessionId, clientTool } = {}) {
@@ -264,10 +203,17 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
     // Free-tier gate: spoof the official client UA (v2 format).
     headers["User-Agent"] = hasValidOpencodeVersion(downstreamUa) ? downstreamUa : OPENCODE_UA;
     headers["x-opencode-client"] = lower["x-opencode-client"] || "cli";
-    headers["x-opencode-project"] = lower["x-opencode-project"] || "global";
 
     const prepared = credentials?.[SESSION_FIELD];
     const session = prepared || this.prepareRequestCredentials({ credentials })[SESSION_FIELD];
+    // MITM capture: x-opencode-project is a 40-hex hash (SHA-1), not "global".
+    const projectHash = session
+      ? crypto.createHash("sha1").update(String(session)).digest("hex")
+      : "0000000000000000000000000000000000000000";
+    headers["x-opencode-project"] = lower["x-opencode-project"] || projectHash;
+    // MITM capture: Accept is */*.
+    headers["Accept"] = "*/*";
+
     // v2 gate: mirror the session across four headers; x-opencode-request is
     // rejected with 403 and is no longer sent.
     headers[SESSION_HEADER] = session;
@@ -281,38 +227,41 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
     const out = super.transformRequest(model, body);
     // Free-tier gate: upstream 403s stream:false even when everything else is valid.
     if (out && typeof out === "object") out.stream = true;
-    if (!isResponsesModel(model || body?.model)) {
-      ensureChatFingerprintTools(out);
-      return out;
+    // MITM capture (opencode2 v2.0.29): ALL free models go to /responses;
+    // the real CLI sends NO tools array. Do NOT inject fingerprint fakes.
+    if (out && typeof out === "object") {
+      if (out.tool_choice === "none") delete out.tool_choice;
+      const normalized = normalizeResponsesInput(out.input);
+      if (normalized) out.input = normalized;
+      if (!Array.isArray(out.input) || out.input.length === 0) {
+        out.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "..." }] }];
+      }
+      // Responses names the output cap max_output_tokens, not max_tokens.
+      if (out.max_output_tokens === undefined) {
+        if (out.max_completion_tokens !== undefined) out.max_output_tokens = out.max_completion_tokens;
+        else if (out.max_tokens !== undefined) out.max_output_tokens = out.max_tokens;
+      }
+      delete out.max_tokens;
+      delete out.max_completion_tokens;
+      // OpenCode Zen menolak max_output_tokens < 16 (400 invalid_request_error).
+      if (typeof out.max_output_tokens === "number") {
+        out.max_output_tokens = Math.min(Math.max(out.max_output_tokens, 16), 65536);
+      }
+      if (out.reasoning_effort !== undefined && out.reasoning === undefined) {
+        out.reasoning = { effort: out.reasoning_effort, summary: "auto" };
+      }
+      if (out.reasoning && typeof out.reasoning === "object" && !Array.isArray(out.reasoning)) {
+        if (!out.reasoning.summary) out.reasoning.summary = "auto";
+      }
+      delete out.reasoning_effort;
+      out.stream = true;
+      out.store = false;
+      const sessionId = credentials?.[SESSION_FIELD];
+      if (!out.prompt_cache_key && sessionId) out.prompt_cache_key = sessionId;
+      if (!out.include) out.include = ["reasoning.encrypted_content"];
+      normalizeResponsesTools(out);
+      sanitizeResponsesItems(out);
     }
-    const normalized = normalizeResponsesInput(out.input);
-    if (normalized) out.input = normalized;
-    if (!Array.isArray(out.input) || out.input.length === 0) {
-      out.input = [{ type: "message", role: "user", content: [{ type: "input_text", text: "..." }] }];
-    }
-    // Responses names the output cap max_output_tokens, not max_tokens.
-    if (out.max_output_tokens === undefined) {
-      if (out.max_completion_tokens !== undefined) out.max_output_tokens = out.max_completion_tokens;
-      else if (out.max_tokens !== undefined) out.max_output_tokens = out.max_tokens;
-    }
-    delete out.max_tokens;
-    delete out.max_completion_tokens;
-    // OpenCode Zen menolak max_output_tokens < 16 (400 invalid_request_error).
-    if (typeof out.max_output_tokens === "number") {
-      out.max_output_tokens = Math.min(Math.max(out.max_output_tokens, 16), 65536);
-    }
-    if (out.reasoning_effort !== undefined && out.reasoning === undefined) {
-      out.reasoning = { effort: out.reasoning_effort, summary: "auto" };
-    }
-    if (out.reasoning && typeof out.reasoning === "object" && !Array.isArray(out.reasoning)) {
-      if (!out.reasoning.summary) out.reasoning.summary = "auto";
-    }
-    delete out.reasoning_effort;
-    out.stream = true;
-    out.store = false;
-    ensureResponsesFingerprintTools(out);
-    normalizeResponsesTools(out);
-    sanitizeResponsesItems(out);
     return out;
   }
 }

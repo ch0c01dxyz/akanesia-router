@@ -160,33 +160,33 @@ describe("OpenCode Free Executor Session Resolution", () => {
 });
 
 describe("OpenCode Free User-Agent Validation", () => {
-  it("defaults User-Agent to opencode/latest/2.0.26/cli for non-opencode downstream clients", async () => {
+  it("defaults User-Agent to opencode/latest/2.0.29/cli for non-opencode downstream clients", async () => {
     const executor = await getExecutor("opencode");
     const headersNoUa = executor.buildHeaders({});
-    expect(headersNoUa["User-Agent"]).toBe("opencode/latest/2.0.26/cli");
+    expect(headersNoUa["User-Agent"]).toBe("opencode/latest/2.0.29/cli");
 
     const headersClaude = executor.buildHeaders({ rawHeaders: { "user-agent": "Claude-Code/1.0" } });
-    expect(headersClaude["User-Agent"]).toBe("opencode/latest/2.0.26/cli");
+    expect(headersClaude["User-Agent"]).toBe("opencode/latest/2.0.29/cli");
   });
 
-  it("replaces bare opencode with versioned opencode/latest/2.0.26/cli to prevent 403 FreeTierError", async () => {
+  it("replaces bare opencode with versioned opencode/latest/2.0.29/cli to prevent 403 FreeTierError", async () => {
     const executor = await getExecutor("opencode");
     const headers = executor.buildHeaders({ rawHeaders: { "user-agent": "opencode" } });
-    expect(headers["User-Agent"]).toBe("opencode/latest/2.0.26/cli");
+    expect(headers["User-Agent"]).toBe("opencode/latest/2.0.29/cli");
   });
 
   it("upgrades outdated opencode versions (< 1.17) to prevent 426 Upgrade Required", async () => {
     const executor = await getExecutor("opencode");
     const headers = executor.buildHeaders({ rawHeaders: { "user-agent": "opencode/1.15.0" } });
-    expect(headers["User-Agent"]).toBe("opencode/latest/2.0.26/cli");
+    expect(headers["User-Agent"]).toBe("opencode/latest/2.0.29/cli");
   });
 
   it("preserves valid opencode versions (>= 1.17)", async () => {
     const executor = await getExecutor("opencode");
     const headers118 = executor.buildHeaders({
-      rawHeaders: { "user-agent": "opencode/latest/2.0.26/cli ai-sdk/provider-utils/4.0.40 runtime/bun/1.3.14" },
+      rawHeaders: { "user-agent": "opencode/latest/2.0.29/cli ai-sdk/provider-utils/4.0.40 runtime/bun/1.3.14" },
     });
-    expect(headers118["User-Agent"]).toBe("opencode/latest/2.0.26/cli ai-sdk/provider-utils/4.0.40 runtime/bun/1.3.14");
+    expect(headers118["User-Agent"]).toBe("opencode/latest/2.0.29/cli ai-sdk/provider-utils/4.0.40 runtime/bun/1.3.14");
 
     const headersFuture = executor.buildHeaders({ rawHeaders: { "user-agent": "opencode/1.19.0" } });
     expect(headersFuture["User-Agent"]).toBe("opencode/1.19.0");
@@ -246,17 +246,16 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     expect(second).toBe(first);
   });
 
-  it("applies the full lowercase free-tier fingerprint quartet", async () => {
+  it("does NOT inject fingerprint tools (MITM-proven plain body)", async () => {
   const executor = await getExecutor("opencode");
 
   const chatNoTools = executor.transformRequest("nemotron-3-ultra-free", {
     messages: [{ role: "user", content: "hi" }],
   });
   expect(chatNoTools.stream).toBe(true);
-  expect(chatNoTools.tool_choice).toBe("auto");
-  expect(chatNoTools.tools.map((t) => t.function?.name)).toEqual([
-    "glob", "grep", "read", "shell",
-  ]);
+  // MITM capture: no tools injected, no tool_choice set.
+  expect(chatNoTools.tool_choice).toBeUndefined();
+  expect(chatNoTools.tools).toBeUndefined();
 
   const chatWithTools = executor.transformRequest("nemotron-3-ultra-free", {
     messages: [{ role: "user", content: "hi" }],
@@ -268,9 +267,10 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     ],
     tool_choice: "auto",
   });
+  // MITM capture: no fingerprint injection — user tools pass through unchanged.
   expect(chatWithTools.tool_choice).toBe("auto");
-  expect(chatWithTools.tools.map((t) => t.function?.name)).toEqual([
-    "shell", "glob", "grep", "read",
+  expect(chatWithTools.tools.map((t) => t.name)).toEqual([
+    "Shell", "Glob", "Grep", "Read",
   ]);
 
   const chatPartial = executor.transformRequest("nemotron-3-ultra-free", {
@@ -280,13 +280,14 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
       { type: "function", function: { name: "read", description: "existing" } },
     ],
   });
-  expect(chatPartial.tools.map((t) => t.function?.name)).toEqual([
-    "bash", "read", "glob", "grep", "shell",
+  // MITM capture: no fingerprint injection — user tools pass through unchanged.
+  expect(chatPartial.tools.map((t) => t.name)).toEqual([
+    "bash", "read",
   ]);
-  expect(chatPartial.tools[0].function.description).toBe("existing");
+  expect(chatPartial.tools[0].description).toBe("existing");
 });
 
-  it("cloaks Muse Responses requests even when the client already supplies tools", async () => {
+  it("passes through user tools without fingerprint injection", async () => {
     const executor = await getExecutor("opencode");
     const transformed = executor.transformRequest("muse-spark-1.3-contributor-free(xhigh)", {
       input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] }],
@@ -304,10 +305,9 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     expect(transformed.reasoning?.effort).toBe("xhigh");
     const names = transformed.tools.map((tool) => tool.name);
     expect(names).toContain("zcode_search");
-    expect(names).toContain("shell");
-    expect(names).toContain("read");
-    expect(names.filter((name) => name === "shell")).toHaveLength(1);
-    expect(names.filter((name) => name === "read")).toHaveLength(1);
+    // MITM capture: no fingerprint tools injected.
+    expect(names).not.toContain("shell");
+    expect(names).not.toContain("read");
   });
 
   it("declares forceStream on the opencode transport so chatCore serves SSE upstream", async () => {
@@ -327,19 +327,20 @@ describe("OpenCode v2 free-tier headers", () => {
     expect(headers["x-session-id"]).toBe(session);
     expect(headers["x-opencode-client"]).toBe("cli");
     expect(headers["x-opencode-request"]).toBeUndefined();
-    expect(headers["User-Agent"]).toBe("opencode/latest/2.0.26/cli");
+    expect(headers["User-Agent"]).toBe("opencode/latest/2.0.29/cli");
   });
 
   it("builds /inference/v1 URLs for all model routes", async () => {
     const executor = await getExecutor("opencode");
+    // MITM capture: ALL free models go to /responses.
     expect(executor.buildUrl("muse-spark-1.3-contributor-free")).toBe(
       "https://opencode.ai/inference/v1/responses"
     );
     expect(executor.buildUrl("union-alpha")).toBe(
-      "https://opencode.ai/inference/v1/messages"
+      "https://opencode.ai/inference/v1/responses"
     );
     expect(executor.buildUrl("some-other-model")).toBe(
-      "https://opencode.ai/inference/v1/chat/completions"
+      "https://opencode.ai/inference/v1/responses"
     );
   });
 });

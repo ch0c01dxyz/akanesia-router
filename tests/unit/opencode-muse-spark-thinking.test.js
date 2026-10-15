@@ -59,11 +59,11 @@ describe("OpenCode Free Muse Spark thinking", () => {
 
     expect(out.reasoning).toEqual({ effort: "xhigh", summary: "auto" });
     expect(out.reasoning_effort).toBeUndefined();
-    expect(out.max_output_tokens).toBe(131072);
+    expect(out.max_output_tokens).toBe(65536);
     expect(out.max_tokens).toBeUndefined();
   });
 
-  it("routes Union Alpha through Anthropic Messages", () => {
+  it("routes all free models through /responses (MITM-proven)", () => {
     const caps = getCapabilitiesForModel(PROVIDER, "union-alpha");
     expect(caps.vision).toBe(true);
     expect(caps.contextWindow).toBe(262144);
@@ -71,12 +71,10 @@ describe("OpenCode Free Muse Spark thinking", () => {
 
     const executor = new OpenCodeExecutor();
 
-    expect(getModelTargetFormat("oc", "union-alpha")).toBe(FORMATS.CLAUDE);
+    // MITM capture: ALL free models go to /responses (no /messages branch).
     const url = executor.buildUrl("union-alpha");
-    expect(url).toBe("https://opencode.ai/inference/v1/messages");
-    expect(executor.buildHeaders({}, true, url)).toMatchObject({
-      "anthropic-version": "2023-06-01",
-    });
+    expect(url).toBe("https://opencode.ai/inference/v1/responses");
+    expect(executor.buildHeaders({}, true, url)).not.toHaveProperty("anthropic-version");
     expect(executor.buildHeaders({}, true, executor.buildUrl("big-pickle")))
       .not.toHaveProperty("anthropic-version");
 
@@ -96,13 +94,14 @@ describe("OpenCode Free Muse Spark thinking", () => {
     });
   });
 
-  it("leaves the other free models on Chat Completions", () => {
+  it("routes all free models to /responses (MITM-proven)", () => {
     const executor = new OpenCodeExecutor();
     const body = { messages: [{ role: "user", content: "hi" }], max_tokens: 1024 };
     executor.transformRequest("big-pickle", body, true, {});
-    expect(executor.buildUrl("big-pickle")).toBe("https://opencode.ai/inference/v1/chat/completions");
-    expect(body.max_tokens).toBe(1024);
-    expect(body.max_output_tokens).toBeUndefined();
+    expect(executor.buildUrl("big-pickle")).toBe("https://opencode.ai/inference/v1/responses");
+    // max_tokens normalized to max_output_tokens for /responses.
+    expect(body.max_output_tokens).toBe(1024);
+    expect(body.max_tokens).toBeUndefined();
   });
 
   it("translates Chat Completions max thinking into a Responses request", () => {
@@ -127,7 +126,7 @@ describe("OpenCode Free Muse Spark thinking", () => {
     });
 
     expect(out.reasoning).toEqual({ effort: "xhigh", summary: "auto" });
-    expect(out.max_output_tokens).toBe(131072);
+    expect(out.max_output_tokens).toBe(65536);
     expect(out.max_tokens).toBeUndefined();
   });
 

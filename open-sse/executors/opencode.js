@@ -5,9 +5,6 @@ import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
 import { getThinkingLevels } from "../providers/thinkingLevels.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
-import { isMuseSparkModel } from "../providers/models/helpers.js";
-import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
-import { ANTHROPIC_API_VERSION } from "../providers/shared.js";
 import {
   normalizeResponsesInput,
   clampResponsesCallId,
@@ -15,7 +12,7 @@ import {
   coerceResponsesOutput,
 } from "../translator/formats/responsesApi.js";
 
-const OPENCODE_UA = "opencode/latest/2.0.26/cli";
+const OPENCODE_UA = "opencode/latest/2.0.29/cli";
 const MAX_SESSION_LENGTH = 256;
 const MAX_TOOL_NAME_LEN = 128;
 const SESSION_HEADER = "x-opencode-session";
@@ -33,12 +30,6 @@ function hasValidOpencodeVersion(ua) {
   const minor = parseInt(m[2], 10);
   return major > 1 || (major === 1 && minor >= 17);
 }
-// Models served by /zen/v1/responses; every other model stays on /chat/completions.
-const RESPONSES_MODELS = new Set([
-  "muse-spark-1.2-contributor-free",
-  "muse-spark-1.3-contributor-free",
-]);
-const MESSAGES_MODELS = new Set(["union-alpha"]);
 
 let lastTimestamp = 0;
 let counter = 0;
@@ -187,15 +178,6 @@ function baseModelId(model) {
   return String(model || "").replace(/\([^()]+\)\s*$/, "").trim();
 }
 
-function isResponsesModel(model) {
-  const base = baseModelId(model);
-  return RESPONSES_MODELS.has(base) || isMuseSparkModel(base);
-}
-
-function isMessagesModel(model) {
-  return MESSAGES_MODELS.has(baseModelId(model));
-}
-
 function resolveOpencodeSession(body, credentials, providerSessionId, clientTool) {
   const headers = credentials?.rawHeaders || {};
   const native = nativeSession(headers);
@@ -336,12 +318,13 @@ export class OpenCodeExecutor extends BaseExecutor {
     // Zen rejects non-streaming requests on free models with 403 FreeTierError;
     // always stream upstream and let the handler layer aggregate for non-stream clients.
     if (body && typeof body === "object") body.stream = true;
-    if (isResponsesModel(model || body?.model) && body && typeof body === "object") {
-      // ponytail: chỉ model đã xác nhận auto-only; mở allowlist khi có bằng chứng.
-      if ("tool_choice" in body && body.tool_choice !== "auto"
-        && this.config.quirks?.forceAutoToolChoiceModels?.includes(baseModelId(model))) {
-        body.tool_choice = "auto";
-      }
+    if (body && typeof body === "object") {
+      // MITM capture (opencode2 v2.0.29): the real CLI sends NO tools array
+      // for simple requests. Do NOT inject fingerprint fakes — pass through
+      // user tools unchanged (normalizeResponsesTools filters invalid ones).
+      // Demote explicit tool_choice:"none" (gate rejects it); otherwise leave
+      // tool_choice unset like the CLI.
+      if (body.tool_choice === "none") delete body.tool_choice;
       const normalized = normalizeResponsesInput(body.input);
       if (normalized) body.input = normalized;
       if (!Array.isArray(body.input) || body.input.length === 0) {
@@ -362,14 +345,13 @@ export class OpenCodeExecutor extends BaseExecutor {
       normalizeOpencodeReasoning(model, body);
       body.stream = true;
       body.store = false;
+      // CLI constants from MITM capture: prompt_cache_key = session id,
+      // include reasoning encrypted content.
+      const sessionId = credentials?.[SESSION_FIELD];
+      if (!body.prompt_cache_key && sessionId) body.prompt_cache_key = sessionId;
+      if (!body.include) body.include = ["reasoning.encrypted_content"];
       normalizeResponsesTools(body);
       sanitizeResponsesItems(body);
-      // Free-tier fingerprint tools are required even when an agent client
-      // already supplied tools. ZCode/Claude Code requests normally have
-      // non-empty tool arrays; skipping cloaking here triggers 403 FreeTierError.
-      applyFingerprintTools(body, true);
-    } else if (body && typeof body === "object") {
-      applyFingerprintTools(body, false);
     }
     return injectReasoningContent({ provider: this.provider, model, body });
   }
@@ -380,9 +362,9 @@ export class OpenCodeExecutor extends BaseExecutor {
 
   buildUrl(model) {
     const base = this.config.baseUrl;
-    if (isResponsesModel(model)) return `${base}/inference/v1/responses`;
-    if (isMessagesModel(model)) return `${base}/inference/v1/messages`;
-    return `${base}/inference/v1/chat/completions`;
+    // MITM capture (opencode2 v2.0.29): ALL free models go to /responses.
+    // /chat/completions and /messages reject free tier flat (in-app only).
+    return `${base}/inference/v1/responses`;
   }
 
   buildHeaders(credentials, stream = true, url = "") {
@@ -397,6 +379,11 @@ export class OpenCodeExecutor extends BaseExecutor {
 
     // v2 gate: x-opencode-request is rejected with 403; the session must be
     // mirrored across four headers and the client must identify as "cli".
+    // MITM capture: x-opencode-project is a 40-hex hash (SHA-1), not "global";
+    // Accept is */* (not text/event-stream).
+    const projectHash = session
+      ? crypto.createHash("sha1").update(String(session)).digest("hex")
+      : "0000000000000000000000000000000000000000";
     const headers = {
       "Content-Type": "application/json",
       "Authorization": "Bearer public",
@@ -406,10 +393,9 @@ export class OpenCodeExecutor extends BaseExecutor {
       "x-opencode-session-id": session,
       "x-session-affinity": session,
       "x-session-id": session,
-      "x-opencode-project": lower["x-opencode-project"] || "global",
-      "Accept": stream ? "text/event-stream" : "*/*",
+      "x-opencode-project": lower["x-opencode-project"] || projectHash,
+      "Accept": "*/*",
     };
-    if (url.endsWith("/messages")) headers["anthropic-version"] = ANTHROPIC_API_VERSION;
     return headers;
   }
 }
