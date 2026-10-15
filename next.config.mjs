@@ -33,7 +33,7 @@ const nextConfig = {
   // terdeteksi oleh static tracing. Sertakan eksplisit agar file-nya ikut
   // terkopi ke .next/standalone.
   outputFileTracingIncludes: {
-    "*": ["./open-sse/executors/**/*.js", "./open-sse/translator/**/*.js"]
+    "*": ["./open-sse/**/*.js", "./open-sse/**/*.json", "./src/**/*.js"]
   },
   images: {
     unoptimized: true

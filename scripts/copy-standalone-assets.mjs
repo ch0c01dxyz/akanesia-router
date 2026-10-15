@@ -37,6 +37,24 @@ export function copyStandaloneAssets({ projectRoot = process.cwd(), distDir = pr
     cpSync(serverWrapperSource, serverWrapperDestination, { force: true });
     console.log(`[standalone-assets] Copied custom-server.js to ${serverWrapperDestination}`);
   }
+
+  // Runtime deps reached only via dynamic file-URL imports (open-sse executors).
+  // Next's output tracing misses them, so the standalone build cannot resolve
+  // them at runtime. Copy each from the project's node_modules if absent.
+  // Keep in sync with the dynamic executor loader (open-sse/executors).
+  const extraRuntimeDeps = ["node-machine-id", "undici", "uuid"];
+  const standaloneNodeModules = resolve(standaloneDir, "node_modules");
+  for (const dep of extraRuntimeDeps) {
+    const depSource = resolve(projectRoot, "node_modules", dep);
+    const depDestination = resolve(standaloneNodeModules, dep);
+    if (!existsSync(depSource)) {
+      console.warn(`[standalone-assets] Runtime dep "${dep}" not found in node_modules; skipped`);
+      continue;
+    }
+    if (existsSync(depDestination)) continue;
+    cpSync(depSource, depDestination, { recursive: true, force: true });
+    console.log(`[standalone-assets] Copied runtime dep ${dep} to ${depDestination}`);
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(dirname(fileURLToPath(import.meta.url)), "copy-standalone-assets.mjs")) {
