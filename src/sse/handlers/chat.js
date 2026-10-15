@@ -21,6 +21,7 @@ import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActi
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { ensureTranslatorsFor } from "open-sse/translator/index.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { clampQuotaMaxFallbacks } from "open-sse/config/quotaErrorClasses.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";

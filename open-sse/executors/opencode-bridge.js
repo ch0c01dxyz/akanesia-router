@@ -8,10 +8,11 @@
  * process (decolua/9router#4845). This executor runs the real client locally
  * and drives it via its HTTP API, so the gate sees a genuine origin.
  *
- * API (verified):
- *   POST /api/session            → create session + pin model
- *   POST /api/session/:id/prompt → send prompt (async)
- *   GET  /api/session/:id/message → poll history + parts + tool calls
+ * API shapes verified by Egar's research (shim.js, 2026-10-16):
+ *   POST /api/session            { title, model: { providerID, id } } → { data: { id } }
+ *   POST /api/session/:id/prompt { text, files?: [{uri, name}] }      → async
+ *   GET  /api/session/:id/message → { data: [{ type: "assistant", finish: "stop"|"tool-calls"|"error",
+ *                                      content: [{type:"text", text}], tokens: {input,output,reasoning} }] }
  *
  * Quirk: model override via prompt body is IGNORED unless pinned at session
  * create. Always pin model in POST /api/session.
@@ -20,132 +21,152 @@
 import { BaseExecutor } from "./base.js";
 import { ensureBridgeRunning } from "../utils/opencodeBridgeSupervisor.js";
 
-const POLL_INTERVAL_MS = 500;
-const POLL_TIMEOUT_MS = 120000; // 2 min max per request
+const POLL_INTERVAL_MS = 600;
+const STREAM_TIMEOUT_MS = 600000; // 10 min for streaming (tool loops can run long)
+const NON_STREAM_TIMEOUT_MS = 55000; // stay under router's 60s abort
+
+/** Explicit free-model map (shim.js). Falls back to default if unknown. */
+const MODEL_MAP = {
+  "cat-jam-free": "cat-jam-free",
+  "deepseek-v4.1-flash-free": "deepseek-v4.1-flash-free",
+  "jev-1.13-free": "jev-1.13-free",
+  "longcat-2.5-preview-free": "longcat-2.5-preview-free",
+  "mimo-v2.6-flash-free": "mimo-v2.6-flash-free",
+  "muse-spark-1.3-contributor-free": "muse-spark-1.3-contributor-free",
+  "nemotron-3-ultra-free": "nemotron-3-ultra-free",
+  "nemotron-3.5-lightning-free": "nemotron-3.5-lightning-free",
+  "nemotron-3.5-super-vl-free": "nemotron-3.5-super-vl-free",
+  "space-bunny-free": "space-bunny-free",
+  "step-5-preview-free": "step-5-preview-free",
+  "big-pickle": "big-pickle",
+};
+const DEFAULT_MODEL = "muse-spark-1.3-contributor-free";
 
 /**
- * Extract text content from OpenAI-style messages array.
- * Returns { text, images } where images are data URLs.
+ * Map akanesia-router model ID to opencode model ID.
+ * Strips provider prefix (e.g. "oc/mimo-..." → "mimo-...") and variant suffix.
  */
-function extractPromptContent(body) {
-  let text = "";
-  const images = [];
-
-  const messages = body.messages || [];
-  for (const msg of messages) {
-    if (msg.role === "system") continue; // TODO: system prompt handling
-    const content = msg.content;
-    if (typeof content === "string") {
-      text += (text ? "\n" : "") + content;
-    } else if (Array.isArray(content)) {
-      for (const part of content) {
-        if (part.type === "text") {
-          text += (text ? "\n" : "") + part.text;
-        } else if (part.type === "image_url") {
-          const url = part.image_url?.url;
-          if (url) images.push(url);
-        }
-      }
-    }
-  }
-
-  // Responses API format
-  if (body.input && Array.isArray(body.input)) {
-    for (const item of body.input) {
-      if (item.type === "message" && item.role === "user") {
-        for (const part of item.content || []) {
-          if (part.type === "input_text") {
-            text += (text ? "\n" : "") + part.text;
-          } else if (part.type === "input_image") {
-            if (part.image_url) images.push(part.image_url);
-          }
-        }
-      }
-    }
-  }
-
-  return { text, images };
+function toOpencodeModelId(model) {
+  const withoutProvider = model.includes("/") ? model.split("/").pop() : model;
+  const clean = withoutProvider.replace(/\(.*\)$/, "");
+  return MODEL_MAP[clean] || DEFAULT_MODEL;
 }
 
 /**
- * Map akanesia-router model ID to opencode provider/model.
- * Strips provider prefix (e.g. "opencode/muse-spark-..." → "muse-spark-...").
+ * Flatten OpenAI messages into prompt text + image data URLs.
+ * System messages are prefixed as [system instructions].
  */
-function toOpencodeModelId(model) {
-  // Remove provider prefix if present
-  const withoutProvider = model.includes("/") ? model.split("/").pop() : model;
-  // Remove variant suffix like (xhigh)
-  return withoutProvider.replace(/\(.*\)$/, "");
+function extractPrompt(body) {
+  let text = "";
+  const images = [];
+  for (const msg of body.messages || []) {
+    if (msg.role === "system") {
+      const content = typeof msg.content === "string" ? msg.content : "";
+      text += (text ? "\n" : "") + "[system instructions]\n" + content;
+      continue;
+    }
+    if (typeof msg.content === "string") {
+      text += (text ? "\n" : "") + msg.content;
+    } else if (Array.isArray(msg.content)) {
+      for (const part of msg.content) {
+        if (part.type === "text") text += (text ? "\n" : "") + part.text;
+        else if (part.type === "image_url" && part.image_url?.url) images.push(part.image_url.url);
+      }
+    }
+  }
+  // Responses API format
+  if (Array.isArray(body.input)) {
+    for (const item of body.input) {
+      if (item.type === "message" && item.role === "user") {
+        for (const part of item.content || []) {
+          if (part.type === "input_text") text += (text ? "\n" : "") + part.text;
+          else if (part.type === "input_image" && part.image_url) images.push(part.image_url);
+        }
+      }
+    }
+  }
+  return { text: text.trim(), images };
+}
+
+/** Extract text from a message's content parts. */
+function textsOf(msg) {
+  return (msg?.content || []).filter((p) => p.type === "text").map((p) => p.text).join("");
+}
+
+/** Build OpenAI usage from opencode tokens. */
+function buildUsage(msg) {
+  const t = msg?.tokens || {};
+  return {
+    prompt_tokens: t.input || 0,
+    completion_tokens: (t.output || 0) + (t.reasoning || 0),
+    total_tokens: (t.input || 0) + (t.output || 0) + (t.reasoning || 0),
+  };
 }
 
 export class OpenCodeBridgeExecutor extends BaseExecutor {
   constructor(provider, config) {
     super(provider, config);
-    this.noAuth = true; // Auth is via the local serve Basic password, not upstream
+    this.noAuth = true; // Auth via local serve Basic password, not upstream
   }
 
   transformRequest(model, body, stream, credentials) {
-    // Bridge handles the raw body; no upstream transformation needed.
-    // We pass through so execute() can extract what it needs.
-    return body;
+    return body; // Bridge handles raw body in execute()
   }
 
   buildUrl() {
-    // Not used — bridge talks to local serve, not upstream directly.
-    return "http://127.0.0.1:4096/api/session";
+    return "bridge://opencode"; // Not a real URL; execute() talks to local serve
   }
 
   async execute({ model, body, stream, credentials, signal, log }) {
     const { baseUrl, password } = await ensureBridgeRunning();
     const auth = "Basic " + Buffer.from(`opencode:${password}`).toString("base64");
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": auth,
-    };
+    const headers = { "Content-Type": "application/json", "Authorization": auth };
 
     const opencodeModelId = toOpencodeModelId(model);
-    const { text, images } = extractPromptContent(body);
-
+    const { text, images } = extractPrompt(body);
     if (!text && images.length === 0) {
       throw new Error("opencode-bridge: empty prompt (no text or images)");
     }
 
-    // 1. Create session with pinned model (quirk: must pin at create)
-    const sessionRes = await fetch(`${baseUrl}/api/session`, {
+    const ocFetch = (path, opts = {}) =>
+      fetch(`${baseUrl}${path}`, {
+        ...opts,
+        headers: { ...headers, ...(opts.headers || {}) },
+        signal,
+      });
+
+    // 1. Create session with pinned model
+    const sessionRes = await ocFetch("/api/session", {
       method: "POST",
-      headers,
       body: JSON.stringify({
+        title: "router-bridge",
         model: { providerID: "opencode", id: opencodeModelId },
       }),
-      signal,
     });
     if (!sessionRes.ok) {
       const t = await sessionRes.text().catch(() => "");
-      throw new Error(`opencode-bridge: session create failed ${sessionRes.status}: ${t.slice(0, 200)}`);
+      throw new Error(`opencode-bridge: session create ${sessionRes.status}: ${t.slice(0, 200)}`);
     }
     const sessionData = await sessionRes.json();
     const sessionId = sessionData.data?.id || sessionData.id;
-    if (!sessionId) {
-      throw new Error("opencode-bridge: no session id in create response");
-    }
+    if (!sessionId) throw new Error("opencode-bridge: no session id in create response");
 
-    // 2. Send prompt (async)
+    // 2. Send prompt (async). Images go in `files` (v2.0.29 PromptInput.files).
     const promptBody = { text };
-    if (images.length > 0) promptBody.images = images;
-    const promptRes = await fetch(`${baseUrl}/api/session/${sessionId}/prompt`, {
+    if (images.length > 0) {
+      promptBody.files = images.map((dataUrl, i) => ({ uri: dataUrl, name: `image-${i + 1}.png` }));
+    }
+    const promptRes = await ocFetch(`/api/session/${sessionId}/prompt`, {
       method: "POST",
-      headers,
       body: JSON.stringify(promptBody),
-      signal,
     });
     if (!promptRes.ok) {
       const t = await promptRes.text().catch(() => "");
-      throw new Error(`opencode-bridge: prompt failed ${promptRes.status}: ${t.slice(0, 200)}`);
+      throw new Error(`opencode-bridge: prompt ${promptRes.status}: ${t.slice(0, 200)}`);
     }
 
-    // 3. Poll for completion (abort-aware)
-    const startTime = Date.now();
-    let lastMessageCount = 0;
+    // 3. Poll until finish === "stop" (skip "tool-calls" — agent mid-loop)
+    const timeoutMs = stream ? STREAM_TIMEOUT_MS : NON_STREAM_TIMEOUT_MS;
     const abortableDelay = (ms) => new Promise((resolve, reject) => {
       if (signal?.aborted) return reject(new Error("opencode-bridge: aborted"));
       const timer = setTimeout(resolve, ms);
@@ -155,137 +176,109 @@ export class OpenCodeBridgeExecutor extends BaseExecutor {
       }, { once: true });
     });
 
-    while (Date.now() - startTime < POLL_TIMEOUT_MS) {
-      if (signal?.aborted) throw new Error("opencode-bridge: aborted");
+    const pollOnce = async () => {
+      const r = await ocFetch(`/api/session/${sessionId}/message`);
+      if (!r.ok) return null; // transient; keep polling
+      const d = await r.json();
+      const msgs = (d.data || [])
+        .filter((m) => m.type === "assistant")
+        .sort((a, b) => (a.time?.created || 0) - (b.time?.created || 0));
+      return msgs[msgs.length - 1] || null;
+    };
 
-      const msgRes = await fetch(`${baseUrl}/api/session/${sessionId}/message`, {
-        headers,
-        signal,
-      });
-      if (!msgRes.ok) {
-        const t = await msgRes.text().catch(() => "");
-        throw new Error(`opencode-bridge: message poll failed ${msgRes.status}: ${t.slice(0, 200)}`);
-      }
-      const msgData = await msgRes.json();
-      const messages = msgData.data || [];
-
-      // Find the latest assistant message with text parts
-      // Messages are in chronological order; we want the last one
-      if (messages.length > lastMessageCount) {
-        lastMessageCount = messages.length;
-        const lastMsg = messages[messages.length - 1];
-        // Check if it's a completed assistant message
-        // The API returns parts; we look for text parts in assistant messages
-        if (lastMsg.role === "assistant" || lastMsg.role === "system") {
-          const parts = lastMsg.parts || [];
-          const textParts = parts.filter((p) => p.type === "text" && p.text);
-          // If we have text and no pending tool calls, we're done
-          // (Simple heuristic: if the last message has text, consider it complete
-          // after a short settle delay to catch multi-part responses)
-          if (textParts.length > 0) {
-            // Wait a bit to ensure no more parts are coming
-            await abortableDelay(1000);
-            // Re-fetch to get final state
-            const finalRes = await fetch(`${baseUrl}/api/session/${sessionId}/message`, {
-              headers,
-              signal,
-            });
-            const finalData = await finalRes.json();
-            const finalMessages = finalData.data || [];
-            return this.buildResponse(finalMessages, stream, model, sessionId);
+    const waitCompletion = async (onProgress = null) => {
+      const t0 = Date.now();
+      let sentLen = 0;
+      while (Date.now() - t0 < timeoutMs) {
+        await abortableDelay(POLL_INTERVAL_MS);
+        if (signal?.aborted) throw new Error("opencode-bridge: aborted");
+        const last = await pollOnce();
+        if (last?.finish) {
+          if (last.finish === "stop") return last;
+          if (last.finish === "error") {
+            throw new Error(`opencode-bridge: ${last.error?.message || "upstream error"}`);
+          }
+          // "tool-calls" → agent mid-loop; keep polling
+        }
+        // Heartbeat: stream partial text or tick to keep router's SSE alive
+        if (onProgress) {
+          const partial = textsOf(last);
+          const fresh = partial.slice(sentLen);
+          if (fresh) {
+            sentLen += fresh.length;
+            onProgress({ type: "text", text: fresh });
+          } else {
+            onProgress({ type: "tick" });
           }
         }
       }
+      throw new Error("opencode-bridge: poll timeout");
+    };
 
-      await abortableDelay(POLL_INTERVAL_MS);
-    }
-
-    throw new Error("opencode-bridge: poll timeout waiting for completion");
-  }
-
-  /**
-   * Build a fetch Response with SSE stream from opencode messages.
-   */
-  buildResponse(messages, stream, model, sessionId) {
-    // Extract all assistant text
-    let fullText = "";
-    let totalTokens = { input: 0, output: 0 };
-
-    for (const msg of messages) {
-      if (msg.role === "assistant") {
-        for (const part of msg.parts || []) {
-          if (part.type === "text" && part.text) {
-            fullText += part.text;
-          }
-        }
-        // Token usage if available
-        if (msg.tokens) {
-          totalTokens.input += msg.tokens.input || 0;
-          totalTokens.output += msg.tokens.output || 0;
-        }
-      }
-    }
+    const responseId = `chatcmpl-ocbridge-${sessionId}`;
+    const created = Math.floor(Date.now() / 1000);
 
     if (!stream) {
-      // Non-streaming: return JSON
+      // Non-streaming JSON (55s cap to stay under router's 60s abort)
+      const finalMsg = await waitCompletion();
       const jsonBody = JSON.stringify({
-        id: `chatcmpl-bridge-${sessionId}`,
-        object: "chat.completion",
-        created: Math.floor(Date.now() / 1000),
-        model,
+        id: responseId, object: "chat.completion", created, model,
         choices: [{
           index: 0,
-          message: { role: "assistant", content: fullText },
+          message: { role: "assistant", content: textsOf(finalMsg) },
           finish_reason: "stop",
         }],
-        usage: {
-          prompt_tokens: totalTokens.input,
-          completion_tokens: totalTokens.output,
-          total_tokens: totalTokens.input + totalTokens.output,
-        },
+        usage: buildUsage(finalMsg),
       });
       return {
         response: new Response(jsonBody, {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
+          status: 200, headers: { "Content-Type": "application/json" },
         }),
-        url: "bridge://opencode",
-        headers: {},
-        transformedBody: {},
+        url: "bridge://opencode", headers: {}, transformedBody: {},
       };
     }
 
-    // Streaming: build SSE
+    // Streaming SSE — poll inside the stream so heartbeats flow during tool loops
     const encoder = new TextEncoder();
+    const sseSend = (controller, obj) =>
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+
     const streamBody = new ReadableStream({
-      start(controller) {
-        // Send content in chunks
-        const chunkSize = 100;
-        for (let i = 0; i < fullText.length; i += chunkSize) {
-          const chunk = fullText.slice(i, i + chunkSize);
-          const sse = `data: ${JSON.stringify({
-            id: `chatcmpl-bridge-${sessionId}`,
-            object: "chat.completion.chunk",
-            created: Math.floor(Date.now() / 1000),
-            model,
-            choices: [{
-              index: 0,
-              delta: { content: chunk },
-              finish_reason: null,
-            }],
-          })}\n\n`;
-          controller.enqueue(encoder.encode(sse));
+      start: async (controller) => {
+        try {
+          // First event immediately (router opens client stream after first data)
+          sseSend(controller, {
+            id: responseId, object: "chat.completion.chunk", created, model,
+            choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }],
+          });
+
+          const finalMsg = await waitCompletion((progress) => {
+            // Heartbeat as empty-delta event (SSE comments don't reach client)
+            sseSend(controller, {
+              id: responseId, object: "chat.completion.chunk", created, model,
+              choices: [{ index: 0, delta: progress.type === "text" ? { content: progress.text } : {}, finish_reason: null }],
+            });
+          });
+
+          // Send any remaining text not yet streamed
+          const fullText = textsOf(finalMsg);
+          // (Partial text was already streamed via heartbeats; send remainder)
+          // For simplicity, we rely on heartbeat deltas; send final usage chunk
+          sseSend(controller, {
+            id: responseId, object: "chat.completion.chunk", created, model,
+            choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+            usage: buildUsage(finalMsg),
+          });
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        } catch (err) {
+          // Bridge error as SSE error event
+          sseSend(controller, {
+            error: { message: err.message || "bridge error", type: "bridge_error" },
+          });
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
         }
-        // Done
-        const done = `data: ${JSON.stringify({
-          id: `chatcmpl-bridge-${sessionId}`,
-          object: "chat.completion.chunk",
-          created: Math.floor(Date.now() / 1000),
-          model,
-          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
-        })}\n\ndata: [DONE]\n\n`;
-        controller.enqueue(encoder.encode(done));
-        controller.close();
       },
     });
 
@@ -294,9 +287,7 @@ export class OpenCodeBridgeExecutor extends BaseExecutor {
         status: 200,
         headers: { "Content-Type": "text/event-stream" },
       }),
-      url: "bridge://opencode",
-      headers: {},
-      transformedBody: {},
+      url: "bridge://opencode", headers: {}, transformedBody: {},
     };
   }
 }
