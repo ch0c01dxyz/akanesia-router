@@ -54,6 +54,13 @@ http.createServer = (...args) => {
   const rest = args.filter((a) => typeof a !== "function");
   if (!handler) return origCreate(...args);
   const wrapped = (req, res) => {
+    // Suppress 'aborted' errors from client disconnects (e.g. client timeout
+    // while bridge is polling). Without this, Node logs an uncaught
+    // "Error: aborted at abortIncoming" to the console.
+    req.on("error", (err) => {
+      if (err && (err.message === "aborted" || err.code === "ECONNRESET")) return;
+      console.error("[http] request error:", err && err.message ? err.message : err);
+    });
     const socketIp = req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : "";
     const xff = req.headers["x-forwarded-for"];
     const xRealIp = req.headers["x-real-ip"];

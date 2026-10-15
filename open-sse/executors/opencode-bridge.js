@@ -143,9 +143,18 @@ export class OpenCodeBridgeExecutor extends BaseExecutor {
       throw new Error(`opencode-bridge: prompt failed ${promptRes.status}: ${t.slice(0, 200)}`);
     }
 
-    // 3. Poll for completion
+    // 3. Poll for completion (abort-aware)
     const startTime = Date.now();
     let lastMessageCount = 0;
+    const abortableDelay = (ms) => new Promise((resolve, reject) => {
+      if (signal?.aborted) return reject(new Error("opencode-bridge: aborted"));
+      const timer = setTimeout(resolve, ms);
+      signal?.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(new Error("opencode-bridge: aborted"));
+      }, { once: true });
+    });
+
     while (Date.now() - startTime < POLL_TIMEOUT_MS) {
       if (signal?.aborted) throw new Error("opencode-bridge: aborted");
 
@@ -175,7 +184,7 @@ export class OpenCodeBridgeExecutor extends BaseExecutor {
           // after a short settle delay to catch multi-part responses)
           if (textParts.length > 0) {
             // Wait a bit to ensure no more parts are coming
-            await new Promise((r) => setTimeout(r, 1000));
+            await abortableDelay(1000);
             // Re-fetch to get final state
             const finalRes = await fetch(`${baseUrl}/api/session/${sessionId}/message`, {
               headers,
@@ -188,7 +197,7 @@ export class OpenCodeBridgeExecutor extends BaseExecutor {
         }
       }
 
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      await abortableDelay(POLL_INTERVAL_MS);
     }
 
     throw new Error("opencode-bridge: poll timeout waiting for completion");
