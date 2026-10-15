@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { DefaultExecutor } from "./default.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { isMuseSparkModel } from "../providers/models/helpers.js";
+import { FINGERPRINT_TOOL_DEFINITIONS } from "../utils/opencodeFingerprint.js";
 import {
   normalizeResponsesInput,
   clampResponsesCallId,
@@ -11,21 +12,23 @@ import {
 
 const SESSION_HEADER = "x-opencode-session";
 const SESSION_FIELD = "_opencodeZenSession";
-const REQ_FIELD = "_opencodeZenRequest";
 const MAX_SESSION_LENGTH = 256;
 
-const RESPONSES_BASE_URL = "https://opencode.ai/zen/v1/responses";
+const RESPONSES_BASE_URL = "https://opencode.ai/inference/v1/responses";
 const MAX_TOOL_NAME_LEN = 128;
-const OPENCODE_UA = "opencode/1.18.31";
+const OPENCODE_UA = "opencode/latest/2.0.26/cli";
 export const OPENCODE_SESSION_RE = /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
-export const OPENCODE_REQUEST_RE = /^msg_[0-9a-f]{12}[0-9A-Za-z]{14}$/;
 const BASE62_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-// Free-tier fingerprint (mirrors opencode executor, PR #4132): upstream 403s
-// requests without the file-search quartet and without stream:true.
-const OPENCODE_FINGERPRINT_TOOLS = ["bash", "glob", "grep", "read"];
+// Free-tier fingerprint (v2 contract): upstream 403s requests without the
+// glob/grep/read/shell quartet (exact CLI schemas) and without stream:true.
+// x-opencode-request is rejected by the v2 gate.
+const OPENCODE_FINGERPRINT_TOOLS = ["glob", "grep", "read", "shell"];
 
 function hasValidOpencodeVersion(ua) {
-  const m = String(ua || "").match(/opencode\/(\d+)\.(\d+)(?:\.(\d+))?/i);
+  const s = String(ua || "");
+  // v2 format: opencode/latest/<version>/cli
+  if (/opencode\/latest\/[\d.]+\/cli/i.test(s)) return true;
+  const m = s.match(/opencode\/(\d+)\.(\d+)(?:\.(\d+))?/i);
   if (!m) return false;
   const major = parseInt(m[1], 10);
   const minor = parseInt(m[2], 10);
@@ -50,61 +53,6 @@ export function generateSessionId(timestamp = Date.now()) {
       .padStart(2, "0")
   ).join("");
   return `ses_${time}${unstableRandom()}`;
-}
-
-export function generateRequestId(timestamp = Date.now()) {
-  const current = BigInt(timestamp) * 0x1000n + 1n;
-  const value = current;
-  const time = Array.from({ length: 6 }, (_, index) =>
-    Number((value >> BigInt(40 - 8 * index)) & 0xffn)
-      .toString(16)
-      .padStart(2, "0")
-  ).join("");
-  return `msg_${time}${unstableRandom()}`;
-}
-
-function deriveRequestId(sessionId, text) {
-  if (!text) return generateRequestId();
-  const digest = crypto
-    .createHash("sha256")
-    .update(`opencode-req\0${sessionId || ""}\0${text}`)
-    .digest();
-  const timeHex = digest.subarray(0, 6).toString("hex");
-  let randomPart = "";
-  for (let i = 6; i < 20; i++) {
-    randomPart += BASE62_CHARS[digest[i] % 62];
-  }
-  const id = `msg_${timeHex}${randomPart}`;
-  return OPENCODE_REQUEST_RE.test(id) ? id : generateRequestId();
-}
-
-function lastUserText(body) {
-  try {
-    if (!body || typeof body !== "object") return "";
-    const arr = Array.isArray(body.messages)
-      ? body.messages
-      : Array.isArray(body.input)
-        ? body.input
-        : null;
-    if (!arr) return typeof body.input === "string" ? body.input.slice(-600) : "";
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const msg = arr[i];
-      if (!msg) continue;
-      if (msg.role && msg.role !== "user") continue;
-      const content = msg.content;
-      if (typeof content === "string" && content.trim()) return content.trim().slice(-600);
-      if (Array.isArray(content)) {
-        const text = content
-          .map((part) => (typeof part === "string" ? part : part?.text || part?.input_text || ""))
-          .join(" ")
-          .trim();
-        if (text) return text.slice(-600);
-      }
-    }
-  } catch {
-    return "";
-  }
-  return "";
 }
 
 export function translateSessionId(sessionId, clientTool = "") {
@@ -143,12 +91,13 @@ function ensureChatFingerprintTools(body) {
   }
   for (const name of OPENCODE_FINGERPRINT_TOOLS) {
     if (present.has(name)) continue;
+    const { description, parameters } = FINGERPRINT_TOOL_DEFINITIONS[name];
     body.tools.push({
       type: "function",
       function: {
         name,
-        description: `OpenCode built-in ${name} tool`,
-        parameters: { type: "object", properties: {} },
+        description,
+        parameters,
       },
     });
     present.add(name);
@@ -168,11 +117,12 @@ function ensureResponsesFingerprintTools(body) {
   }
   for (const name of OPENCODE_FINGERPRINT_TOOLS) {
     if (present.has(name)) continue;
+    const { description, parameters } = FINGERPRINT_TOOL_DEFINITIONS[name];
     body.tools.push({
       type: "function",
       name,
-      description: `OpenCode built-in ${name} tool`,
-      parameters: { type: "object", properties: {} },
+      description,
+      parameters,
     });
     present.add(name);
   }
@@ -294,14 +244,9 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
     });
 
     const sessionId = native || translatedSession(resolved, clientTool);
-    const lower = {};
-    for (const [k, v] of Object.entries(sourceCredentials.rawHeaders || {})) lower[k.toLowerCase()] = v;
-    const downstreamReq = lower["x-opencode-request"];
-
     return {
       ...sourceCredentials,
       [SESSION_FIELD]: sessionId,
-      [REQ_FIELD]: downstreamReq || deriveRequestId(sessionId, lastUserText(body)),
     };
   }
 
@@ -316,26 +261,19 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
     const lower = {};
     for (const [k, v] of Object.entries(raw)) lower[k.toLowerCase()] = v;
     const downstreamUa = lower["user-agent"] || "";
-    // Free-tier gate: spoof the official client UA.
+    // Free-tier gate: spoof the official client UA (v2 format).
     headers["User-Agent"] = hasValidOpencodeVersion(downstreamUa) ? downstreamUa : OPENCODE_UA;
-    headers["x-opencode-client"] = lower["x-opencode-client"] || "desktop";
+    headers["x-opencode-client"] = lower["x-opencode-client"] || "cli";
     headers["x-opencode-project"] = lower["x-opencode-project"] || "global";
 
     const prepared = credentials?.[SESSION_FIELD];
-    if (prepared) {
-      headers[SESSION_HEADER] = prepared;
-    } else {
-      const fallback = this.prepareRequestCredentials({ credentials });
-      headers[SESSION_HEADER] = fallback[SESSION_FIELD];
-    }
-
-    const preparedReq = credentials?.[REQ_FIELD];
-    if (preparedReq) {
-      headers["x-opencode-request"] = preparedReq;
-    } else {
-      const fallback = this.prepareRequestCredentials({ credentials });
-      headers["x-opencode-request"] = fallback[REQ_FIELD];
-    }
+    const session = prepared || this.prepareRequestCredentials({ credentials })[SESSION_FIELD];
+    // v2 gate: mirror the session across four headers; x-opencode-request is
+    // rejected with 403 and is no longer sent.
+    headers[SESSION_HEADER] = session;
+    headers["x-opencode-session-id"] = session;
+    headers["x-session-affinity"] = session;
+    headers["x-session-id"] = session;
     return headers;
   }
 

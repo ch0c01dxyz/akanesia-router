@@ -15,7 +15,7 @@ export default {
   transport: {
     baseUrl: "https://opencode.ai",
     headers: {
-      "x-opencode-client": "desktop",
+      "x-opencode-client": "cli",
     },
     forceStream: true,
     noAuth: true,
@@ -32,12 +32,12 @@ export default {
   ],
   serviceKinds: ["llm", "systemone"],
   systemoneConfig: {
-    baseUrl: "https://opencode.ai/zen/v1/systemone",
+    baseUrl: "https://opencode.ai/inference/v1/systemone",
     headers: {
-      "x-opencode-client": "desktop",
+      "x-opencode-client": "cli",
       "User-Agent": "opencode/1.18.31",
     },
   },
-  modelsFetcher: { url: "https://opencode.ai/zen/v1/models", type: "opencode-free" },
+  modelsFetcher: { url: "https://opencode.ai/inference/v1/models", type: "opencode-free" },
   passthroughModels: true,
 };
