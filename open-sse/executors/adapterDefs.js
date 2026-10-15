@@ -30,6 +30,7 @@ export const ADAPTER_DEFS = {
   opencode: { file: "./opencode.js", exportName: "OpenCodeExecutor", args: [] },
   "opencode-go": { file: "./opencode-go.js", exportName: "OpenCodeGoExecutor", args: [] },
   "opencode-zen": { file: "./opencode-zen.js", exportName: "OpenCodeZenExecutor", args: [] },
+  "opencode-bridge": { file: "./opencode-bridge.js", exportName: "OpenCodeBridgeExecutor", args: ["opencode-bridge"] },
   "grok-web": { file: "./grok-web.js", exportName: "GrokWebExecutor", args: [] },
   "grok-cli": { file: "./grok-cli.js", exportName: "GrokCliExecutor", args: [] },
   gcli: { file: "./grok-cli.js", exportName: "GrokCliExecutor", args: [] },
