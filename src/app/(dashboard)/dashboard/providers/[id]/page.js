@@ -97,6 +97,7 @@ export default function ProviderDetailPage() {
   const stopOneByOneRef = useRef(false);
   const [importingQoderModels, setImportingQoderModels] = useState(false);
   const [importingClineModels, setImportingClineModels] = useState(false);
+  const [syncingModels, setSyncingModels] = useState(false);
   const [checkingProviderModels, setCheckingProviderModels] = useState(false);
   const [providerModelCheck, setProviderModelCheck] = useState(null);
   const { copied, copy } = useCopyToClipboard();
@@ -376,6 +377,69 @@ export default function ProviderDetailPage() {
       if (res.ok) await fetchDisabledModels();
     } catch (error) {
       console.log("Error enabling all models:", error);
+    }
+  };
+
+  // Manual sync: fetch the live model list and reconcile with the current
+  // list (static registry + custom models). New models are added as custom
+  // models; stale ones (no longer upstream) are disabled. Only runs when
+  // the user explicitly clicks — no automatic sync.
+  const handleSyncModels = async () => {
+    if (syncingModels) return;
+    setSyncingModels(true);
+    try {
+      const res = await fetch("/api/providers/check-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "provider", providerId, forceRefresh: true }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        alert(data.error || translate("Failed to fetch live models"));
+        return;
+      }
+      const liveIds = (data.models || []).filter((id) => typeof id === "string" && id);
+      if (liveIds.length === 0) {
+        alert(translate("No models returned"));
+        return;
+      }
+      const liveSet = new Set(liveIds);
+      const currentIds = [
+        ...models.map((m) => m.id),
+        ...customModels
+          .filter((e) => e.providerAlias === providerStorageAlias && (e.kind || e.type || "llm") === "llm")
+          .map((e) => e.id),
+      ].filter(Boolean);
+      const currentSet = new Set(currentIds);
+
+      let added = 0;
+      for (const id of liveIds) {
+        if (currentSet.has(id)) continue;
+        await handleAddCustomModel(id, "llm", providerStorageAlias);
+        added++;
+      }
+
+      const staleIds = currentIds.filter((id) => !liveSet.has(id) && !disabledModelIds.includes(id));
+      let disabled = 0;
+      if (staleIds.length > 0) {
+        const dRes = await fetch("/api/models/disabled", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ providerAlias: providerStorageAlias, ids: staleIds }),
+        });
+        if (dRes.ok) {
+          await fetchDisabledModels();
+          disabled = staleIds.length;
+        }
+      }
+
+      await fetchCustomModels();
+      alert(`${translate("Sync complete")}: +${added} ${translate("added")}, ${disabled} ${translate("disabled as stale")}`);
+    } catch (error) {
+      console.log("Error syncing models:", error);
+      alert(translate("Error syncing models") + ": " + error.message);
+    } finally {
+      setSyncingModels(false);
     }
   };
 
@@ -2038,6 +2102,15 @@ export default function ProviderDetailPage() {
                     Disable All
                   </Button>
                 )}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="sync"
+                  onClick={handleSyncModels}
+                  disabled={syncingModels}
+                >
+                  {syncingModels ? "Syncing..." : "Sync Models"}
+                </Button>
               </div>
             );
           })()}
