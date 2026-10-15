@@ -5,6 +5,7 @@ import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
 import { getThinkingLevels } from "../providers/thinkingLevels.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
+import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
 import {
   normalizeResponsesInput,
   clampResponsesCallId,
@@ -354,6 +355,10 @@ export class OpenCodeExecutor extends BaseExecutor {
       if (!body.include) body.include = ["reasoning.encrypted_content"];
       normalizeResponsesTools(body);
       sanitizeResponsesItems(body);
+      // PR #83 (opencode2api): inject genuine tool definitions (shell/edit/glob/grep/read).
+      // Upstream compares definitions byte-for-byte; stubs 403.
+      // applyFingerprintTools renames caller tools to lowercase + appends missing genuine.
+      applyFingerprintTools(body, true);
     }
     return injectReasoningContent({ provider: this.provider, model, body });
   }

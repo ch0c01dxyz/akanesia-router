@@ -246,16 +246,22 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     expect(second).toBe(first);
   });
 
-  it("does NOT inject fingerprint tools (MITM-proven plain body)", async () => {
+  it("injects genuine fingerprint tools (PR #83: upstream compares definitions byte-for-byte)", async () => {
   const executor = await getExecutor("opencode");
 
   const chatNoTools = executor.transformRequest("nemotron-3-ultra-free", {
     messages: [{ role: "user", content: "hi" }],
   });
   expect(chatNoTools.stream).toBe(true);
-  // MITM capture: no tools injected, no tool_choice set.
-  expect(chatNoTools.tool_choice).toBeUndefined();
-  expect(chatNoTools.tools).toBeUndefined();
+  // PR #83: genuine tools injected, tool_choice defaults to auto.
+  expect(chatNoTools.tool_choice).toBe("auto");
+  expect(chatNoTools.tools).toBeDefined();
+  const toolNames = chatNoTools.tools.map((t) => t.name || t.function?.name);
+  expect(toolNames).toContain("shell");
+  expect(toolNames).toContain("edit");
+  expect(toolNames).toContain("glob");
+  expect(toolNames).toContain("grep");
+  expect(toolNames).toContain("read");
 
   const chatWithTools = executor.transformRequest("nemotron-3-ultra-free", {
     messages: [{ role: "user", content: "hi" }],
@@ -267,11 +273,15 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     ],
     tool_choice: "auto",
   });
-  // MITM capture: no fingerprint injection — user tools pass through unchanged.
+  // PR #83: fingerprint injection — user tools pass through, missing genuine tools appended.
   expect(chatWithTools.tool_choice).toBe("auto");
-  expect(chatWithTools.tools.map((t) => t.name)).toEqual([
-    "Shell", "Glob", "Grep", "Read",
-  ]);
+  const withNames = chatWithTools.tools.map((t) => t.name);
+  // User tools (renamed to lowercase) + missing genuine tools appended.
+  expect(withNames).toContain("shell");
+  expect(withNames).toContain("glob");
+  expect(withNames).toContain("grep");
+  expect(withNames).toContain("read");
+  expect(withNames).toContain("edit");
 
   const chatPartial = executor.transformRequest("nemotron-3-ultra-free", {
     messages: [{ role: "user", content: "hi" }],
@@ -280,14 +290,16 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
       { type: "function", function: { name: "read", description: "existing" } },
     ],
   });
-  // MITM capture: no fingerprint injection — user tools pass through unchanged.
-  expect(chatPartial.tools.map((t) => t.name)).toEqual([
-    "bash", "read",
-  ]);
-  expect(chatPartial.tools[0].description).toBe("existing");
+  // PR #83: user tools pass through (renamed), missing genuine tools appended.
+  const partialNames = chatPartial.tools.map((t) => t.name);
+  expect(partialNames).toContain("bash"); // not a fingerprint member, passes through
+  expect(partialNames).toContain("read");
+  expect(partialNames).toContain("shell"); // appended genuine
+  expect(partialNames).toContain("edit"); // appended genuine
+  expect(chatPartial.tools.find((t) => t.name === "bash").description).toBe("existing");
 });
 
-  it("passes through user tools without fingerprint injection", async () => {
+  it("passes through user tools with fingerprint injection (PR #83)", async () => {
     const executor = await getExecutor("opencode");
     const transformed = executor.transformRequest("muse-spark-1.3-contributor-free(xhigh)", {
       input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] }],
@@ -305,9 +317,10 @@ describe("OpenCode Stable Session Reuse (429 follow-up)", () => {
     expect(transformed.reasoning?.effort).toBe("xhigh");
     const names = transformed.tools.map((tool) => tool.name);
     expect(names).toContain("zcode_search");
-    // MITM capture: no fingerprint tools injected.
-    expect(names).not.toContain("shell");
-    expect(names).not.toContain("read");
+    // PR #83: genuine fingerprint tools injected alongside user tools.
+    expect(names).toContain("shell");
+    expect(names).toContain("read");
+    expect(names).toContain("edit");
   });
 
   it("declares forceStream on the opencode transport so chatCore serves SSE upstream", async () => {

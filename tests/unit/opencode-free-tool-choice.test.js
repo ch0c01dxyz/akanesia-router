@@ -20,13 +20,15 @@ function responsesBody(model, tool_choice) {
   return body;
 }
 
-describe("opencode Free tool_choice handling (MITM-proven)", () => {
-  it("deletes explicit 'none' (gate rejects it); passes through others", () => {
+describe("opencode Free tool_choice handling (PR #83)", () => {
+  it("deletes explicit 'none' (gate rejects it); defaults to auto; passes through others", () => {
     const noneOut = new OpenCodeExecutor().transformRequest(
       FREE_13, responsesBody(FREE_13, "none"), true, CREDS,
     );
-    expect(noneOut.tool_choice).toBeUndefined();
-    expect(noneOut.tools).toEqual(TOOLS);
+    // PR #83: 'none' is deleted then defaulted to 'auto' (gate needs tools declared).
+    expect(noneOut.tool_choice).toBe("auto");
+    // Genuine fingerprint tools are injected.
+    expect(noneOut.tools.length).toBeGreaterThan(TOOLS.length);
 
     // Named/auto pass through unchanged (no forced demotion).
     for (const choice of ["auto", { type: "function", name: "get_weather" }]) {
@@ -37,19 +39,21 @@ describe("opencode Free tool_choice handling (MITM-proven)", () => {
     }
   });
 
-  it("giữ auto và absent; tools/input nguyên vẹn", () => {
+  it("giữ auto và absent; tools/input nguyên vẹn (plus genuine fingerprint tools)", () => {
     const autoOut = new OpenCodeExecutor().transformRequest(
       FREE_13, responsesBody(FREE_13, "auto"), true, CREDS,
     );
     expect(autoOut.tool_choice).toBe("auto");
-    expect(autoOut.tools).toEqual(TOOLS);
+    // PR #83: user tools preserved, genuine fingerprint tools appended.
+    expect(autoOut.tools.length).toBeGreaterThan(TOOLS.length);
     expect(autoOut.input).toEqual(INPUT);
 
     const absentOut = new OpenCodeExecutor().transformRequest(
       FREE_13, responsesBody(FREE_13, undefined), true, CREDS,
     );
-    expect("tool_choice" in absentOut).toBe(false);
-    expect(absentOut.tools).toEqual(TOOLS);
+    // PR #83: absent defaults to 'auto' with genuine tools injected.
+    expect(absentOut.tool_choice).toBe("auto");
+    expect(absentOut.tools.length).toBeGreaterThan(0);
     expect(absentOut.input).toEqual(INPUT);
   });
 
@@ -80,7 +84,9 @@ describe("opencode Free tool_choice handling (MITM-proven)", () => {
     const sent = JSON.parse(actualInit.body);
     expect(sent.tool_choice).toEqual({ type: "function", name: "get_weather" });
     expect(sent.model).toBe(FREE_13);
-    expect(sent.tools).toEqual(TOOLS);
+    // PR #83: user tools preserved, genuine fingerprint tools appended.
+    expect(sent.tools.length).toBeGreaterThan(TOOLS.length);
+    expect(sent.tools.slice(0, TOOLS.length)).toEqual(TOOLS);
     expect(sent.input).toEqual(INPUT);
   });
 });

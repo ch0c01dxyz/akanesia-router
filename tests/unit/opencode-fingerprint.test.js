@@ -22,8 +22,10 @@ describe("opencodeFingerprint — request side", () => {
 
     expect(names).toContain("shell");
     expect(names).not.toContain("Shell");
-    expect(names).toContain("Edit");
+    expect(names).toContain("edit");
+    expect(names).not.toContain("Edit");
     expect(map.get("shell")).toBe("Shell");
+    expect(map.get("edit")).toBe("Edit");
   });
 
   it("removes quartet case duplicates without dropping unrelated case variants", () => {
@@ -92,15 +94,16 @@ describe("opencodeFingerprint — request side", () => {
     expect(body.tool_choice).toBeUndefined();
   });
 
-  it("appends only genuinely missing quartet members", () => {
+  it("appends only genuinely missing quintet members", () => {
     const body = { tools: flat(["Shell", "Read", "terminal"]) };
     applyFingerprintTools(body, true);
 
     const names = body.tools.map((tool) => tool.name);
+    expect(names).toContain("edit");
     expect(names).toContain("glob");
     expect(names).toContain("grep");
     expect(names).toContain("terminal");
-    expect(body.tools).toHaveLength(5);
+    expect(body.tools).toHaveLength(6);
   });
 
   it("retargets flat tool_choice that points at a renamed tool", () => {
@@ -198,13 +201,13 @@ describe("opencodeFingerprint — response side", () => {
 });
 
 describe("fingerprintToolKey", () => {
-  it("maps quartet case/whitespace variants and rejects other tools", () => {
+  it("maps quintet case/whitespace variants and rejects other tools", () => {
     expect(fingerprintToolKey("Shell")).toBe("shell");
     expect(fingerprintToolKey(" shell ")).toBe("shell");
     expect(fingerprintToolKey("GLOB")).toBe("glob");
     expect(fingerprintToolKey("Read")).toBe("read");
+    expect(fingerprintToolKey("Edit")).toBe("edit");
     expect(fingerprintToolKey("Bash")).toBe("");
-    expect(fingerprintToolKey("Edit")).toBe("");
     expect(fingerprintToolKey("terminal")).toBe("");
     expect(fingerprintToolKey(null)).toBe("");
   });

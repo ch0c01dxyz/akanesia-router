@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { DefaultExecutor } from "./default.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
+import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
 import {
   normalizeResponsesInput,
   clampResponsesCallId,
@@ -261,6 +262,8 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
       if (!out.include) out.include = ["reasoning.encrypted_content"];
       normalizeResponsesTools(out);
       sanitizeResponsesItems(out);
+      // PR #83 (opencode2api): inject genuine tool definitions.
+      applyFingerprintTools(out, true);
     }
     return out;
   }
