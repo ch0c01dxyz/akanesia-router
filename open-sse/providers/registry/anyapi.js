@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "AN",
+    website: "https://anyapi.ai",
+    notice: { apiKeyUrl: "https://dash.anyapi.ai/" },
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#D97706",
     textIcon: "HE",
+    website: "https://helixmind.online",
   },
   category: "apikey",
   authType: "apikey",

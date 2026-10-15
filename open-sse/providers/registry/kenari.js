@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#D97706",
     textIcon: "KE",
+    website: "https://kenari.id",
+    notice: { apiKeyUrl: "https://kenari.id" },
   },
   category: "apikey",
   authType: "apikey",

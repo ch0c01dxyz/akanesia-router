@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#5B5FEF",
     textIcon: "ID",
+    website: "https://ideogram.ai",
+    notice: {
+      apiKeyUrl: "https://developer.ideogram.ai",
+    },
   },
   category: "apikey",
   authType: "apikey",

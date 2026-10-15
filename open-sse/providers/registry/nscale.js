@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#5B5FEF",
     textIcon: "NS",
+    website: "https://www.nscale.com",
+    notice: { apiKeyUrl: "https://www.nscale.com" },
   },
   category: "freeTier",
   authType: "apikey",

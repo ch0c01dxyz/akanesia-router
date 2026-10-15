@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "OP",
+    website: "https://openvecta.com",
+    notice: {
+      apiKeyUrl: "https://openvecta.com",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#7C3AED",
     textIcon: "FA",
+    website: "https://featherless.ai",
+    notice: {
+      apiKeyUrl: "https://featherless.ai/account/api-keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

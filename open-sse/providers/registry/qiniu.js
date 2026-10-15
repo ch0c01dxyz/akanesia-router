@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "QI",
+    website: "https://www.qiniu.com",
+    notice: { apiKeyUrl: "https://portal.qiniu.com" },
   },
   category: "apikey",
   authType: "apikey",

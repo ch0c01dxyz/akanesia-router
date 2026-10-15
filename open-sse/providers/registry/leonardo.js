@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#D97706",
     textIcon: "LE",
+    website: "https://leonardo.ai",
+    notice: {
+      apiKeyUrl: "https://app.leonardo.ai/api-access",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "DI",
+    website: "https://www.digitalocean.com",
+    notice: { apiKeyUrl: "https://docs.digitalocean.com/products/gradient-ai-platform/how-to/use-serverless-inference/" },
   },
   category: "apikey",
   authType: "apikey",

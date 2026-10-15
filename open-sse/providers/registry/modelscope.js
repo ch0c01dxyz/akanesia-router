@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "MO",
+    website: "https://modelscope.cn",
+    notice: {
+      apiKeyUrl: "https://modelscope.cn/my/myaccesstoken",
+    },
   },
   category: "freeTier",
   authType: "apikey",

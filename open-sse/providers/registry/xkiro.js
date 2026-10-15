@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "XK",
+    website: "https://xkiro.com",
+    notice: {
+      apiKeyUrl: "https://xkiro.com",
+    },
   },
   category: "freeTier",
   authType: "apikey",

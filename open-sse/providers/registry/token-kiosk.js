@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#EA580C",
     textIcon: "TK",
+    website: "https://token-kiosk.gaib.ai/docs",
   },
   category: "apikey",
   authType: "apikey",

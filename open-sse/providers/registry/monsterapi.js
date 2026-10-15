@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#C026D3",
     textIcon: "MO",
+    website: "https://monsterapi.ai",
+    notice: {
+      apiKeyUrl: "https://monsterapi.ai/user/dashboard",
+    },
   },
   category: "freeTier",
   authType: "apikey",

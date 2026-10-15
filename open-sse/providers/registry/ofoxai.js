@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#D97706",
     textIcon: "OF",
+    website: "https://ofox.ai",
+    notice: {
+      apiKeyUrl: "https://ofox.ai",
+    },
   },
   category: "apikey",
   authType: "apikey",

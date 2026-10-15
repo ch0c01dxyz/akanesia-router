@@ -7,6 +7,10 @@ export default {
     icon: "hub",
     color: "#6366F1",
     textIcon: "MF",
+    website: "https://mimo.xiaomi.com",
+    notice: {
+      apiKeyUrl: "https://platform.xiaomimimo.com",
+    },
   },
   category: "apikey",
   transport: {

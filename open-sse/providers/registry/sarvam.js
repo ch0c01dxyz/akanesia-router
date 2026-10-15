@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "SA",
+    website: "https://www.sarvam.ai",
+    notice: {
+      apiKeyUrl: "https://dashboard.sarvam.ai",
+    },
   },
   category: "apikey",
   authType: "apikey",

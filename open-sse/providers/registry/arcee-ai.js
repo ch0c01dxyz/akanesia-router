@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "AA",
+    website: "https://arcee.ai",
+    notice: {
+      apiKeyUrl: "https://platform.arcee.ai/api/api-keys",
+    },
   },
   category: "freeTier",
   authType: "apikey",

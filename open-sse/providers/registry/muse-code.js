@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#D97706",
     textIcon: "MC",
+    website: "https://meta.ai",
+    notice: { apiKeyUrl: "https://dev.meta.ai" },
   },
   category: "apikey",
   authType: "apikey",

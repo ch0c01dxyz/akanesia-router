@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "DG",
+    website: "https://dgrid.ai",
+    notice: {
+      apiKeyUrl: "https://dgrid.ai/api-keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

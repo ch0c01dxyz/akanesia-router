@@ -11,7 +11,7 @@ export default {
     icon: "surfing",
     color: "#14B8A6",
     website: "https://windsurf.com",
-    notice: { signupUrl: "https://windsurf.com" },
+    notice: { signupUrl: "https://windsurf.com", apiKeyUrl: "https://windsurf.com/show-auth-token" },
   },
   category: "oauth",
   authType: "oauth",

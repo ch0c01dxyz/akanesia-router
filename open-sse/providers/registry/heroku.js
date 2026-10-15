@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#5B5FEF",
     textIcon: "HE",
+    website: "https://www.heroku.com",
+    notice: {
+      apiKeyUrl: "https://elements.heroku.com/addons/heroku-inference",
+    },
   },
   category: "apikey",
   authType: "apikey",

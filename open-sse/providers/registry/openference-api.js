@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#EA580C",
     textIcon: "OA",
+    website: "https://openference.com",
+    notice: { apiKeyUrl: "https://openference.com" },
   },
   category: "apikey",
   authType: "apikey",

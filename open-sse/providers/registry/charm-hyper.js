@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "CH",
+    website: "https://hyper.charm.land",
+    notice: { apiKeyUrl: "https://hyper.charm.land" },
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "CO",
+    website: "https://www.coze.com",
+    notice: {
+      apiKeyUrl: "https://www.coze.com/open/oauth/pats",
+    },
   },
   category: "freeTier",
   authType: "apikey",

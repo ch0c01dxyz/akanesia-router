@@ -7,6 +7,11 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "QI",
+    website: "https://cloud.baidu.com/product/qianfan.html",
+    notice: {
+      apiKeyUrl:
+        "https://console.bce.baidu.com/qianfan/ais/console/applicationConsole/application",
+    },
   },
   category: "apikey",
   authType: "apikey",

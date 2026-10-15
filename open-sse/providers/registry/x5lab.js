@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#C026D3",
     textIcon: "X5",
+    website: "https://x5lab.dev",
   },
   category: "apikey",
   authType: "apikey",

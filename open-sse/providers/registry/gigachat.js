@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#D97706",
     textIcon: "GI",
+    website: "https://developers.sber.ru",
+    notice: {
+      apiKeyUrl: "https://developers.sber.ru/studio",
+    },
   },
   category: "apikey",
   authType: "apikey",

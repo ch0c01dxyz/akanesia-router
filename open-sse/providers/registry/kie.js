@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "KI",
+    website: "https://kie.ai",
+    notice: {
+      apiKeyUrl: "https://kie.ai/api-key",
+    },
   },
   category: "apikey",
   authType: "apikey",

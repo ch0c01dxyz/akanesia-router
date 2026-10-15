@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#EA580C",
     textIcon: "MO",
+    website: "https://modal.com",
+    notice: { apiKeyUrl: "https://modal.com/settings/tokens" },
   },
   category: "apikey",
   authType: "apikey",

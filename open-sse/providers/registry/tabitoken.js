@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#EA580C",
     textIcon: "TA",
+    website: "https://tabitoken.com",
+    notice: {
+      apiKeyUrl: "https://tabitoken.com",
+    },
   },
   category: "apikey",
   authType: "apikey",

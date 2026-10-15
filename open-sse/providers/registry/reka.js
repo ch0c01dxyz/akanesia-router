@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#DC2626",
     textIcon: "RE",
+    website: "https://www.reka.ai",
+    notice: {
+      apiKeyUrl: "https://platform.reka.ai/",
+    },
   },
   category: "freeTier",
   authType: "apikey",

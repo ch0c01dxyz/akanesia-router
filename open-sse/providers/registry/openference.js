@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#5B5FEF",
     textIcon: "OP",
+    website: "https://openference.com",
   },
   category: "oauth",
   authType: "oauth",

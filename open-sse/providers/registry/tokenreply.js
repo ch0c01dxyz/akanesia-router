@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#DC2626",
     textIcon: "TO",
+    website: "https://tokenreply.com",
+    notice: {
+      apiKeyUrl: "https://tokenreply.com",
+    },
   },
   category: "apikey",
   authType: "apikey",

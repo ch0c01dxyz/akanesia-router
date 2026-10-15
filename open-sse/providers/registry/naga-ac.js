@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "NA",
+    website: "https://naga.ac",
   },
   category: "apikey",
   authType: "optional",

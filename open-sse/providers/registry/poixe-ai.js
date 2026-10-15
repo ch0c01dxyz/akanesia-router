@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "PA",
+    website: "https://poixe.com",
+    notice: {
+      apiKeyUrl: "https://poixe.com",
+    },
   },
   category: "apikey",
   authType: "apikey",

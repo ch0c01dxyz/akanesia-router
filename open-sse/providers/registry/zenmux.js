@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#7C3AED",
     textIcon: "ZE",
+    website: "https://zenmux.ai",
+    notice: {
+      apiKeyUrl: "https://zenmux.ai/settings/keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

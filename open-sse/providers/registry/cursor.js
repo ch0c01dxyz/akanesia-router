@@ -10,6 +10,7 @@ export default {
     website: "https://cursor.com",
     notice: {
       signupUrl: "https://cursor.com",
+      apiKeyUrl: "https://cursor.com/dashboard/api",
     },
   },
   category: "oauth",

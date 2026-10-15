@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "SE",
+    website: "https://sea-lion.ai",
+    notice: {
+      apiKeyUrl: "https://playground.sea-lion.ai/key-manager",
+    },
   },
   category: "freeTier",
   authType: "apikey",

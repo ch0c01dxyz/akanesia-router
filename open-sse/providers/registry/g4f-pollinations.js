@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "GP",
+    website: "https://g4f.dev",
   },
   category: "apikey",
   authType: "optional",

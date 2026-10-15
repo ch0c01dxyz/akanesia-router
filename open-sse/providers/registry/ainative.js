@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "AI",
+    website: "https://www.ainative.studio",
+    notice: {
+      apiKeyUrl: "https://www.ainative.studio/developer-settings",
+    },
   },
   category: "freeTier",
   authType: "apikey",

@@ -13,6 +13,7 @@ export default {
     website: "https://gitlab.com",
     notice: {
       signupUrl: "https://gitlab.com",
+      apiKeyUrl: "https://gitlab.com/-/user_settings/personal_access_tokens",
     },
   },
   category: "oauth",

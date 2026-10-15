@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#C026D3",
     textIcon: "LK",
+    website: "https://llm.kiwi",
+    notice: {
+      apiKeyUrl: "https://llm.kiwi/dashboard/keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

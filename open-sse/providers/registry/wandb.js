@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "WA",
+    website: "https://wandb.ai",
+    notice: {
+      apiKeyUrl: "https://wandb.ai/authorize",
+    },
   },
   category: "apikey",
   authType: "apikey",

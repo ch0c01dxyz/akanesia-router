@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#DC2626",
     textIcon: "VA",
+    website: "https://voidai.app",
+    notice: {
+      apiKeyUrl: "https://voidai.app",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#5B5FEF",
     textIcon: "OV",
+    website: "https://www.ovhcloud.com/en/public-cloud/ai-endpoints/",
   },
   category: "freeTier",
   authType: "optional",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#D97706",
     textIcon: "AI",
+    website: "https://aihorde.net",
+    notice: {
+      apiKeyUrl: "https://aihorde.net/register",
+    },
   },
   category: "freeTier",
   authType: "apikey",

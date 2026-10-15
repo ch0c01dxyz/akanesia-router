@@ -11,6 +11,9 @@ export default {
     color: "#0EA5E9",
     textIcon: "CI",
     website: "https://cheaperinference.com",
+    notice: {
+      apiKeyUrl: "https://www.cheaperinference.com/dashboard/keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

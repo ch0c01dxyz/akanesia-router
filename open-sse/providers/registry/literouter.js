@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "LI",
+    website: "https://literouter.com",
+    notice: { apiKeyUrl: "https://literouter.com" },
   },
   category: "apikey",
   authType: "apikey",

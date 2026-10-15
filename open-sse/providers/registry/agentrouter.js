@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "AG",
+    website: "https://agentrouter.org",
+    notice: {
+      apiKeyUrl: "https://agentrouter.org/console/token",
+    },
   },
   category: "freeTier",
   authType: "apikey",

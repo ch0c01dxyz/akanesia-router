@@ -11,6 +11,9 @@ export default {
     color: "#10B981",
     textIcon: "FB",
     website: "https://www.codebuff.com",
+    notice: {
+      apiKeyUrl: "https://www.codebuff.com/api-keys",
+    },
   },
   category: "free",
   authType: "apikey",

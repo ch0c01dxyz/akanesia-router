@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "CH",
+    website: "https://github.com/chatanywhere/GPT_API_free",
+    notice: {
+      apiKeyUrl: "https://api.chatanywhere.org/v1/oauth/free/render",
+    },
   },
   category: "apikey",
   authType: "apikey",

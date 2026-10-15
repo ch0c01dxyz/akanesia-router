@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#DC2626",
     textIcon: "TY",
+    website: "https://opentyphoon.ai",
   },
   category: "apikey",
   authType: "apikey",

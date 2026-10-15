@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#7C3AED",
     textIcon: "FD",
+    website: "https://freemodel.dev",
+    notice: {
+      apiKeyUrl: "https://freemodel.dev/dashboard/usage",
+    },
   },
   category: "freeTier",
   authType: "apikey",

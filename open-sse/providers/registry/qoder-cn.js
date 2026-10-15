@@ -9,6 +9,9 @@ export default {
     color: "#EC4899",
     website: "https://qoder.com.cn",
     notice: {
+      apiKeyUrl: "https://qoder.com.cn/account/integrations",
+    },
+    notice: {
       signupUrl: "https://qoder.com.cn",
     },
   },

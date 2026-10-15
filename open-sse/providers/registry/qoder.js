@@ -10,6 +10,7 @@ export default {
     website: "https://qoder.com",
     notice: {
       signupUrl: "https://qoder.com",
+      apiKeyUrl: "https://qoder.com/account/integrations",
     },
   },
   category: "oauth",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#5B5FEF",
     textIcon: "ON",
+    website: "https://app.1min.ai",
+    notice: {
+      apiKeyUrl: "https://app.1min.ai/api",
+    },
   },
   category: "apikey",
   authType: "apikey",

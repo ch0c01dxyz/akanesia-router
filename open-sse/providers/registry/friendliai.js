@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "FR",
+    website: "https://friendli.ai",
+    notice: {
+      apiKeyUrl: "https://suite.friendli.ai",
+    },
   },
   category: "freeTier",
   authType: "apikey",

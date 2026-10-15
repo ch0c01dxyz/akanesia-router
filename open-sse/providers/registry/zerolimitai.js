@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "ZE",
+    website: "https://www.zerolimitai.com",
+    notice: {
+      apiKeyUrl: "https://www.zerolimitai.com/developers",
+    },
   },
   category: "apikey",
   authType: "apikey",

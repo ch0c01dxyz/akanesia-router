@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#C026D3",
     textIcon: "UD",
+    website: "https://uncensored.com",
+    notice: {
+      apiKeyUrl: "https://uncensored.com",
+    },
   },
   category: "apikey",
   authType: "apikey",

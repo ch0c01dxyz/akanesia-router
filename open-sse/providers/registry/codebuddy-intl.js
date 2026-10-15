@@ -13,6 +13,9 @@ export default {
     color: "#006EFF",
     website: "https://www.codebuddy.ai",
     notice: {
+      apiKeyUrl: "https://www.codebuddy.ai/profile/keys",
+    },
+    notice: {
       signupUrl: "https://www.codebuddy.ai",
     },
   },

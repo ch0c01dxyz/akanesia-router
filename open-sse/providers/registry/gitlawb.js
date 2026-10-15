@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "GI",
+    website: "https://gitlawb.com",
+    notice: {
+      apiKeyUrl: "https://gitlawb.com/opengateway/keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

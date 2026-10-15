@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "SE",
+    website: "https://www.sensenova.cn",
+    notice: {
+      apiKeyUrl: "https://platform.sensenova.cn",
+    },
   },
   category: "freeTier",
   authType: "apikey",

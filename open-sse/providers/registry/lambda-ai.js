@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "LA",
+    website: "https://lambda.ai",
+    notice: {
+      apiKeyUrl: "https://cloud.lambda.ai",
+    },
   },
   category: "apikey",
   authType: "apikey",

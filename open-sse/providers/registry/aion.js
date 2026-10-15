@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "AI",
+    website: "https://www.aionlabs.ai",
+    notice: { apiKeyUrl: "https://www.aionlabs.ai/app/api-keys/" },
   },
   category: "freeTier",
   authType: "apikey",

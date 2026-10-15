@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "UP",
+    website: "https://www.upstage.ai",
+    notice: {
+      apiKeyUrl: "https://console.upstage.ai/api-keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

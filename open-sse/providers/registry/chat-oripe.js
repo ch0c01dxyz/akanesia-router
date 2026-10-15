@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "CO",
+    website: "https://api.oriper.com",
   },
   category: "apikey",
   authType: "apikey",

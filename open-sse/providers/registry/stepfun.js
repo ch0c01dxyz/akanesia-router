@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "ST",
+    website: "https://www.stepfun.com",
+    notice: {
+      apiKeyUrl: "https://platform.stepfun.com/interface-key",
+    },
   },
   category: "freeTier",
   authType: "apikey",

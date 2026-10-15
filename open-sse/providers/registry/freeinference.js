@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#EA580C",
     textIcon: "FR",
+    website: "https://freeinference.org",
+    notice: {
+      apiKeyUrl: "https://freeinference.org",
+    },
   },
   category: "apikey",
   authType: "apikey",

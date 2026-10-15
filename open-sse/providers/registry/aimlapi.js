@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "AI",
+    website: "https://aimlapi.com",
+    notice: {
+      apiKeyUrl: "https://aimlapi.com/app/keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -12,6 +12,7 @@ export default {
     website: "https://claude.ai",
     notice: {
       signupUrl: "https://claude.ai",
+      apiKeyUrl: "https://console.anthropic.com/settings/keys",
     },
     deprecated: true,
     deprecationNotice: "RISK_NOTICE",

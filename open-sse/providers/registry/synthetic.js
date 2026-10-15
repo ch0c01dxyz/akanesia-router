@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#DC2626",
     textIcon: "SY",
+    website: "https://synthetic.new",
   },
   category: "apikey",
   authType: "apikey",

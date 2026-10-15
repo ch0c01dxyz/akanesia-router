@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#7C3AED",
     textIcon: "SU",
+    website: "https://ai.sumopod.com",
+    notice: {
+      apiKeyUrl: "https://ai.sumopod.com",
+    },
   },
   category: "apikey",
   authType: "apikey",

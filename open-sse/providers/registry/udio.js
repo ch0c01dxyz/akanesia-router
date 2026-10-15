@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#7C3AED",
     textIcon: "UD",
+    website: "https://www.udio.com",
   },
   category: "apikey",
   authType: "cookie",

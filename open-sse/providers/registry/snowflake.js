@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "SN",
+    website: "https://www.snowflake.com",
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "XM",
+    website: "https://platform.xiaomimimo.com",
+    notice: {
+      apiKeyUrl: "https://platform.xiaomimimo.com/console/api-keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

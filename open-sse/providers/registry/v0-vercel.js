@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "VV",
+    website: "https://v0.dev",
+    notice: {
+      apiKeyUrl: "https://v0.dev/chat/settings/keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -11,6 +11,9 @@ export default {
     color: "#22C55E",
     textIcon: "PO",
     website: "https://pollinations.ai",
+    notice: {
+      apiKeyUrl: "https://enter.pollinations.ai",
+    },
   },
   category: "free",
   authType: "optional",

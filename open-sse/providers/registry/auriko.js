@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "AU",
+    website: "https://www.auriko.ai",
+    notice: {
+      apiKeyUrl: "https://auriko.ai/signup",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "NA",
+    website: "https://router.bynara.id",
   },
   category: "freeTier",
   authType: "apikey",

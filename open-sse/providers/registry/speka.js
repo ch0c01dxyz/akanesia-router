@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "SP",
+    website: "https://speka.me",
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#EA580C",
     textIcon: "HA",
+    website: "https://haiper.ai",
+    notice: {
+      apiKeyUrl: "https://haiper.ai/haiper-api",
+    },
   },
   category: "apikey",
   authType: "apikey",

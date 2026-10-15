@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "ZA",
+    website: "https://z.ai",
+    notice: {
+      apiKeyUrl: "https://z.ai/manage-apikey/apikey-list",
+    },
   },
   category: "apikey",
   authType: "apikey",

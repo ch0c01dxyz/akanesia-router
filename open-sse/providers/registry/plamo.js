@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "PL",
+    website: "https://plamo.preferredai.jp",
+    notice: { apiKeyUrl: "https://plamo.preferredai.jp" },
   },
   category: "apikey",
   authType: "apikey",

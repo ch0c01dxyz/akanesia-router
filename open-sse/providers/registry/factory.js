@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "FA",
+    website: "https://factory.ai",
+    notice: { apiKeyUrl: "https://docs.factory.ai" },
   },
   category: "apikey",
   authType: "apikey",

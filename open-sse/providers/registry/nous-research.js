@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#DC2626",
     textIcon: "NR",
+    website: "https://nousresearch.com",
+    notice: {
+      apiKeyUrl: "https://portal.nousresearch.com",
+    },
   },
   category: "freeTier",
   authType: "apikey",

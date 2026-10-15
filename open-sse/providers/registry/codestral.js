@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "CO",
+    website: "https://mistral.ai",
+    notice: {
+      apiKeyUrl: "https://codestral.mistral.ai",
+    },
   },
   category: "apikey",
   authType: "apikey",

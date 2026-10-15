@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "WR",
+    website: "https://writer.com",
+    notice: {
+      apiKeyUrl: "https://dev.writer.com/api-guides/quickstart#generate-a-new-api-key",
+    },
   },
   category: "apikey",
   authType: "apikey",

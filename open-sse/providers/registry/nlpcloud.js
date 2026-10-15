@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "NL",
+    website: "https://nlpcloud.com",
+    notice: { apiKeyUrl: "https://nlpcloud.com/home/token" },
   },
   category: "freeTier",
   authType: "apikey",

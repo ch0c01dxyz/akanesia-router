@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "PO",
+    website: "https://poe.com",
+    notice: {
+      apiKeyUrl: "https://poe.com/api/keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

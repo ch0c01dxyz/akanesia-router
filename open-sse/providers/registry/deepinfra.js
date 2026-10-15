@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#5B5FEF",
     textIcon: "DE",
+    website: "https://deepinfra.com",
+    notice: {
+      apiKeyUrl: "https://deepinfra.com/dash/api_keys",
+    },
   },
   category: "freeTier",
   authType: "apikey",

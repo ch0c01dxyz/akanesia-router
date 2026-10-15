@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#C026D3",
     textIcon: "LL",
+    website: "https://llamagate.dev",
+    notice: {
+      apiKeyUrl: "https://llamagate.dev/dashboard",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#C026D3",
     textIcon: "SE",
+    website: "https://seekai.cc",
+    notice: {
+      apiKeyUrl: "https://seekai.cc",
+    },
   },
   category: "apikey",
   authType: "apikey",

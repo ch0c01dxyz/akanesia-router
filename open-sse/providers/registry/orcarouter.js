@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "OR",
+    website: "https://www.orcarouter.ai",
+    notice: { apiKeyUrl: "https://www.orcarouter.ai/console" },
   },
   category: "apikey",
   authType: "apikey",

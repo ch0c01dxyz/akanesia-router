@@ -12,6 +12,7 @@ export default {
     icon: "smart_toy",
     color: "#FF6900",
     textIcon: "MF",
+    website: "https://platform.xiaomimimo.com",
   },
   category: "free",
   noAuth: true,

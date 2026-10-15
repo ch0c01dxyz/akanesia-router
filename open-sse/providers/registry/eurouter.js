@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#7C3AED",
     textIcon: "EU",
+    website: "https://eurouter.ai",
+    notice: {
+      apiKeyUrl: "https://eurouter.ai",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#EA580C",
     textIcon: "PU",
+    website: "https://platform.publicai.co",
+    notice: {
+      apiKeyUrl: "https://platform.publicai.co/settings/api-keys",
+    },
   },
   category: "freeTier",
   authType: "apikey",

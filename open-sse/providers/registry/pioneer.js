@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "PI",
+    website: "https://pioneer.ai",
+    notice: {
+      apiKeyUrl: "https://pioneer.ai",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#7C3AED",
     textIcon: "OP",
+    website: "https://dashboard.openadapter.in",
+    notice: {
+      apiKeyUrl: "https://dashboard.openadapter.in/keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

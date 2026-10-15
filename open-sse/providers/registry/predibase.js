@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#7C3AED",
     textIcon: "PR",
+    website: "https://predibase.com",
+    notice: { apiKeyUrl: "https://app.predibase.com" },
   },
   category: "freeTier",
   authType: "apikey",

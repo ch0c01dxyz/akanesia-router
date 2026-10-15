@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "MA",
+    website: "https://plataforma.maritaca.ai",
+    notice: {
+      apiKeyUrl: "https://plataforma.maritaca.ai/chaves-de-api",
+    },
   },
   category: "apikey",
   authType: "apikey",

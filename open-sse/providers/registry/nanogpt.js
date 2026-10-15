@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "NA",
+    website: "https://nano-gpt.com",
+    notice: { apiKeyUrl: "https://nano-gpt.com/api" },
   },
   category: "apikey",
   authType: "apikey",

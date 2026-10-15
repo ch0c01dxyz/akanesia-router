@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#D97706",
     textIcon: "OP",
+    website: "https://opper.ai",
+    notice: {
+      apiKeyUrl: "https://platform.opper.ai",
+    },
   },
   category: "apikey",
   authType: "apikey",

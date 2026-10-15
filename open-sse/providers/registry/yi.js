@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#D97706",
     textIcon: "YI",
+    website: "https://platform.lingyiwanwu.com",
+    notice: {
+      apiKeyUrl: "https://platform.lingyiwanwu.com",
+    },
   },
   category: "apikey",
   authType: "apikey",

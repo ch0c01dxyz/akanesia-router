@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "RE",
+    website: "https://www.requesty.ai",
+    notice: {
+      apiKeyUrl: "https://app.requesty.ai/api-keys",
+    },
   },
   category: "freeTier",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "NA",
+    website: "https://api.navy",
+    notice: {
+      apiKeyUrl: "https://api.navy",
+    },
   },
   category: "freeTier",
   authType: "apikey",

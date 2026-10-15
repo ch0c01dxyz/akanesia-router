@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "MG",
+    website: "https://ml-explore.github.io/mlx",
   },
   category: "apikey",
   authType: "apikey",

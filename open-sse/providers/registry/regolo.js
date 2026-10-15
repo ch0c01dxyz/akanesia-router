@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "RE",
+    website: "https://regolo.ai",
+    notice: {
+      apiKeyUrl: "https://dashboard.regolo.ai",
+    },
   },
   category: "apikey",
   authType: "apikey",

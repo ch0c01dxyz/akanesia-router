@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "BC",
+    website: "https://bailian.console.aliyun.com",
+    notice: {
+      apiKeyUrl: "https://bailian.console.aliyun.com/",
+    },
   },
   category: "apikey",
   authType: "apikey",

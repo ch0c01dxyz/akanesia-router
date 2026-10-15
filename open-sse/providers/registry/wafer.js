@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#DC2626",
     textIcon: "WA",
+    website: "https://wafer.ai",
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#D97706",
     textIcon: "BA",
+    website: "https://www.baseten.co",
+    notice: {
+      apiKeyUrl: "https://app.baseten.co/settings/api_keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

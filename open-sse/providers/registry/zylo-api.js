@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "ZA",
+    website: "https://zyloai.net",
+    notice: {
+      apiKeyUrl: "https://console.zyloai.net:443/settings/",
+    },
   },
   category: "apikey",
   authType: "apikey",

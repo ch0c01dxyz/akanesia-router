@@ -5,7 +5,8 @@ export default {
     name: "Google TTS",
     icon: "record_voice_over",
     color: "#4285F4",
-    textIcon: "GT"
+    textIcon: "GT",
+    website: "https://translate.google.com"
   },
   category: "freeTier",
   authType: "none",

@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#DC2626",
     textIcon: "MI",
+    website: "https://mixlayer.com",
+    notice: { apiKeyUrl: "https://console.mixlayer.com/app/api-keys" },
   },
   category: "apikey",
   authType: "apikey",

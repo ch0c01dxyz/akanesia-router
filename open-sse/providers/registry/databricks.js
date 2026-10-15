@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#C026D3",
     textIcon: "DA",
+    website: "https://www.databricks.com",
   },
   category: "apikey",
   authType: "apikey",

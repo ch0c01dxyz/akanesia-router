@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#7C3AED",
     textIcon: "SC",
+    website: "https://www.scaleway.com",
+    notice: {
+      apiKeyUrl: "https://console.scaleway.com/iam/api-keys",
+    },
   },
   category: "freeTier",
   authType: "apikey",

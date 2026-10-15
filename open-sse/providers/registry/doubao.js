@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "DO",
+    website: "https://maas.volcengine.com",
+    notice: {
+      apiKeyUrl: "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey",
+    },
   },
   category: "freeTier",
   authType: "apikey",

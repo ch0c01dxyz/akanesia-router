@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "UN",
+    website: "https://uncloseai.com",
   },
   category: "freeTier",
   authType: "optional",

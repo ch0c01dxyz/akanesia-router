@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "DX",
+    website: "https://www.dxnt.com",
+    notice: { apiKeyUrl: "https://www.dxnt.com" },
   },
   category: "apikey",
   authType: "apikey",

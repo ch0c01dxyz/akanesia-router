@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "CO",
+    website: "https://cloudcode.one",
+    notice: {
+      apiKeyUrl: "https://cloudcode.one",
+    },
   },
   category: "apikey",
   authType: "apikey",

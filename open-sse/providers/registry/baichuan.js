@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "BA",
+    website: "https://www.baichuan-ai.com",
+    notice: { apiKeyUrl: "https://www.baichuan-ai.com" },
   },
   category: "freeTier",
   authType: "apikey",

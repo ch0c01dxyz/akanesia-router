@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#7C3AED",
     textIcon: "IN",
+    website: "https://inference.net",
+    notice: {
+      apiKeyUrl: "https://inference.net/dashboard",
+    },
   },
   category: "freeTier",
   authType: "apikey",

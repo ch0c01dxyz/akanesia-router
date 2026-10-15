@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "AI",
+    website: "https://www.ai21.com",
+    notice: { apiKeyUrl: "https://studio.ai21.com/account/api-key" },
   },
   category: "freeTier",
   authType: "apikey",

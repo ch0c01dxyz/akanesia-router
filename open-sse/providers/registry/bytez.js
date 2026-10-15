@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "BY",
+    website: "https://bytez.com",
+    notice: {
+      apiKeyUrl: "https://bytez.com/api",
+    },
   },
   category: "freeTier",
   authType: "apikey",

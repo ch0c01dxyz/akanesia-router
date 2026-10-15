@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "SP",
+    website: "https://www.xfyun.cn",
+    notice: {
+      apiKeyUrl: "https://console.xfyun.cn/",
+    },
   },
   category: "freeTier",
   authType: "apikey",

@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#5B5FEF",
     textIcon: "AL",
+    website: "https://developer.ant-ling.com",
   },
   category: "apikey",
   authType: "apikey",

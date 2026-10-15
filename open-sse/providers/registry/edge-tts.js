@@ -5,7 +5,8 @@ export default {
     name: "Edge TTS",
     icon: "record_voice_over",
     color: "#0078D4",
-    textIcon: "ET"
+    textIcon: "ET",
+    website: "https://github.com/rany2/edge-tts"
   },
   category: "freeTier",
   authType: "none",

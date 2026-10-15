@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "LY",
+    website: "https://lyceum.technology",
+    notice: { apiKeyUrl: "https://dashboard.lyceum.technology/api-keys" },
   },
   category: "apikey",
   authType: "apikey",

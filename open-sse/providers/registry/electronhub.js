@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "EL",
+    website: "https://electronhub.ai",
+    notice: {
+      apiKeyUrl: "https://playground.electronhub.ai/console",
+    },
   },
   category: "apikey",
   authType: "apikey",

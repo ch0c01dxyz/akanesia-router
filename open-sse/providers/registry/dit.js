@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#059669",
     textIcon: "DI",
+    website: "https://dit.ai",
+    notice: {
+      apiKeyUrl: "https://dit.ai/register",
+    },
   },
   category: "apikey",
   authType: "apikey",

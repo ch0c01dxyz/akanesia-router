@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#DC2626",
     textIcon: "FR",
+    website: "https://freeaiapikey.com",
+    notice: { apiKeyUrl: "https://freeaiapikey.com/dashboard" },
   },
   category: "apikey",
   authType: "apikey",

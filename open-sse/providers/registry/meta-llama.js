@@ -7,6 +7,8 @@ export default {
     icon: "smart_toy",
     color: "#EA580C",
     textIcon: "ML",
+    website: "https://www.llama.com",
+    notice: { apiKeyUrl: "https://llama.developer.meta.com/" },
   },
   category: "apikey",
   authType: "apikey",

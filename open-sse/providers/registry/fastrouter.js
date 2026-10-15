@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#EA580C",
     textIcon: "FA",
+    website: "https://fastrouter.ai",
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "QC",
+    website: "https://modelstudio.alibabacloud.com",
+    notice: {
+      apiKeyUrl: "https://modelstudio.console.alibabacloud.com/?apiKey=<redacted>",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#16A34A",
     textIcon: "RO",
+    website: "https://routeway.ai",
+    notice: {
+      apiKeyUrl: "https://routeway.ai/dashboard/keys",
+    },
   },
   category: "freeTier",
   authType: "apikey",

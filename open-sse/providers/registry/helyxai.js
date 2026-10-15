@@ -7,6 +7,7 @@ export default {
     icon: "smart_toy",
     color: "#0891B2",
     textIcon: "HE",
+    website: "https://helyxai.space",
   },
   category: "apikey",
   authType: "apikey",

@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "YA",
+    website: "https://yolo-auto.com",
+    notice: {
+      apiKeyUrl: "https://yolo-auto.com/app",
+    },
   },
   category: "apikey",
   authType: "apikey",

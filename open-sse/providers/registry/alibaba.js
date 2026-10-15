@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#C026D3",
     textIcon: "AL",
+    website: "https://www.alibabacloud.com",
+    notice: {
+      apiKeyUrl: "https://bailian.console.aliyun.com/",
+    },
   },
   category: "apikey",
   authType: "apikey",
