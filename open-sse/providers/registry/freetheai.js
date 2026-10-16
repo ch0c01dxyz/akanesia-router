@@ -7,13 +7,13 @@ export default {
     icon: "smart_toy",
     color: "#DC2626",
     textIcon: "FR",
-    website: "https://freetheai.xyz",
+    website: "https://freetheai.org",
   },
   category: "apikey",
   authType: "apikey",
   transport: {
-    baseUrl: "https://api.freetheai.xyz/v1/chat/completions",
-    validateUrl: "https://api.freetheai.xyz/v1/models",
+    baseUrl: "https://api.freetheai.org/v1/chat/completions",
+    validateUrl: "https://api.freetheai.org/v1/models",
   },
   passthroughModels: true,
   models: [
