@@ -87,7 +87,7 @@ export default function ComboDetailPage() {
           setApiKey("");
         }
       }
-      if (connsRes.ok) setConnections((await connsRes.json()).connections || []);
+      if (connsRes.ok) setConnections(((await connsRes.json()).connections || []).filter((x) => x.isActive !== false));
       if (!comboRes.ok) { setCombo(null); setLoading(false); return; }
       const c = await comboRes.json();
       setCombo(c);

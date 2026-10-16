@@ -202,7 +202,7 @@ import p199 from "./nebius.js";
 import p200 from "./nimble-search.js";
 import p201 from "./nlpcloud.js";
 import p202 from "./notion-web.js";
-import p203 from "./nous-research.js";
+import p203 from "./nous.js";
 import p204 from "./novita.js";
 import p205 from "./nscale.js";
 import p206 from "./nube.js";

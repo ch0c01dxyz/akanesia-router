@@ -56,7 +56,7 @@ export const DEFAULT_CAPABILITIES = {
   tools: true,          // function / tool calling
   reasoning: false,     // thinking / reasoning
   // thinking wire format (only meaningful when reasoning:true). null → derive from transport.format.
-  // enum: openai|claude-adaptive|claude-budget|gemini-level|gemini-budget|zai|qwen|deepseek|kimi|minimax|hunyuan|step
+  // enum: openai|claude-adaptive|claude-budget|gemini-level|gemini-budget|zai|qwen|deepseek|kimi|minimax|hunyuan|step|nous
   thinkingFormat: null,
   thinkingCanDisable: true,  // false → model cannot turn thinking off (clamp to min instead of disable)
   thinkingRange: null,       // { min, max } for budget formats; null = no clamp
@@ -311,6 +311,17 @@ export const PROVIDER_CAPABILITIES = {
     "MiniMax-M2.7":               { reasoning: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 200000, maxOutput: 128000 },
     "MiniMax-M2.7-highspeed":     { reasoning: true, thinkingFormat: "claude-adaptive", thinkingCanDisable: false, contextWindow: 200000, maxOutput: 128000 },
   },
+  // Nous Research Portal free-tier models (probed live against https://inference-api.nousresearch.com/v1/models).
+  "nous": {
+    "meituan/longcat-2.0:free":         { tools: true, reasoning: true, thinkingFormat: "nous", contextWindow: 1048756, maxOutput: 262144 },
+    "meituan/longcat-2.5-preview:free": { tools: true, vision: true, reasoning: true, thinkingFormat: "nous", contextWindow: 1048576, maxOutput: 131072 },
+    "stepfun/step-5-preview:free":      { tools: true, vision: true, videoInput: true, reasoning: true, thinkingFormat: "nous", contextWindow: 1000000, maxOutput: 64000 },
+    "upstage/solar-mini4:free":         { tools: true, reasoning: true, thinkingFormat: "nous", contextWindow: 524288, maxOutput: 131072 },
+    "stepfun/step-3.7-flash:free":      { tools: true, vision: true, videoInput: true, reasoning: true, thinkingFormat: "nous", contextWindow: 262144, maxOutput: 256000 },
+    "poolside/laguna-s-2.1:free":       { tools: true, reasoning: true, thinkingFormat: "nous", contextWindow: 262144, maxOutput: 131072 },
+    "poolside/laguna-xs-2.1:free":      { tools: true, reasoning: true, thinkingFormat: "nous", contextWindow: 262144, maxOutput: 32768 },
+    "stealth/missingno":                { tools: true, reasoning: true, thinkingFormat: "nous", contextWindow: 262144, maxOutput: 131072 },
+  },
 };
 
 // Qoder CN serves the identical model catalog from the CN gateway, so it shares
@@ -347,6 +358,8 @@ export const PATTERN_CAPABILITIES = [
 
   // ── Gemini (all 2.0+ multimodal + google_search grounding, 1M ctx) ─
   { pattern: "*gemini*image*",  caps: { vision: true, imageOutput: true, contextWindow: 1048576 } },
+  // Gemini 4 (Argon): no "minimal" tier (400) and no thinkingBudget — LOW/MEDIUM/HIGH only, cannot disable.
+  { pattern: "*gemini-4*",      caps: { vision: true, audioInput: true, videoInput: true, reasoning: true, search: true, thinkingFormat: "gemini-level", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 65536 } },
   { pattern: "*gemini-3.8*",    caps: { vision: true, audioInput: true, videoInput: true, reasoning: true, search: true, thinkingFormat: "gemini-level", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 65536 } },
   { pattern: "*gemini-3.7*",    caps: { vision: true, audioInput: true, videoInput: true, reasoning: true, search: true, thinkingFormat: "gemini-level", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 65536 } },
   { pattern: "*gemini-3*pro*",  caps: { vision: true, audioInput: true, videoInput: true, reasoning: true, search: true, thinkingFormat: "gemini-level", thinkingCanDisable: false, contextWindow: 1048576, maxOutput: 65535 } },
@@ -690,4 +703,9 @@ export function getCapabilitiesForModel(provider, model) {
 
   // 4. Floor
   return refine(null, provider, model);
+}
+
+// Gemini 4 (Argon) drops sampling params and requires functionResponse-last merged user turns.
+export function isGemini4Model(model) {
+  return /(?:^|\/)gemini-4(?:$|[-.])/i.test(String(model || ""));
 }
