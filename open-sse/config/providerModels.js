@@ -55,15 +55,22 @@ export function findModelName(aliasOrId, modelId) {
 }
 
 export function getModelTargetFormat(aliasOrId, modelId) {
-  if (isOpenCodeAlias(aliasOrId) && isMuseSparkModel(modelId)) {
+  // muse-spark speaks openai-responses upstream on DIRECT lanes (ocg etc);
+  // alias 'oc' routes through the opencode-bridge executor (chat-completions),
+  // so the override must not apply there.
+  if (isOpenCodeAlias(aliasOrId) && aliasOrId !== "oc" && aliasOrId !== "opencode" && isMuseSparkModel(modelId)) {
     return FORMATS.OPENAI_RESPONSES;
   }
   const models = PROVIDER_MODELS[aliasOrId];
   if (!models) return null;
   const found = findModel(models, modelId, aliasOrId);
   if (found) return modelTargetFormat(found);
-  // Family fallback keeps modelsFetcher/passthrough ids on their endpoint lane
-  if (isOpenCodeAlias(aliasOrId)) return opencodeFamilyFormats(modelId)?.targetFormat || null;
+  // Family fallback keeps modelsFetcher/passthrough ids on their endpoint lane.
+  // Bridge aliases ('oc'/'opencode') execute via opencode-bridge (chat lane) —
+  // the family's /responses mapping applies only to DIRECT lanes (ocg, ocz).
+  if (isOpenCodeAlias(aliasOrId) && aliasOrId !== "oc" && aliasOrId !== "opencode") {
+    return opencodeFamilyFormats(modelId)?.targetFormat || null;
+  }
   return null;
 }
 

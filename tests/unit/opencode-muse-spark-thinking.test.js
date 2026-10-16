@@ -40,8 +40,11 @@ describe("OpenCode Free Muse Spark thinking", () => {
         "high",
         "xhigh",
       ]);
-      expect(getModelTargetFormat("oc", m)).toBe(FORMATS.OPENAI_RESPONSES);
-      expect(getModelTargetFormat("opencode", m)).toBe(FORMATS.OPENAI_RESPONSES);
+      // oc/opencode route through the opencode-bridge executor (chat lane);
+      // muse keeps the Responses format only on DIRECT lanes (ocg).
+      expect(getModelTargetFormat("oc", m)).toBeNull();
+      expect(getModelTargetFormat("opencode", m)).toBeNull();
+      expect(getModelTargetFormat("ocg", m)).toBe(FORMATS.OPENAI_RESPONSES);
       expect(getModelTargetFormat("openrouter", m)).toBeNull();
     }
   });
@@ -137,7 +140,9 @@ describe("OpenCode Free Muse Spark thinking", () => {
     for (const m of ["muse-spark-1.3-contributor-free", futureModel]) {
       expect(executor.buildUrl(m)).toBe("https://opencode.ai/inference/v1/responses");
       expect(executor.buildUrl(`${m}(high)`)).toBe("https://opencode.ai/inference/v1/responses");
-      expect(getModelTargetFormat("oc", m)).toBe("openai-responses");
+      // oc = bridge executor (chat lane); Responses format lives on direct lanes only
+      expect(getModelTargetFormat("oc", m)).toBeNull();
+      expect(getModelTargetFormat("ocg", m)).toBe("openai-responses");
 
       const body = {
         model: `oc/${m}`,
