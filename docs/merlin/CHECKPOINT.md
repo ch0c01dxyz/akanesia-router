@@ -18,6 +18,15 @@
 - **Bahasa**: Indonesia untuk teks user-visible
 - **Upstream**: 9router official v0.5.104 (terakhir di-port 2026-10-16)
 
+## Prosedur Verifikasi (aturan Egar 2026-10-16)
+
+Setiap selesai coding/fitur, WAJIB:
+1. `npm run build` — pastikan build sukses tanpa error
+2. `npm start` — jalankan production server, cek endpoint kunci
+3. **Matikan** server setelah pengecekan selesai (jangan dibiarkan jalan)
+
+Jangan skip langkah ini. Build yang gagal = jangan commit.
+
 ## Fitur Kunci (2026-10-16)
 
 1. **OpenCode Bridge** (`opencode` provider):

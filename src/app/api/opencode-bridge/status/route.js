@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { checkOpencodeInstalled, getSetupGuide } from "@/open-sse/utils/opencodeBridgeSupervisor.js";
+import { checkOpencodeInstalled, getSetupGuide } from "open-sse/utils/opencodeBridgeSupervisor.js";
 
 // GET /api/opencode-bridge/status — cek apakah opencode2 terinstall
 export async function GET() {
