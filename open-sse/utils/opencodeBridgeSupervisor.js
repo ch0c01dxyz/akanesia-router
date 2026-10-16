@@ -121,19 +121,63 @@ function isPortInUse() {
 }
 
 /**
- * Kill whatever process listens on BRIDGE_PORT (unauthenticated orphan).
- * Windows: taskkill; POSIX: lsof + kill.
+ * Dapatkan PID yang listen di BRIDGE_PORT, OS-aware.
+ * Windows: via powershell Get-NetTCPConnection.
+ * macOS/Linux: via lsof.
+ * Return array of PIDs (string).
  */
-function killPortListener() {
+function getPortListenerPids() {
   return new Promise((resolve) => {
-    if (platform() === "win32") {
+    const os = platform();
+    if (os === "win32") {
       execFile("powershell", [
         "-NoProfile", "-Command",
-        `Get-NetTCPConnection -LocalPort ${BRIDGE_PORT} -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }`,
-      ], { timeout: 10000 }, () => setTimeout(resolve, 1500));
+        `(Get-NetTCPConnection -LocalPort ${BRIDGE_PORT} -State Listen -ErrorAction SilentlyContinue).OwningProcess | Sort-Object -Unique`,
+      ], { timeout: 10000 }, (err, stdout) => {
+        if (err) return resolve([]);
+        const pids = String(stdout).split(/\s+/).filter((p) => /^\d+$/.test(p));
+        resolve(pids);
+      });
     } else {
-      execFile("sh", ["-c", `lsof -ti tcp:${BRIDGE_PORT} | xargs -r kill -9`], { timeout: 10000 }, () => setTimeout(resolve, 1500));
+      // macOS & Linux: lsof tersedia di keduanya
+      execFile("sh", ["-c", `lsof -ti tcp:${BRIDGE_PORT} 2>/dev/null`], { timeout: 10000 }, (err, stdout) => {
+        if (err) return resolve([]);
+        const pids = String(stdout).split(/\s+/).filter((p) => /^\d+$/.test(p));
+        resolve(pids);
+      });
     }
+  });
+}
+
+/**
+ * Kill whatever process listens on BRIDGE_PORT (unauthenticated orphan).
+ * OS-aware: deteksi PID dulu, lalu kill dengan command sesuai OS.
+ * - Windows: taskkill /F /PID {pid}
+ * - macOS/Linux: kill -9 {pid}
+ */
+function killPortListener() {
+  return new Promise(async (resolve) => {
+    try {
+      const pids = await getPortListenerPids();
+      if (pids.length === 0) return resolve();
+
+      const os = platform();
+      const killers = pids.map((pid) => new Promise((res) => {
+        if (os === "win32") {
+          // Windows: taskkill via cmd (lebih ringan dari powershell untuk kill)
+          execFile("taskkill", ["/F", "/PID", pid], { timeout: 10000 }, () => res());
+        } else {
+          // macOS & Linux: kill -9
+          execFile("kill", ["-9", pid], { timeout: 10000 }, () => res());
+        }
+      }));
+
+      await Promise.all(killers);
+    } catch {
+      // Abaikan error — port mungkin sudah bebas
+    }
+    // Beri waktu OS melepas port
+    setTimeout(resolve, 1500);
   });
 }
 
