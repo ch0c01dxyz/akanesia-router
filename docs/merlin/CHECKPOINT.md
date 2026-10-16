@@ -6,7 +6,7 @@
 
 - Branch: `master`
 - Remote: `git@github.com:ch0c01dxyz/akanesia-router.git`
-- Commit terakhir: `803b10de` (harness fix opencode-bridge, via pull)
+- Commit terakhir: `bde71630` (killPortListener OS-aware)
 - Working tree: BERSIH
 
 ## Riwayat Commit Hari Ini
@@ -20,6 +20,8 @@
 7. `3984e43c` — update model list opencode-free (13 model)
 8. `fd9d890f` — tombol Setup Bridge ke section no-auth
 9. `803b10de` — harness fix: remainder SSE, stale-serve recovery, orphan kill
+10. `dfc7f69b` — docs: checkpoint + memori sore
+11. `bde71630` — killPortListener() OS-aware (deteksi PID + kill per-OS)
 
 ## Pengaturan Aktif
 
