@@ -8,6 +8,9 @@ export default {
     color: "#DC2626",
     textIcon: "SY",
     website: "https://synthetic.new",
+    notice: {
+      apiKeyUrl: "https://synthetic.new/user-settings/api",
+    },
   },
   category: "apikey",
   authType: "apikey",

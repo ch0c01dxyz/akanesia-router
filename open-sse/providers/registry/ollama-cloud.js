@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#4F46E5",
     textIcon: "OC",
+    website: "https://ollama.com",
+    notice: {
+      apiKeyUrl: "https://ollama.com/settings/keys",
+    },
   },
   category: "freeTier",
   authType: "apikey",

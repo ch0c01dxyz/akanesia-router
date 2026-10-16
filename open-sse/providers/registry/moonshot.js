@@ -11,6 +11,9 @@ export default {
     color: "#8B5CF6",
     textIcon: "KM",
     website: "https://moonshot.ai",
+    notice: {
+      apiKeyUrl: "https://platform.moonshot.ai/console/api-keys",
+    },
   },
   category: "apikey",
   authType: "apikey",

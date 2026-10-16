@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#2563EB",
     textIcon: "LL",
+    website: "https://llmgateway.io",
+    notice: {
+      apiKeyUrl: "https://docs.llmgateway.io/quick-start",
+    },
   },
   category: "apikey",
   authType: "apikey",

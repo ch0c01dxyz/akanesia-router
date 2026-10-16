@@ -8,6 +8,9 @@ export default {
     color: "#EA580C",
     textIcon: "TK",
     website: "https://token-kiosk.gaib.ai/docs",
+    notice: {
+      apiKeyUrl: "https://token-kiosk.gaib.ai/docs",
+    },
   },
   category: "apikey",
   authType: "apikey",

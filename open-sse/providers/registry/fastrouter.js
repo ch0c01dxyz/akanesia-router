@@ -8,6 +8,9 @@ export default {
     color: "#EA580C",
     textIcon: "FA",
     website: "https://fastrouter.ai",
+    notice: {
+      apiKeyUrl: "https://fastrouter.ai",
+    },
   },
   category: "apikey",
   authType: "apikey",

@@ -8,6 +8,9 @@ export default {
     color: "#16A34A",
     textIcon: "NA",
     website: "https://router.bynara.id",
+    notice: {
+      apiKeyUrl: "https://router.bynara.id/docs",
+    },
   },
   category: "freeTier",
   authType: "apikey",

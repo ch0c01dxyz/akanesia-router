@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#0D9488",
     textIcon: "GA",
+    website: "https://galadriel.com",
+    notice: {
+      apiKeyUrl: "https://dashboard.galadriel.com/",
+    },
   },
   category: "apikey",
   authType: "apikey",

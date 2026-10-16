@@ -7,6 +7,10 @@ export default {
     icon: "smart_toy",
     color: "#EA580C",
     textIcon: "NO",
+    website: "https://novita.ai",
+    notice: {
+      apiKeyUrl: "https://novita.ai/settings/key-management",
+    },
   },
   category: "freeTier",
   authType: "apikey",

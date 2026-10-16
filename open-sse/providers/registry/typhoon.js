@@ -8,6 +8,9 @@ export default {
     color: "#DC2626",
     textIcon: "TY",
     website: "https://opentyphoon.ai",
+    notice: {
+      apiKeyUrl: "https://playground.opentyphoon.ai/api-key",
+    },
   },
   category: "apikey",
   authType: "apikey",

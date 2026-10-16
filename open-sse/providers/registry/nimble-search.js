@@ -6,7 +6,10 @@ export default {
     icon: "manage_search",
     color: "#8B5CF6",
     textIcon: "NB",
-    website: "https://nimbleway.com"
+    website: "https://nimbleway.com",
+    notice: {
+      apiKeyUrl: "https://nimbleway.com",
+    },
   },
   category: "apikey",
   authType: "apikey",
