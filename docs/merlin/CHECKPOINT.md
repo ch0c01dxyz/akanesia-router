@@ -1,4 +1,4 @@
-# CHECKPOINT — 2026-10-16 (update)
+# CHECKPOINT — 2026-10-16 (update sore)
 
 > Status terakhir repo akanesia-router. Dibaca saat sesi baru untuk lanjut kerja tanpa tanya ulang.
 
@@ -6,8 +6,20 @@
 
 - Branch: `master`
 - Remote: `git@github.com:ch0c01dxyz/akanesia-router.git`
-- Commit terakhir: `64f13152` (fitur deteksi + setup opencode2)
-- Working tree: BERSIH (setelah commit ini)
+- Commit terakhir: `803b10de` (harness fix opencode-bridge, via pull)
+- Working tree: BERSIH
+
+## Riwayat Commit Hari Ini
+
+1. `e8dcd6dd` — port upstream v0.5.104 (12 item: Gemini 4 Argon, Antigravity 2.22, Nous OAuth, dll.)
+2. `64f13152` — fitur deteksi + setup opencode2 (status API, panduan per OS, auto-update, modal)
+3. `dbc419f9` — docs: checkpoint + ledger
+4. `cd9699be` — fix build: import path opencode-bridge
+5. `bbc2c2ac` — hilangkan warning Node.js di npm start
+6. `bbfecee8` — tombol Setup Bridge + Playground no-auth aktif
+7. `3984e43c` — update model list opencode-free (13 model)
+8. `fd9d890f` — tombol Setup Bridge ke section no-auth
+9. `803b10de` — harness fix: remainder SSE, stale-serve recovery, orphan kill
 
 ## Pengaturan Aktif
 
