@@ -19,7 +19,9 @@ let password = null;
 let startPromise = null;
 
 function binaryPath() {
-  return join(homedir(), ".opencode", "bin", "opencode2");
+  // Bun shim exes are path-locked (remap into node_modules relative to their own
+  // location) — must run from ~/.bun/bin, a copy elsewhere exits 255.
+  return join(homedir(), ".bun", "bin", "opencode2.exe");
 }
 
 /**
