@@ -1808,7 +1808,21 @@ export default function ProviderDetailPage() {
 
       {/* Connections */}
       {isFreeNoAuth ? (
-        <NoAuthProxyCard providerId={providerId} />
+        <>
+          <NoAuthProxyCard providerId={providerId} />
+          {providerId === "opencode" && (
+            <div className="mt-4">
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="settings"
+                onClick={() => setShowOpencodeSetupModal(true)}
+              >
+                Setup Bridge
+              </Button>
+            </div>
+          )}
+        </>
       ) : (
         <Card>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1936,16 +1950,6 @@ export default function ProviderDetailPage() {
                     >
                       {isCompatible ? "Add API Key" : (providerId === "iflow" ? "OAuth" : "Add Connection")}
                     </Button>
-                    {providerId === "opencode" && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        icon="settings"
-                        onClick={() => setShowOpencodeSetupModal(true)}
-                      >
-                        Setup Bridge
-                      </Button>
-                    )}
                   </>
                 )}
               </div>
