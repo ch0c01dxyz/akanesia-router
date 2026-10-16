@@ -1,4 +1,4 @@
-# CHECKPOINT — 2026-10-16
+# CHECKPOINT — 2026-10-16 (update)
 
 > Status terakhir repo akanesia-router. Dibaca saat sesi baru untuk lanjut kerja tanpa tanya ulang.
 
@@ -6,33 +6,42 @@
 
 - Branch: `master`
 - Remote: `git@github.com:ch0c01dxyz/akanesia-router.git`
-- Commit terakhir: `fd6000d4` (batch 2 link audit)
+- Commit terakhir: `64f13152` (fitur deteksi + setup opencode2)
 - Working tree: BERSIH (setelah commit ini)
 
 ## Pengaturan Aktif
 
 - **Node**: ≥24 (engines di package.json)
-- **Database**: node:sqlite (better-sqlite3 dihapus)
+- **Database**: node:sqlite (better-sqlite3 dihapus 2026-10-14)
 - **Dev server**: port 20127, matikan setelah selesai
 - **Test**: `npx vitest run --config tests/vitest.config.js` (vitest 4.1.11 di tests/)
 - **Bahasa**: Indonesia untuk teks user-visible
+- **Upstream**: 9router official v0.5.104 (terakhir di-port 2026-10-16)
 
-## Fitur Kunci (2026-10-14 → 2026-10-16)
+## Fitur Kunci (2026-10-16)
 
 1. **OpenCode Bridge** (`opencode` provider):
    - Executor: `open-sse/executors/opencode-bridge.js` via `opencode2 serve` lokal (port 4096)
    - Supervisor: `open-sse/utils/opencodeBridgeSupervisor.js`
      - OS-aware binary path (win32: `~/.bun/bin/opencode2.exe`, lain: `~/.opencode/bin/opencode2`)
      - Guard probe port (orphan serve detection)
-   - Ter-bind ke provider `opencode` (OpenCode Free), `opencode-bridge` id dihapus
+     - `checkOpencodeInstalled()`, `getSetupGuide()` per OS
+   - API: `/api/opencode-bridge/status`, `/api/opencode-bridge/update` (background + progress)
+   - Dashboard: `OpencodeSetupModal.js` (khusus provider opencode)
 
-2. **Tool call collision fix**: `nextFreeToolIdx` di openai-to-claude.js + kiro-to-claude.js
+2. **Proxy Relay Health Monitor**:
+   - Auto check 12 jam, auto-disable 3x gagal, monthly reset
+   - Dashboard card "Kesehatan Proxy Relay" terpisah
+   - Scheduler: `src/lib/proxy/healthMonitor.js`
 
-3. **Tool param aliasing**: Read/Edit/Write/Bash di openai-to-claude.js
+3. **Port upstream v0.5.104** (12 item):
+   - Gemini 4 Argon, Antigravity 2.22.0, Nous OAuth + free-tier
+   - Timezone auto-ping: Asia/Jakarta
+   - Migrasi DB v2: nous-research → nous
 
-4. **Export/Import provider**: tombol di halaman detail provider, API `/api/providers/[id]/export|import`
+4. **Tool call collision fix**: `nextFreeToolIdx` (openai-to-claude.js + kiro-to-claude.js)
 
-5. **Provider links**: 153 provider dapat website/apiKeyUrl
+5. **Export/Import provider**: `/api/providers/[id]/export|import`
 
 ## Aturan Kerja Egar (jangan langgar)
 
@@ -46,4 +55,4 @@
 
 - 19 provider terblokir kebijakan untuk link audit (sesi berikutnya)
 - chenzk.top pensiun 31 Okt 2026 — baseUrl akan mati
-- lambda-ai wind-down Inference API — perlu verifikasi
+- Fingerprint upstream opencode (5bdcd5e) sengaja tidak di-port (bridge lebih baik)

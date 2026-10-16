@@ -175,6 +175,10 @@ Format: `hash` — subjek — file kunci — catatan.
 
 ### 2026-10-14 → 2026-10-16
 
+- `64f13152` — fitur deteksi + setup opencode2 (status API, panduan per OS, auto-update + progress, dashboard modal)
+- `e8dcd6dd` — port upstream v0.5.104: Gemini 4 Argon, Antigravity 2.22.0, Nous OAuth, dll. (12 item)
+- `a6288635` — Proxy Relay Health Monitor (auto check 12 jam, auto-disable 3x, monthly reset)
+- `890d137b` — OpenCode bridge: OS-aware path, port guard, bind ke provider opencode
 - `fd6000d4` — batch 2 link audit (11 provider dapat website/apiKeyUrl)
 - `e5bd82c5` — chenzk domain chenzk.top → aotianzz.xyz (pensiun 31 Okt 2026)
 - `2573d337` — fix(bridge): supervisor ke binary opencode2 asli (fix Egar)
