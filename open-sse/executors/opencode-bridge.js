@@ -19,11 +19,12 @@
  */
 
 import { BaseExecutor } from "./base.js";
-import { ensureBridgeRunning } from "../utils/opencodeBridgeSupervisor.js";
+import { ensureBridgeRunning, invalidateBridge } from "../utils/opencodeBridgeSupervisor.js";
 
 const POLL_INTERVAL_MS = 600;
 const STREAM_TIMEOUT_MS = 600000; // 10 min for streaming (tool loops can run long)
 const NON_STREAM_TIMEOUT_MS = 55000; // stay under router's 60s abort
+const FETCH_TIMEOUT_MS = 30000; // per-call cap so a hung serve API can't stall the poll loop
 
 /** Explicit free-model map (shim.js). Falls back to default if unknown. */
 const MODEL_MAP = {
@@ -132,17 +133,29 @@ export class OpenCodeBridgeExecutor extends BaseExecutor {
       fetch(`${baseUrl}${path}`, {
         ...opts,
         headers: { ...headers, ...(opts.headers || {}) },
-        signal,
+        signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)].filter(Boolean)),
       });
 
     // 1. Create session with pinned model
-    const sessionRes = await ocFetch("/api/session", {
+    let sessionRes = await ocFetch("/api/session", {
       method: "POST",
       body: JSON.stringify({
         title: "router-bridge",
         model: { providerID: "opencode", id: opencodeModelId },
       }),
     });
+    if (sessionRes.status === 401 && password) {
+      // Stale bridge (serve died or was killed externally): respawn once and retry.
+      invalidateBridge();
+      ({ baseUrl, password } = await ensureBridgeRunning());
+      sessionRes = await ocFetch("/api/session", {
+        method: "POST",
+        body: JSON.stringify({
+          title: "router-bridge",
+          model: { providerID: "opencode", id: opencodeModelId },
+        }),
+      });
+    }
     if (!sessionRes.ok) {
       const t = await sessionRes.text().catch(() => "");
       throw new Error(`opencode-bridge: session create ${sessionRes.status}: ${t.slice(0, 200)}`);
@@ -252,18 +265,25 @@ export class OpenCodeBridgeExecutor extends BaseExecutor {
             choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }],
           });
 
+          let streamedLen = 0;
           const finalMsg = await waitCompletion((progress) => {
-            // Heartbeat as empty-delta event (SSE comments don't reach client)
+            if (progress.type === "text") streamedLen += progress.text.length;
+            // Heartbeat as empty-delta event (SSE comments don't reach the client)
             sseSend(controller, {
               id: responseId, object: "chat.completion.chunk", created, model,
               choices: [{ index: 0, delta: progress.type === "text" ? { content: progress.text } : {}, finish_reason: null }],
             });
           });
 
-          // Send any remaining text not yet streamed
+          // Emit text the heartbeats never saw (fast models finish between polls)
           const fullText = textsOf(finalMsg);
-          // (Partial text was already streamed via heartbeats; send remainder)
-          // For simplicity, we rely on heartbeat deltas; send final usage chunk
+          const remainder = fullText.slice(streamedLen);
+          if (remainder) {
+            sseSend(controller, {
+              id: responseId, object: "chat.completion.chunk", created, model,
+              choices: [{ index: 0, delta: { content: remainder }, finish_reason: null }],
+            });
+          }
           sseSend(controller, {
             id: responseId, object: "chat.completion.chunk", created, model,
             choices: [{ index: 0, delta: {}, finish_reason: "stop" }],

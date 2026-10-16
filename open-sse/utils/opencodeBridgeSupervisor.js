@@ -121,6 +121,23 @@ function isPortInUse() {
 }
 
 /**
+ * Kill whatever process listens on BRIDGE_PORT (unauthenticated orphan).
+ * Windows: taskkill; POSIX: lsof + kill.
+ */
+function killPortListener() {
+  return new Promise((resolve) => {
+    if (platform() === "win32") {
+      execFile("powershell", [
+        "-NoProfile", "-Command",
+        `Get-NetTCPConnection -LocalPort ${BRIDGE_PORT} -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }`,
+      ], { timeout: 10000 }, () => setTimeout(resolve, 1500));
+    } else {
+      execFile("sh", ["-c", `lsof -ti tcp:${BRIDGE_PORT} | xargs -r kill -9`], { timeout: 10000 }, () => setTimeout(resolve, 1500));
+    }
+  });
+}
+
+/**
  * Start the serve process if not running. Returns { baseUrl, password }.
  * Safe to call concurrently (singleflight).
  */
@@ -139,12 +156,15 @@ export async function ensureBridgeRunning() {
 
 async function doStart() {
   // Guard: jika ada orphan serve yang masih jalan (router crash sebelumnya),
-  // jangan spawn baru — pakai yang sudah ada.
+  // hanya adopt kalau kita punya password-nya. Orphan tanpa password yang
+  // diketahui = tidak bisa diauth → bunuh dan spawn punya sendiri.
   if (await isPortInUse()) {
-    console.log(`[opencode-bridge] Port ${BRIDGE_PORT} sudah dipakai (orphan serve?), pakai yang ada.`);
-    // Password tidak diketahui untuk orphan — coba tanpa auth dulu,
-    // atau user harus bunuh manual jika auth gagal.
-    return { baseUrl: `http://${BRIDGE_HOST}:${BRIDGE_PORT}`, password: null };
+    if (password) {
+      console.log(`[opencode-bridge] Port ${BRIDGE_PORT} dipakai orphan serve, pakai dengan password diketahui.`);
+      return { baseUrl: `http://${BRIDGE_HOST}:${BRIDGE_PORT}`, password };
+    }
+    console.log(`[opencode-bridge] Port ${BRIDGE_PORT} dipakai orphan tanpa password — kill & respawn.`);
+    await killPortListener();
   }
 
   return new Promise((resolve, reject) => {
@@ -199,6 +219,17 @@ async function doStart() {
       }
     }, 15000);
   });
+}
+
+/**
+ * Forget the current serve process and password. Called when auth fails
+ * against a supposedly-running bridge (stale serve died or was killed
+ * externally) so the next ensureBridgeRunning() respawns it fresh.
+ */
+export function invalidateBridge() {
+  proc = null;
+  password = null;
+  startPromise = null;
 }
 
 /**
