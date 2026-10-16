@@ -6,7 +6,7 @@
 
 - Branch: `master`
 - Remote: `git@github.com:ch0c01dxyz/akanesia-router.git`
-- Commit terakhir: `bde71630` (killPortListener OS-aware)
+- Commit terakhir: `265d1cfa` (fix test MODEL)
 - Working tree: BERSIH
 
 ## Riwayat Commit Hari Ini
@@ -22,6 +22,10 @@
 9. `803b10de` — harness fix: remainder SSE, stale-serve recovery, orphan kill
 10. `dfc7f69b` — docs: checkpoint + memori sore
 11. `bde71630` — killPortListener() OS-aware (deteksi PID + kill per-OS)
+12. `5a29edcd` — docs: checkpoint update
+13. `e0c01ae7` — fix: pool auto-disabled fallback ke direct (fail-open)
+14. `c1cc2e6f` — harness fix: getModelTargetFormat muse (bridge vs direct lane)
+15. `265d1cfa` — fix test: MODEL 1.2 → 1.3
 
 ## Pengaturan Aktif
 
