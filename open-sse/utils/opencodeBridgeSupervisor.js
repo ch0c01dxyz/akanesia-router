@@ -8,8 +8,9 @@
  */
 
 import { spawn } from "node:child_process";
-import { homedir } from "node:os";
+import { homedir, platform } from "node:os";
 import { join } from "node:path";
+import { createConnection } from "node:net";
 
 const BRIDGE_PORT = 4096;
 const BRIDGE_HOST = "127.0.0.1";
@@ -18,10 +19,44 @@ let proc = null;
 let password = null;
 let startPromise = null;
 
+/**
+ * OS-aware binary path untuk opencode2.
+ * - Windows: ~/.bun/bin/opencode2.exe (bun shim path-locked, harus dari sini)
+ * - Linux/macOS: ~/.opencode/bin/opencode2 (install standar)
+ */
 function binaryPath() {
-  // Bun shim exes are path-locked (remap into node_modules relative to their own
-  // location) — must run from ~/.bun/bin, a copy elsewhere exits 255.
-  return join(homedir(), ".bun", "bin", "opencode2.exe");
+  const os = platform();
+  if (os === "win32") {
+    // Bun shim exes are path-locked (remap into node_modules relative to their own
+    // location) — must run from ~/.bun/bin, a copy elsewhere exits 255.
+    return join(homedir(), ".bun", "bin", "opencode2.exe");
+  }
+  // Linux/macOS: install standar via curl script
+  return join(homedir(), ".opencode", "bin", "opencode2");
+}
+
+/**
+ * Probe apakah port bridge sudah dipakai (orphan serve dari crash sebelumnya).
+ * Return true jika ada yang listen di BRIDGE_PORT.
+ */
+function isPortInUse() {
+  return new Promise((resolve) => {
+    const socket = createConnection({ host: BRIDGE_HOST, port: BRIDGE_PORT });
+    socket.on("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on("error", () => {
+      socket.destroy();
+      resolve(false);
+    });
+    // Timeout 2 detik
+    socket.setTimeout(2000);
+    socket.on("timeout", () => {
+      socket.destroy();
+      resolve(false);
+    });
+  });
 }
 
 /**
@@ -41,7 +76,16 @@ export async function ensureBridgeRunning() {
   }
 }
 
-function doStart() {
+async function doStart() {
+  // Guard: jika ada orphan serve yang masih jalan (router crash sebelumnya),
+  // jangan spawn baru — pakai yang sudah ada.
+  if (await isPortInUse()) {
+    console.log(`[opencode-bridge] Port ${BRIDGE_PORT} sudah dipakai (orphan serve?), pakai yang ada.`);
+    // Password tidak diketahui untuk orphan — coba tanpa auth dulu,
+    // atau user harus bunuh manual jika auth gagal.
+    return { baseUrl: `http://${BRIDGE_HOST}:${BRIDGE_PORT}`, password: null };
+  }
+
   return new Promise((resolve, reject) => {
     const bin = binaryPath();
     const childProc = spawn(bin, ["serve", "--port", String(BRIDGE_PORT), "--hostname", BRIDGE_HOST], {

@@ -71,6 +71,11 @@ log terminal), `open-sse/handlers/chatCore/streamingHandler.js`,
 
 ## 4. Database (SQLite)
 
+Driver: `node:sqlite` (built-in Node ≥24) → fallback `sql.js`. Chain: `bun:sqlite` → `node:sqlite` → `sql.js`.
+File: `src/lib/db/driver.js`, adapter di `src/lib/db/adapters/nodeSqliteAdapter.js`.
+Helper sekali-pakai: `src/lib/db/withSqliteFile.js`.
+**better-sqlite3 DIHAPUS 2026-10-14** (commit 47aeef7a) — tidak ada native module lagi.
+
 Schema: `src/lib/db/schema.js`. Repo: `src/lib/db/repos/*Repo.js`.
 Diekspos via `src/lib/db/index.js` → `src/lib/localDb.js` → `src/models/index.js`.
 
@@ -167,6 +172,23 @@ id mentah**:
 ## 10. Ledger Commit Kita (analisis dari `git log`)
 
 Format: `hash` — subjek — file kunci — catatan.
+
+### 2026-10-14 → 2026-10-16
+
+- `fd6000d4` — batch 2 link audit (11 provider dapat website/apiKeyUrl)
+- `e5bd82c5` — chenzk domain chenzk.top → aotianzz.xyz (pensiun 31 Okt 2026)
+- `2573d337` — fix(bridge): supervisor ke binary opencode2 asli (fix Egar)
+- `140f553f` — fix(chat): clampQuotaMaxFallbacks + port shim API shapes ke bridge
+- `345908fc` — feat(opencode): bridge executor via local opencode2 serve
+- `66ed66cd` — 153 provider dapat website/apiKeyUrl (tanpa website 158→16)
+- `8f3a49cc` — fitur export/import API key & OAuth per provider
+- `b5346e97` — 3 fitur stabilitas: tool aliasing, antigravity merge, windows build retry
+- `7fa471ed` — fix tool call collision via nextFreeToolIdx
+- `47aeef7a` — hapus better-sqlite3, migrasi ke node:sqlite, Node ≥24
+- `31a4a027` — revert batch SEDANG OmniRoute (instruksi Egar)
+- `4afaadde` — port 13 fitur OmniRoute (MUDAH 7/8 + SEDANG 6/7)
+- `c3384b8e` — port PR #4723: OpenCode Zen header fingerprint
+- `98e01fc7` — port MiniMax Code OAuth dari andyvandaric/9router
 
 ### 2026-10-13
 
