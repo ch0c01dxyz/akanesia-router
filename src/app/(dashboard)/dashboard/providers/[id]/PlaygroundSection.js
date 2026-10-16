@@ -21,12 +21,12 @@ const TABS = [
   { id: "probe", label: "Probe", Component: ProbeSection },
 ];
 
-export default function PlaygroundSection({ providerId, providerAlias, models, customModels, disabledModelIds, connections }) {
+export default function PlaygroundSection({ providerId, providerAlias, models, customModels, disabledModelIds, connections, noAuth }) {
   const [activeTab, setActiveTab] = useState("test");
   const apiKey = usePlaygroundApiKey();
 
   const ActiveTab = TABS.find((t) => t.id === activeTab)?.Component || PlaygroundTestTab;
-  const tabProps = { providerId, providerAlias, models, customModels, disabledModelIds, connections, apiKey };
+  const tabProps = { providerId, providerAlias, models, customModels, disabledModelIds, connections, apiKey, noAuth };
 
   return (
     <Card>

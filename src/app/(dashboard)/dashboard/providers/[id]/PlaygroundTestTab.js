@@ -14,7 +14,7 @@ import {
  * Tab "Test" — chat sederhana untuk menguji model provider ini.
  * Diekstrak dari PlaygroundSection; perilaku 100% sama seperti sebelumnya.
  */
-export default function PlaygroundTestTab({ providerId, providerAlias, models, customModels, disabledModelIds, connections, apiKey }) {
+export default function PlaygroundTestTab({ providerId, providerAlias, models, customModels, disabledModelIds, connections, apiKey, noAuth }) {
   const [selectedModel, setSelectedModel] = useState("");
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
@@ -39,7 +39,7 @@ export default function PlaygroundTestTab({ providerId, providerAlias, models, c
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const hasConnection = hasActiveConnection(connections);
+  const hasConnection = noAuth || hasActiveConnection(connections);
 
   const sendMessage = async () => {
     const text = draft.trim();

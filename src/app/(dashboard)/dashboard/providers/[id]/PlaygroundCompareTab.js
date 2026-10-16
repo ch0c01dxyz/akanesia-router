@@ -19,7 +19,7 @@ const MAX_COMPARE_MODELS = 3;
  * side-by-side, lengkap dengan ringkasan TTFT/latensi/token.
  * Single-prompt saja (tanpa multi-turn) agar scope tetap.
  */
-export default function PlaygroundCompareTab({ providerId, providerAlias, models, customModels, disabledModelIds, connections, apiKey }) {
+export default function PlaygroundCompareTab({ providerId, providerAlias, models, customModels, disabledModelIds, connections, apiKey, noAuth }) {
   const [modelA, setModelA] = useState("");
   const [modelB, setModelB] = useState("");
   const [modelC, setModelC] = useState(""); // opsional
@@ -30,7 +30,7 @@ export default function PlaygroundCompareTab({ providerId, providerAlias, models
   const controllersRef = useRef(new Map());
 
   const availableModels = buildAvailableModels(models, customModels, disabledModelIds, providerAlias, providerId);
-  const hasConnection = hasActiveConnection(connections);
+  const hasConnection = noAuth || hasActiveConnection(connections);
 
   const modelLabel = (id) => availableModels.find((m) => m.id === id)?.label || id;
 

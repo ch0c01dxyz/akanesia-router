@@ -1767,17 +1767,6 @@ export default function ProviderDetailPage() {
               >
                 Add API Key
               </Button>
-              {providerId === "opencode" && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  icon="settings"
-                  onClick={() => setShowOpencodeSetupModal(true)}
-                  className="w-full sm:w-auto"
-                >
-                  Setup Bridge
-                </Button>
-              )}
               <Button
                 size="sm"
                 variant="secondary"
@@ -1947,6 +1936,16 @@ export default function ProviderDetailPage() {
                     >
                       {isCompatible ? "Add API Key" : (providerId === "iflow" ? "OAuth" : "Add Connection")}
                     </Button>
+                    {providerId === "opencode" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon="settings"
+                        onClick={() => setShowOpencodeSetupModal(true)}
+                      >
+                        Setup Bridge
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
@@ -2182,6 +2181,7 @@ export default function ProviderDetailPage() {
         customModels={customModels}
         disabledModelIds={disabledModelIds}
         connections={connections}
+        noAuth={providerId === "opencode"}
       />
 
       {bulkActionModal}
