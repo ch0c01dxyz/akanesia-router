@@ -105,10 +105,15 @@ export async function resolveConnectionProxyConfig(
       poolStrictProxy = proxyPool?.strictProxy === true;
 
       // Pool diminta tapi tidak valid (tidak ditemukan / nonaktif / tanpa URL):
-      // tandai error agar pemanggil bisa fail-closed (500 + Console Log),
-      // bukan diam-diam fail-open ke direct. Pesan ini tidak mengandung secret.
-      if (!isValidPool) {
+      // - Jika nonaktif karena auto-disable health monitor: fail-open ke direct
+      //   dengan warning (jangan block user yang tidak sadar pool-nya mati).
+      // - Jika manual disable / tidak ditemukan / tanpa URL: fail-closed (500).
+      const isAutoDisabled = proxyPool && proxyPool.isActive !== true && proxyPool.disabledReason === "auto";
+      if (!isValidPool && !isAutoDisabled) {
         poolConfigError = `Pool proxy "${proxyPoolId}" tidak valid (tidak ditemukan, nonaktif, atau tanpa URL)`;
+      }
+      if (!isValidPool && isAutoDisabled) {
+        console.warn(`[Proxy] Pool "${proxyPoolId}" auto-disabled oleh health monitor — fallback ke direct.`);
       }
 
       if (isValidPool) {
