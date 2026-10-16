@@ -27,6 +27,8 @@ export {
 export {
   getProxyPools, getProxyPoolById,
   createProxyPool, updateProxyPool, deleteProxyPool,
+  recordProxyFailure, recordProxySuccess, monthlyResetProxyPools,
+  MAX_CONSECUTIVE_FAILURES,
 } from "./repos/proxyPoolsRepo.js";
 
 // API keys

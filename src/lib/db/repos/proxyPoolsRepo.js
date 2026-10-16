@@ -70,6 +70,7 @@ export async function createProxyPool(data) {
     testStatus: data.testStatus || "unknown",
     lastTestedAt: data.lastTestedAt || null,
     lastError: data.lastError || null,
+    consecutiveFailures: 0,
     createdAt: now,
     updatedAt: now,
   };
@@ -100,4 +101,76 @@ export async function deleteProxyPool(id) {
     db.run(`DELETE FROM proxyPools WHERE id = ?`, [id]);
   });
   return removed;
+}
+
+// --- Health monitor -----------------------------------------------------------
+
+/** Jumlah kegagalan beruntun sebelum pool dinonaktifkan otomatis. */
+export const MAX_CONSECUTIVE_FAILURES = 3;
+
+/**
+ * Catat kegagalan health check. Counter +1; capai MAX_CONSECUTIVE_FAILURES
+ * → isActive=false + disabledReason="auto". Mengembalikan pool ter-update.
+ */
+export async function recordProxyFailure(id, error) {
+  const db = await getAdapter();
+  let result = null;
+  const now = new Date().toISOString();
+  db.transaction(() => {
+    const row = db.get(`SELECT * FROM proxyPools WHERE id = ?`, [id]);
+    if (!row) return;
+    const pool = rowToPool(row);
+    const failures = (pool.consecutiveFailures || 0) + 1;
+    const patch = {
+      consecutiveFailures: failures,
+      testStatus: "error",
+      lastTestedAt: now,
+      lastError: error || null,
+    };
+    if (failures >= MAX_CONSECUTIVE_FAILURES && pool.isActive !== false) {
+      patch.isActive = false;
+      patch.disabledAt = now;
+      patch.disabledReason = "auto";
+    }
+    const merged = { ...pool, ...patch, updatedAt: now };
+    upsert(db, merged);
+    result = merged;
+  });
+  return result;
+}
+
+/** Catat health check sukses: reset counter kegagalan. */
+export async function recordProxySuccess(id) {
+  return updateProxyPool(id, {
+    consecutiveFailures: 0,
+    disabledReason: null,
+    testStatus: "active",
+    lastTestedAt: new Date().toISOString(),
+    lastError: null,
+  });
+}
+
+/**
+ * Re-aktivasi awal bulan: pool yang di-disable otomatis (disabledReason="auto")
+ * diaktifkan kembali sekali per bulan. Mengembalikan { monthKey, reset }.
+ */
+export async function monthlyResetProxyPools() {
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const pools = await getProxyPools();
+  let reset = 0;
+  for (const pool of pools) {
+    if (pool.disabledReason === "auto" && pool.lastMonthlyReset !== monthKey) {
+      await updateProxyPool(pool.id, {
+        isActive: true,
+        consecutiveFailures: 0,
+        disabledReason: null,
+        disabledAt: null,
+        lastMonthlyReset: monthKey,
+        testStatus: "unknown",
+      });
+      reset += 1;
+    }
+  }
+  return { monthKey, reset };
 }

@@ -195,10 +195,14 @@ export default function ProxyPoolsPage() {
     const next = !pool.isActive;
     setProxyPools((prev) => prev.map((p) => p.id === pool.id ? { ...p, isActive: next } : p));
     try {
+      // Enable manual: reset juga counter auto-disable agar mulai bersih
+      const payload = next
+        ? { isActive: next, consecutiveFailures: 0, disabledReason: null, disabledAt: null }
+        : { isActive: next };
       const res = await fetch(`/api/proxy-pools/${pool.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: next }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         setProxyPools((prev) => prev.map((p) => p.id === pool.id ? { ...p, isActive: pool.isActive } : p));
@@ -763,6 +767,16 @@ export default function ProxyPoolsPage() {
                     <Badge variant={pool.isActive ? "success" : "default"} size="sm">
                       {pool.isActive ? "active" : "inactive"}
                     </Badge>
+                    {pool.disabledReason === "auto" && (
+                      <Badge variant="warning" size="sm" title={pool.disabledAt ? `Dinonaktifkan otomatis: ${formatDateTime(pool.disabledAt)}` : "Dinonaktifkan otomatis"}>
+                        nonaktif otomatis
+                      </Badge>
+                    )}
+                    {(pool.consecutiveFailures || 0) > 0 && pool.isActive && (
+                      <Badge variant="error" size="sm" title="Kegagalan beruntun — dinonaktifkan otomatis setelah 3x">
+                        gagal {pool.consecutiveFailures}x
+                      </Badge>
+                    )}
                     {pool.type === "vercel" && (
                       <Badge variant="default" size="sm">vercel relay</Badge>
                     )}
@@ -829,6 +843,32 @@ export default function ProxyPoolsPage() {
             ))}
           </div>
         )}
+      </Card>
+
+      {/* Health Monitor Card — terpisah dari pengaturan pool */}
+      <Card>
+        <h2 className="mb-3 text-lg font-semibold">Kesehatan Proxy Relay</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-text-muted">Total Pool</p>
+            <p className="text-xl font-bold">{proxyPools.length}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-text-muted">Aktif</p>
+            <p className="text-xl font-bold text-green-600">{proxyPools.filter(p => p.isActive).length}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-text-muted">Nonaktif Otomatis</p>
+            <p className="text-xl font-bold text-amber-600">{proxyPools.filter(p => p.disabledReason === "auto").length}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-text-muted">Gagal Beruntun</p>
+            <p className="text-xl font-bold text-red-600">{proxyPools.filter(p => (p.consecutiveFailures || 0) > 0 && p.isActive).length}</p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-text-muted">
+          Auto health check tiap 12 jam. Pool dinonaktifkan otomatis setelah 3x gagal beruntun, aktif kembali di awal bulan.
+        </p>
       </Card>
 
       <Modal

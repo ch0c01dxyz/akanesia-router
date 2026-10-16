@@ -42,6 +42,18 @@ function normalizeProxyPoolUpdate(body = {}) {
     updates.type = validTypes.includes(body?.type) ? body.type : "http";
   }
 
+  // Health monitor fields (reset saat re-aktivasi manual)
+  if (Object.prototype.hasOwnProperty.call(body, "consecutiveFailures")) {
+    const n = Number(body?.consecutiveFailures);
+    updates.consecutiveFailures = Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "disabledReason")) {
+    updates.disabledReason = body?.disabledReason == null ? null : String(body.disabledReason);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "disabledAt")) {
+    updates.disabledAt = body?.disabledAt == null ? null : String(body.disabledAt);
+  }
+
   return { updates };
 }
 

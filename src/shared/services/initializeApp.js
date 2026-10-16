@@ -126,6 +126,13 @@ async function runHeavyStartup() {
     .then(({ startAutoSync }) => startAutoSync())
     .catch((e) => console.log("[AutoSync] scheduler start failed:", e.message));
 
+  // Health Monitor Proxy Relay: health check tiap 5 menit, auto-disable
+  // setelah 3x gagal beruntun, re-aktivasi awal bulan. Idempotent via
+  // singleton globalThis — aman bila dipanggil ulang.
+  import("@/lib/proxy/healthMonitor.js")
+    .then(({ startProxyHealthMonitor }) => startProxyHealthMonitor())
+    .catch((e) => console.log("[ProxyHealth] scheduler start failed:", e.message));
+
   // Warming koneksi fill-first (ide #2): 1 ping ringan tanpa auth ke origin
   // provider aktif, setelah server listen. Non-blocking (tidak di-await),
   // idempotent via singleton globalThis, gagal diam-diam.
