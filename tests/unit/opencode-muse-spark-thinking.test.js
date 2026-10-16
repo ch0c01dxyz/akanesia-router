@@ -7,7 +7,7 @@ import { OpenCodeExecutor } from "../../open-sse/executors/opencode.js";
 import "../translator/registerAll.js";
 import { translateRequest } from "../../open-sse/translator/index.js";
 
-const MODEL = "muse-spark-1.2-contributor-free";
+const MODEL = "muse-spark-1.3-contributor-free";
 const PROVIDER = "opencode";
 
 const input = [{
