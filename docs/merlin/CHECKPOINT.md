@@ -6,8 +6,9 @@
 
 - Branch: `master`
 - Remote: `git@github.com:ch0c01dxyz/akanesia-router.git`
-- Commit terakhir: `265d1cfa` (fix test MODEL)
+- Commit terakhir: `391d8caf` (docs checkpoint)
 - Working tree: BERSIH
+- Sinkron dengan origin/master ✅
 
 ## Riwayat Commit Hari Ini
 
@@ -26,6 +27,15 @@
 13. `e0c01ae7` — fix: pool auto-disabled fallback ke direct (fail-open)
 14. `c1cc2e6f` — harness fix: getModelTargetFormat muse (bridge vs direct lane)
 15. `265d1cfa` — fix test: MODEL 1.2 → 1.3
+16. `391d8caf` — docs: checkpoint update (15 commit)
+
+## Verifikasi Harness Final (2026-10-16 17:27)
+
+- 11/13 model oc/ GREEN via router (non-stream)
+- OK: muse-spark-1.3, big-pickle, cat-jam-free, deepseek-v4.1-flash, ling-3.0-flash-fin,
+  longcat-2.5-preview, mimo-v2.5, mimo-v2.6-flash, nemotron-3.5-lightning,
+  nemotron-3.5-super-vl, space-bunny
+- TIMEOUT (upstream dead): jev-1.13, nemotron-3-ultra
 
 ## Pengaturan Aktif
 
