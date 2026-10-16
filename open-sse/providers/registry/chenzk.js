@@ -11,8 +11,12 @@ export default {
   category: "apikey",
   authType: "apikey",
   transport: {
-    baseUrl: "https://chenzk.top/v1/chat/completions",
-    validateUrl: "https://chenzk.top/v1/models",
+    // 2026-10-16: domain pindah chenzk.top → aotianzz.xyz (info Egar).
+    // Catatan jujur: pengumuman resmi tidak terverifikasi independen —
+    // hanya berdasarkan info Egar. Jika domain baru tidak merespons,
+    // kembalikan atau tandai deprecated.
+    baseUrl: "https://aotianzz.xyz/v1/chat/completions",
+    validateUrl: "https://aotianzz.xyz/v1/models",
   },
   passthroughModels: true,
   models: [],
