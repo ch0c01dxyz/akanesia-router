@@ -26,6 +26,7 @@ import BulkImportCodexModal from "./BulkImportCodexModal";
 import BulkImportGrokCliModal from "./BulkImportGrokCliModal";
 import CustomConfigCard from "./CustomConfigCard";
 import AutoPingScheduleModal from "./AutoPingScheduleModal";
+import OpencodeSetupModal from "./OpencodeSetupModal";
 import { getScheduleSlotLabels } from "@/shared/services/quotaPingSchedule";
 
 const ONE_BY_ONE_DELAY_MS = 1000;
@@ -59,6 +60,7 @@ export default function ProviderDetailPage() {
   const [showBulkImportGrokCli, setShowBulkImportGrokCli] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditNodeModal, setShowEditNodeModal] = useState(false);
+  const [showOpencodeSetupModal, setShowOpencodeSetupModal] = useState(false);
   const [updateNodeError, setUpdateNodeError] = useState("");
   const [showBulkProxyModal, setShowBulkProxyModal] = useState(false);
   const [selectedConnection, setSelectedConnection] = useState(null);
@@ -1765,6 +1767,17 @@ export default function ProviderDetailPage() {
               >
                 Add API Key
               </Button>
+              {providerId === "opencode" && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="settings"
+                  onClick={() => setShowOpencodeSetupModal(true)}
+                  className="w-full sm:w-auto"
+                >
+                  Setup Bridge
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="secondary"
@@ -2307,6 +2320,12 @@ export default function ProviderDetailPage() {
           onSave={(schedule) => handleAutoPingSchedule(scheduleConnection.id, schedule)}
         />
       )}
+
+      {/* OpenCode Bridge Setup Modal */}
+      <OpencodeSetupModal
+        isOpen={showOpencodeSetupModal}
+        onClose={() => setShowOpencodeSetupModal(false)}
+      />
 
       {/* AG Risk Confirmation Modal */}
       <ConfirmModal

@@ -7,10 +7,11 @@
  * Egar uses opencode2 (not opencode v1). Binary: ~/.opencode/bin/opencode2
  */
 
-import { spawn } from "node:child_process";
+import { spawn, execFile } from "node:child_process";
 import { homedir, platform } from "node:os";
 import { join } from "node:path";
 import { createConnection } from "node:net";
+import { existsSync } from "node:fs";
 
 const BRIDGE_PORT = 4096;
 const BRIDGE_HOST = "127.0.0.1";
@@ -18,6 +19,66 @@ const BRIDGE_HOST = "127.0.0.1";
 let proc = null;
 let password = null;
 let startPromise = null;
+
+/**
+ * Cek apakah opencode2 terinstall. Return { installed, path, version }.
+ */
+export async function checkOpencodeInstalled() {
+  const bin = binaryPath();
+  if (!existsSync(bin)) {
+    return { installed: false, path: bin, version: null, os: platform() };
+  }
+  // Ambil versi
+  const version = await new Promise((resolve) => {
+    execFile(bin, ["--version"], { timeout: 5000 }, (err, stdout) => {
+      if (err) return resolve(null);
+      const m = String(stdout).match(/(\d+\.\d+\.\d+)/);
+      resolve(m ? m[1] : String(stdout).trim().slice(0, 20));
+    });
+  });
+  return { installed: true, path: bin, version, os: platform() };
+}
+
+/**
+ * Panduan install per OS untuk ditampilkan di modal dashboard.
+ */
+export function getSetupGuide() {
+  const os = platform();
+  if (os === "win32") {
+    return {
+      os: "windows",
+      title: "Install opencode2 di Windows",
+      steps: [
+        "Install Bun: buka PowerShell dan jalankan: irm bun.sh/install.ps1 | iex",
+        "Restart terminal, lalu jalankan: bun install -g opencode2",
+        "Pastikan ~/.bun/bin ada di PATH",
+        "Restart akanesia-router",
+      ],
+    };
+  }
+  if (os === "darwin") {
+    return {
+      os: "macos",
+      title: "Install opencode2 di macOS",
+      steps: [
+        "Buka Terminal dan jalankan:",
+        "curl -fsSL https://opencode.ai/install | bash",
+        "Pastikan ~/.opencode/bin ada di PATH",
+        "Restart akanesia-router",
+      ],
+    };
+  }
+  return {
+    os: "linux",
+    title: "Install opencode2 di Linux",
+    steps: [
+      "Buka terminal dan jalankan:",
+      "curl -fsSL https://opencode.ai/install | bash",
+      "Pastikan ~/.opencode/bin ada di PATH",
+      "Restart akanesia-router",
+    ],
+  };
+}
 
 /**
  * OS-aware binary path untuk opencode2.
