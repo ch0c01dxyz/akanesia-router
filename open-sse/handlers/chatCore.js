@@ -23,6 +23,18 @@ import { handleNonStreamingResponse } from "./chatCore/nonStreamingHandler.js";
 import { handleStreamingResponse, buildOnStreamComplete } from "./chatCore/streamingHandler.js";
 import { detectClientTool, isNativePassthrough } from "../utils/clientDetector.js";
 import { dedupeTools } from "../utils/toolDeduper.js";
+
+/**
+ * Deteksi error abort klien, termasuk varian undici.
+ * - Standard: error.name === "AbortError"
+ * - Undici: TypeError "terminated" (fetch dibatalkan via AbortController)
+ */
+export function isAbortError(err) {
+  if (!err) return false;
+  if (err.name === "AbortError") return true;
+  if (err.name === "TypeError" && err.message === "terminated") return true;
+  return false;
+}
 import { takeRenamedToolNames } from "../utils/opencodeFingerprint.js";
 import { injectCaveman } from "../rtk/caveman.js";
 import { injectPonytail } from "../rtk/ponytail.js";
@@ -429,14 +441,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     reqLogger.logTargetRequest(providerUrl, redactCustomHeaders(providerHeaders, credentials), finalBody);
   } catch (error) {
     trackPendingRequest(model, provider, connectionId, false, true);
-    appendRequestLog({ model, provider, connectionId, status: `FAILED ${error.name === "AbortError" ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => { });
+    appendRequestLog({ model, provider, connectionId, status: `FAILED ${isAbortError(error) ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
       provider, model, connectionId,
       latency: { ttft: 0, total: Date.now() - requestStartTime },
       tokens: { prompt_tokens: 0, completion_tokens: 0 },
       request: extractRequestConfig(body, stream),
       providerRequest: translatedBody || null,
-      response: { error: error.message || String(error), status: error.name === "AbortError" ? 499 : 502, thinking: null },
+      response: { error: error.message || String(error), status: isAbortError(error) ? 499 : 502, thinking: null },
       pxpipe: pxpipeSummary,
       status: "error"
     })).catch(() => { });
@@ -444,7 +456,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     // Ide #7: simpan request upstream yang gagal ke replay buffer.
     // Fail-open: kegagalan capture tidak boleh mengganggu request.
     // Abort klien (499) bukan kegagalan upstream -> tidak di-capture.
-    if (error.name !== "AbortError") {
+    if (!isAbortError(error)) {
       try {
         captureReplayEntry({
           provider, model, connectionId,
@@ -466,7 +478,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       } catch { /* abaikan: capture tidak boleh mengganggu request */ }
     }
 
-    if (error.name === "AbortError") {
+    if (isAbortError(error)) {
       streamController.handleError(error);
       return createErrorResult(499, "Request aborted");
     }
