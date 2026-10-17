@@ -176,3 +176,20 @@ describe("opencode-go thinking-suffix guard (regression)", () => {
     expect(runtimeTransport).toBeNull();
   });
 });
+
+// claude-haiku-5-5 hanya dilayani /messages di upstream: /chat/completions menjawab
+// "ModelProtocolUnsupported". Setiap client wire harus mendarat di /messages —
+// claude langsung, openai/responses lewat fallback targetFormat yang dideklarasikan.
+describe("opencode-go claude-haiku-5-5 dipin ke /messages untuk semua client wire", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  for (const fmt of ["claude", "openai", "openai-responses"]) {
+    it(`me-route klien format ${fmt} ke ${ENDPOINTS.claude}`, async () => {
+      const { result, runtimeTransport } = await route("claude-haiku-5-5", fmt);
+      expect(result.success).toBe(true);
+      expect(runtimeTransport?.baseUrl).toBe(ENDPOINTS.claude);
+    });
+  }
+});

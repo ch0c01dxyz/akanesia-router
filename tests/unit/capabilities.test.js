@@ -249,4 +249,25 @@ describe("getCapabilitiesForModel — codebuddy-cn provider overrides", () => {
     expect(caps.vision).toBe(true);
     expect(caps.thinkingFormat).toBe("deepseek");
   });
+
+  it("opencode-go claude-haiku-5-5 uses adaptive thinking, other haiku ids stay budget", () => {
+    const haiku55 = getCapabilitiesForModel("opencode-go", "claude-haiku-5-5");
+    expect(haiku55.thinkingFormat).toBe("claude-adaptive");
+    expect(haiku55.reasoning).toBe(true);
+    expect(haiku55.vision).toBe(true);
+    expect(haiku55.contextWindow).toBe(1000000);
+    expect(haiku55.maxOutput).toBe(128000);
+
+    expect(getCapabilitiesForModel(undefined, "claude-haiku-5-5").thinkingFormat).toBe("claude-budget");
+    expect(getCapabilitiesForModel("claude", "claude-haiku-5-5").thinkingFormat).toBe("claude-budget");
+    expect(getCapabilitiesForModel("opencode-go", "claude-haiku-4-5-20251001").thinkingFormat).toBe("claude-budget");
+  });
+
+  it("commandcode claude-haiku-5-5 is pinned to the catalog limits, not the fallback", () => {
+    const caps = getCapabilitiesForModel("commandcode", "claude-haiku-5-5");
+    expect(caps.contextWindow).toBe(1000000);
+    expect(caps.maxOutput).toBe(128000);
+    expect(caps.thinkingFormat).toBe("commandcode");
+    expect(caps.vision).toBe(true);
+  });
 });

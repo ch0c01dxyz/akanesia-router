@@ -255,13 +255,23 @@ export async function getQoderUsage(accessToken, proxyOptions = null, providerId
     // siblings so the dashboard parser doesn't try to render them as rows.
     const userQuota = body.userQuota || {};
     const orgQuota = body.orgResourcePackage || {};
+    // Add-on credits (free grants / promos). Qoder emits this block only when
+    // the account actually holds a grant — an account that never redeemed one,
+    // or consumed it, omits the key entirely. Gating on total > 0 keeps the
+    // intl/no-grant shape byte-identical to before.
+    const addOnQuota = body.addOnQuota || {};
+    const addOnTotal = Number(addOnQuota.total) || 0;
     // Qoder publishes a single absolute reset timestamp (`expiresAt` in ms);
     // surface it on every quota record as ISO so the table can render
-    // "resets at" alongside used/total.
+    // "resets at" alongside used/total. 253402214400000 (9999-12-31T00:00:00Z)
+    // is Qoder's "never expires" sentinel — rendering a reset date in the year
+    // 9999 is noise, so flag it instead and let the tracker word it as "Never expires".
     const expiresAtMs = Number.isFinite(Number(body.expiresAt)) && Number(body.expiresAt) > 0
       ? Number(body.expiresAt)
       : null;
-    const resetAt = expiresAtMs ? new Date(expiresAtMs).toISOString() : null;
+    const NO_RESET_SENTINEL_MS = 253402214400000;
+    const neverExpires = expiresAtMs === NO_RESET_SENTINEL_MS;
+    const resetAt = expiresAtMs && !neverExpires ? new Date(expiresAtMs).toISOString() : null;
     const quotas = {
       user: {
         total: Number(userQuota.total) || 0,
@@ -269,6 +279,7 @@ export async function getQoderUsage(accessToken, proxyOptions = null, providerId
         remaining: Number(userQuota.remaining) || 0,
         unit: userQuota.unit || "credits",
         resetAt,
+        neverExpires,
       },
       organization: {
         total: Number(orgQuota.total) || 0,
@@ -276,8 +287,20 @@ export async function getQoderUsage(accessToken, proxyOptions = null, providerId
         remaining: Number(orgQuota.remaining) || 0,
         unit: orgQuota.unit || "credits",
         resetAt,
+        neverExpires,
       },
     };
+    if (addOnTotal > 0) {
+      quotas.addOn = {
+        total: addOnTotal,
+        used: Number(addOnQuota.used) || 0,
+        remaining: Number(addOnQuota.remaining) || 0,
+        unit: addOnQuota.unit || "credits",
+        resetAt: null,
+        neverExpires: false,
+        detailUrl: addOnQuota.detailUrl || null,
+      };
+    }
     return {
       quotas,
       totalUsagePercentage: Number(body.totalUsagePercentage) || 0,
