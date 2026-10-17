@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { DefaultExecutor } from "./default.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
+import { isMuseSparkModel, isOpencodeFreeTierModel } from "../providers/models/helpers.js";
 import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
 import {
   normalizeResponsesInput,
@@ -8,6 +9,7 @@ import {
   coerceResponsesArguments,
   coerceResponsesOutput,
 } from "../translator/formats/responsesApi.js";
+import { MEMORY_CONFIG } from "../config/runtimeConfig.js";
 
 const SESSION_HEADER = "x-opencode-session";
 const SESSION_FIELD = "_opencodeZenSession";
@@ -50,20 +52,39 @@ export function generateSessionId(timestamp = Date.now()) {
   return `ses_${time}${unstableRandom()}`;
 }
 
+// Session affinity cache for translated (non-OpenCode) sessions: same input key
+// must map to the same Zen session across a multi-turn conversation, otherwise
+// upstream treats each turn as a new conversation. Bounded + TTL-evicted.
+const translatedZenSessions = new Map();
+const MAX_TRANSLATED_SESSIONS = 1000;
+const translatedZenSessionCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of translatedZenSessions) {
+    if (now - entry.lastUsed > (MEMORY_CONFIG?.sessionTtlMs || 1800000)) {
+      translatedZenSessions.delete(key);
+    }
+  }
+}, MEMORY_CONFIG?.sessionCleanupIntervalMs || 300000);
+if (translatedZenSessionCleanup.unref) translatedZenSessionCleanup.unref();
+
 export function translateSessionId(sessionId, clientTool = "") {
   if (typeof sessionId === "string" && OPENCODE_SESSION_RE.test(sessionId.trim())) {
     return sessionId.trim();
   }
-  const digest = crypto
-    .createHash("sha256")
-    .update(`opencode\0${clientTool || "generic"}\0${sessionId || ""}`)
-    .digest();
-  const timeHex = digest.subarray(0, 6).toString("hex");
-  let randomPart = "";
-  for (let i = 6; i < 20; i++) {
-    randomPart += BASE62_CHARS[digest[i] % 62];
+  const key = `opencode-zen:ses:${clientTool || "generic"}:${sessionId || ""}`;
+  const existing = translatedZenSessions.get(key);
+  if (existing) {
+    existing.lastUsed = Date.now();
+    translatedZenSessions.delete(key);
+    translatedZenSessions.set(key, existing);
+    return existing.sessionId;
   }
-  return `ses_${timeHex}${randomPart}`;
+  const id = generateSessionId();
+  if (translatedZenSessions.size >= MAX_TRANSLATED_SESSIONS) {
+    translatedZenSessions.delete(translatedZenSessions.keys().next().value);
+  }
+  translatedZenSessions.set(key, { sessionId: id, lastUsed: Date.now() });
+  return id;
 }
 
 function toolNameOf(tool) {
@@ -98,6 +119,10 @@ function translatedSession(sessionId, clientTool) {
 // Strip the thinking suffix "model(level)" so checks hit the base id.
 function baseModelId(model) {
   return String(model || "").replace(/\([^()]+\)\s*$/, "").trim();
+}
+
+function isResponsesModel(model) {
+  return isMuseSparkModel(baseModelId(model));
 }
 
 // Flatten Chat Completions tool declarations into the Responses flat shape and
@@ -169,8 +194,12 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
   }
 
   buildUrl(model, stream, urlIndex = 0, credentials = null) {
-    // MITM capture: ALL free models go to /responses.
-    return RESPONSES_BASE_URL;
+    // Muse Spark lives on /responses even when a stale runtimeTransport leaks in.
+    // All other ids (incl. -free chat models) ride the registry transport
+    // (/inference/v1/chat/completions) — forcing them onto /responses answers
+    // 400 ModelProtocolUnsupported (live-probed 2026-10-17).
+    if (isResponsesModel(model)) return RESPONSES_BASE_URL;
+    return super.buildUrl(model, stream, urlIndex, credentials);
   }
 
   prepareRequestCredentials({ body, credentials, providerSessionId, clientTool } = {}) {
@@ -221,11 +250,33 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
     headers["x-opencode-session-id"] = session;
     headers["x-session-affinity"] = session;
     headers["x-session-id"] = session;
+    if (isOpencodeFreeTierModel(model)) {
+      // Free-tier models are gated behind the attested free-tier identity even
+      // on the keyed lane: a real oc_sk_* key answers 403 FreeTierError, while
+      // `Bearer public` + session ids succeed. Paid models keep the
+      // connection key untouched.
+      headers["Authorization"] = "Bearer public";
+    }
     return headers;
   }
 
   transformRequest(model, body, stream, credentials) {
     const out = super.transformRequest(model, body);
+    // Muse Spark rides /responses (Responses body shaping). Everything else
+    // (free + paid chat models) keeps the OpenAI chat body — forcing Responses
+    // shaping onto /chat/completions answers 400 "Unrecognized request
+    // argument supplied: input" (upstream #4842, live-probed 2026-10-17).
+    if (!isResponsesModel(model || body?.model)) {
+      // Chat lane keeps the OpenAI body but must still carry the fingerprint
+      // tools (chat-shaped) + stream:true — the free-tier gate 403s without
+      // them (live-probed: tools absent → 403 FreeTierError).
+      if (out && typeof out === "object") {
+        out.stream = true;
+        if (out.tool_choice === "none") delete out.tool_choice;
+        applyFingerprintTools(out, false);
+      }
+      return out;
+    }
     // Free-tier gate: upstream 403s stream:false even when everything else is valid.
     if (out && typeof out === "object") out.stream = true;
     // MITM capture (opencode2 v2.0.29): ALL free models go to /responses;
@@ -262,8 +313,10 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
       if (!out.include) out.include = ["reasoning.encrypted_content"];
       normalizeResponsesTools(out);
       sanitizeResponsesItems(out);
-      // PR #83 (opencode2api): inject genuine tool definitions.
-      applyFingerprintTools(out, true);
+      // PR #83 (opencode2api): inject genuine tool definitions. Chat-shaped
+      // tools only make sense on /responses; /chat/completions needs
+      // {function:{...}} (upstream 400: "tools[0].function must be an object").
+      applyFingerprintTools(out, Boolean(isResponsesModel(model || body?.model)));
     }
     return out;
   }

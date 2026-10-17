@@ -104,15 +104,38 @@ export default {
     { id: "kimi-k2.7-code", name: "Kimi K2.7 Code", supportedFormats: ["openai"] },
     { id: "kimi-k2.6", name: "Kimi K2.6", supportedFormats: ["openai"] },
     { id: "kimi-k2.5", name: "Kimi K2.5", supportedFormats: ["openai"] },
+    { id: "claude-haiku-5-5", name: "Claude Haiku 5.5 (Vision)", supportedFormats: ["openai"] },
+    { id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5 (Vision)", supportedFormats: ["openai"] },
+    { id: "claude-opus-5-5", name: "Claude Opus 5.5 (Vision)", supportedFormats: ["openai"] },
+    { id: "claude-opus-5-5-backup", name: "Claude Opus 5.5 Backup", supportedFormats: ["openai"] },
+    { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash (Vision)", supportedFormats: ["openai"] },
+    { id: "gemini-4-argon", name: "Gemini 4 Argon (Vision)", supportedFormats: ["openai"] },
+    { id: "gpt-6-luna", name: "GPT-6 Luna (Vision)", supportedFormats: ["openai"] },
+    { id: "gpt-6-sol", name: "GPT-6 Sol (Vision)", supportedFormats: ["openai"] },
+    { id: "gpt-6.1-sol", name: "GPT-6.1 Sol (Vision)", supportedFormats: ["openai"] },
+    { id: "grok-4.7", name: "Grok 4.7 (Vision)", supportedFormats: ["openai"] },
+    { id: "mistral-large-4", name: "Mistral Large 4 (Vision)", supportedFormats: ["openai"] },
+    { id: "qwen3.8-flash", name: "Qwen 3.8 Flash (Vision)", supportedFormats: ["openai"] },
+    { id: "qwen3.8-max", name: "Qwen 3.8 Max (Vision)", supportedFormats: ["openai"] },
     { id: "big-pickle", name: "Big Pickle", supportedFormats: ["openai"] },
     { id: "union-alpha", name: "Union Alpha", supportedFormats: ["claude"] },
     // Free tier on the keyed lane (chat completions)
+    // Synced 2026-10-17 against https://opencode.ai/zen/v1/models (9 free ids).
+    // Removed from upstream catalog but kept: still live via runtime keyed lane
+    // (deepseek-v4-flash-free answers 400 "Model is unavailable" upstream — kept
+    // only so old configs don't break; prefer deepseek-v4.1-flash-free).
     { id: "deepseek-v4-flash-free", name: "DeepSeek V4 Flash Free", supportedFormats: ["openai"] },
+    { id: "deepseek-v4.1-flash-free", name: "DeepSeek V4.1 Flash Free", supportedFormats: ["openai"] },
+    { id: "beam-free", name: "Beam Free", supportedFormats: ["openai"] },
+    { id: "glm-5.3-flash-free", name: "GLM 5.3 Flash Free (Vision)", supportedFormats: ["openai"] },
     { id: "mimo-v2.6-flash-free", name: "MiMo V2.6 Flash Free", supportedFormats: ["openai"] },
     { id: "mimo-v2.5-free", name: "MiMo V2.5 Free", supportedFormats: ["openai"] },
     { id: "ling-3.0-flash-fin-free", name: "Ling 3.0 Flash Fin Free", supportedFormats: ["openai"] },
     { id: "nemotron-3-ultra-free", name: "Nemotron 3 Ultra Free", supportedFormats: ["openai"] },
     { id: "nemotron-3.5-lightning-free", name: "Nemotron 3.5 Lightning Free", supportedFormats: ["openai"] },
+    { id: "nemotron-3.5-super-vl-free", name: "Nemotron 3.5 Super VL Free (Vision)", supportedFormats: ["openai"] },
+    { id: "space-bunny-free", name: "Space Bunny Free (Vision)", supportedFormats: ["openai"] },
+    { id: "longcat-2.5-preview-free", name: "LongCat 2.5 Preview Free (Vision)", supportedFormats: ["openai"] },
     // Free tier on the keyed lane (responses)
     { id: "muse-spark-1.3-contributor-free", name: "Muse Spark 1.3 Contributor Free", targetFormat: "openai-responses", supportedFormats: ["openai-responses"] },
     { id: "muse-spark-1.2-contributor-free", name: "Muse Spark 1.2 Contributor Free", targetFormat: "openai-responses", supportedFormats: ["openai-responses"] },

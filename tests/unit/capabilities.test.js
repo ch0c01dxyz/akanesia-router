@@ -271,3 +271,34 @@ describe("getCapabilitiesForModel — codebuddy-cn provider overrides", () => {
     expect(caps.vision).toBe(true);
   });
 });
+
+describe("A4: OpenCode Free reasoning capability entries (upstream 4c58e7f3)", () => {
+  const reasoningModels = [
+    "space-bunny-free",
+    "space-bunny",
+    "big-pickle",
+    "exo-free",
+    "fledge-alpha-free",
+    "longcat-2.0",
+    "longcat-2.0-free",
+    "longcat-2.5-preview-free",
+    "north-mini-code-free",
+    "ring-2.6-1t-free",
+    "x-preview-f-free",
+  ];
+
+  it("exposes reasoning: true for the 11 free-tier reasoning models", () => {
+    for (const m of reasoningModels) {
+      const caps = getCapabilitiesForModel("opencode-zen", m);
+      expect(caps.reasoning).toBe(true);
+    }
+  });
+
+  it("keeps thinkingFormat openai so effort clamps to xhigh", () => {
+    expect(getCapabilitiesForModel("opencode-zen", "space-bunny-free").thinkingFormat).toBe("openai");
+  });
+
+  it("leaves unknown ids at DEFAULT_CAPABILITIES (reasoning stripped)", () => {
+    expect(getCapabilitiesForModel("opencode-zen", "totally-unknown-model").reasoning).toBeFalsy();
+  });
+});

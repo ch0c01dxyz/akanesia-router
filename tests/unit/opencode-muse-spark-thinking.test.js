@@ -74,9 +74,9 @@ describe("OpenCode Free Muse Spark thinking", () => {
 
     const executor = new OpenCodeExecutor();
 
-    // MITM capture: ALL free models go to /responses (no /messages branch).
+    // #4842: only muse-spark goes to /responses; other free models use chat completions.
     const url = executor.buildUrl("union-alpha");
-    expect(url).toBe("https://opencode.ai/inference/v1/responses");
+    expect(url).toBe("https://opencode.ai/inference/v1/chat/completions");
     expect(executor.buildHeaders({}, true, url)).not.toHaveProperty("anthropic-version");
     expect(executor.buildHeaders({}, true, executor.buildUrl("big-pickle")))
       .not.toHaveProperty("anthropic-version");
@@ -97,14 +97,14 @@ describe("OpenCode Free Muse Spark thinking", () => {
     });
   });
 
-  it("routes all free models to /responses (MITM-proven)", () => {
+  it("routes only Muse Spark to /responses; other free models stay on chat completions (#4842)", () => {
     const executor = new OpenCodeExecutor();
     const body = { messages: [{ role: "user", content: "hi" }], max_tokens: 1024 };
     executor.transformRequest("big-pickle", body, true, {});
-    expect(executor.buildUrl("big-pickle")).toBe("https://opencode.ai/inference/v1/responses");
-    // max_tokens normalized to max_output_tokens for /responses.
-    expect(body.max_output_tokens).toBe(1024);
-    expect(body.max_tokens).toBeUndefined();
+    expect(executor.buildUrl("big-pickle")).toBe("https://opencode.ai/inference/v1/chat/completions");
+    // Chat lane: max_tokens stays a chat-completions argument.
+    expect(body.max_tokens).toBe(1024);
+    expect(body.max_output_tokens).toBeUndefined();
   });
 
   it("translates Chat Completions max thinking into a Responses request", () => {

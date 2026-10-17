@@ -6,6 +6,7 @@ import { getThinkingLevels } from "../providers/thinkingLevels.js";
 import { injectReasoningContent } from "../utils/reasoningContentInjector.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
+import { isMuseSparkModel } from "../providers/models/helpers.js";
 import {
   normalizeResponsesInput,
   clampResponsesCallId,
@@ -65,16 +66,20 @@ export function translateSessionId(sessionId, clientTool = "") {
   if (typeof sessionId === "string" && OPENCODE_SESSION_RE.test(sessionId.trim())) {
     return sessionId.trim();
   }
-  const digest = crypto
-    .createHash("sha256")
-    .update(`opencode\0${clientTool || "generic"}\0${sessionId || ""}`)
-    .digest();
-  const timeHex = digest.subarray(0, 6).toString("hex");
-  let randomPart = "";
-  for (let i = 6; i < 20; i++) {
-    randomPart += BASE62_CHARS[digest[i] % 62];
+  const key = `opencode:ses:${clientTool || "generic"}:${sessionId || ""}`;
+  const existing = translatedOpencodeSessions.get(key);
+  if (existing) {
+    existing.lastUsed = Date.now();
+    translatedOpencodeSessions.delete(key);
+    translatedOpencodeSessions.set(key, existing);
+    return existing.sessionId;
   }
-  return `ses_${timeHex}${randomPart}`;
+  const id = generateSessionId();
+  if (translatedOpencodeSessions.size >= MAX_TRANSLATED_SESSIONS) {
+    translatedOpencodeSessions.delete(translatedOpencodeSessions.keys().next().value);
+  }
+  translatedOpencodeSessions.set(key, { sessionId: id, lastUsed: Date.now() });
+  return id;
 }
 
 function normalizeSession(value) {
@@ -101,6 +106,7 @@ function nativeSession(headers) {
 // CLI reuses one long-lived canonical session per conversation. Mirror
 // that: one stable canonical session per downstream identity, evicted
 // after MEMORY_CONFIG.sessionTtlMs like the other session stores.
+// Stable-session cache for the opencode (bridge) executor — see identityKey().
 const stableOpencodeSessions = new Map();
 const MAX_STABLE_SESSIONS = 1000;
 const stableSessionCleanup = setInterval(() => {
@@ -112,6 +118,20 @@ const stableSessionCleanup = setInterval(() => {
   }
 }, MEMORY_CONFIG.sessionCleanupIntervalMs);
 if (stableSessionCleanup.unref) stableSessionCleanup.unref();
+
+// Session affinity cache for translated (non-OpenCode) sessions (#4780): same
+// input key must map to the same Zen session across a multi-turn conversation.
+const translatedOpencodeSessions = new Map();
+const MAX_TRANSLATED_SESSIONS = 1000;
+const translatedSessionCleanup = setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of translatedOpencodeSessions) {
+    if (now - entry.lastUsed > MEMORY_CONFIG.sessionTtlMs) {
+      translatedOpencodeSessions.delete(key);
+    }
+  }
+}, MEMORY_CONFIG.sessionCleanupIntervalMs);
+if (translatedSessionCleanup.unref) translatedSessionCleanup.unref();
 
 function identityKey(credentials) {
   const connectionId = credentials?.connectionId || credentials?.id;
@@ -177,6 +197,11 @@ function bodyHasSessionHints(body) {
 // Strip the thinking suffix "model(level)" so registry lookups hit the base id.
 function baseModelId(model) {
   return String(model || "").replace(/\([^()]+\)\s*$/, "").trim();
+}
+
+// #4842: Muse Spark is the only family still served by /responses.
+function isResponsesModel(model) {
+  return isMuseSparkModel(baseModelId(model));
 }
 
 function resolveOpencodeSession(body, credentials, providerSessionId, clientTool) {
@@ -319,6 +344,17 @@ export class OpenCodeExecutor extends BaseExecutor {
     // Zen rejects non-streaming requests on free models with 403 FreeTierError;
     // always stream upstream and let the handler layer aggregate for non-stream clients.
     if (body && typeof body === "object") body.stream = true;
+    // Muse Spark rides /responses (Responses body shaping). Everything else
+    // keeps the OpenAI chat body (#4842): forcing Responses shaping onto
+    // /chat/completions answers 400 "Unrecognized argument: input".
+    if (!isResponsesModel(model || body?.model)) {
+      if (body && typeof body === "object") {
+        // Chat lane still needs the fingerprint tools (chat-shaped) + stream.
+        if (body.tool_choice === "none") delete body.tool_choice;
+        applyFingerprintTools(body, false);
+      }
+      return injectReasoningContent({ provider: this.provider, model, body });
+    }
     if (body && typeof body === "object") {
       // MITM capture (opencode2 v2.0.29): the real CLI sends NO tools array
       // for simple requests. Do NOT inject fingerprint fakes — pass through
@@ -369,9 +405,9 @@ export class OpenCodeExecutor extends BaseExecutor {
 
   buildUrl(model) {
     const base = this.config.baseUrl;
-    // MITM capture (opencode2 v2.0.29): ALL free models go to /responses.
-    // /chat/completions and /messages reject free tier flat (in-app only).
-    return `${base}/inference/v1/responses`;
+    // #4842: only Muse Spark rides /responses; chat models use /chat/completions.
+    if (isResponsesModel(model)) return `${base}/inference/v1/responses`;
+    return `${base}/inference/v1/chat/completions`;
   }
 
   buildHeaders(credentials, stream = true, url = "") {
