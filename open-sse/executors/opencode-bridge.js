@@ -20,6 +20,7 @@
 
 import { BaseExecutor } from "./base.js";
 import { ensureBridgeRunning, invalidateBridge } from "../utils/opencodeBridgeSupervisor.js";
+import { isCatalogFreeModel } from "../utils/opencodeCatalog.js";
 
 const POLL_INTERVAL_MS = 600;
 const STREAM_TIMEOUT_MS = 600000; // 10 min for streaming (tool loops can run long)
@@ -46,11 +47,19 @@ const DEFAULT_MODEL = "muse-spark-1.3-contributor-free";
 /**
  * Map akanesia-router model ID to opencode model ID.
  * Strips provider prefix (e.g. "oc/mimo-..." → "mimo-...") and variant suffix.
+ *
+ * Urutan resolusi (P2):
+ *  1. MODEL_MAP hardcoded (terverifikasi manual) — menang selalu.
+ *  2. Katalog live (cache 24 jam): model free baru otomatis dikenali
+ *     tanpa update kode.
+ *  3. DEFAULT_MODEL sebagai fallback terakhir.
  */
-function toOpencodeModelId(model) {
+async function resolveOpencodeModelId(model) {
   const withoutProvider = model.includes("/") ? model.split("/").pop() : model;
   const clean = withoutProvider.replace(/\(.*\)$/, "");
-  return MODEL_MAP[clean] || DEFAULT_MODEL;
+  if (MODEL_MAP[clean]) return MODEL_MAP[clean];
+  if (await isCatalogFreeModel(clean)) return clean;
+  return DEFAULT_MODEL;
 }
 
 /**
@@ -123,7 +132,7 @@ export class OpenCodeBridgeExecutor extends BaseExecutor {
     const auth = "Basic " + Buffer.from(`opencode:${password}`).toString("base64");
     const headers = { "Content-Type": "application/json", "Authorization": auth };
 
-    const opencodeModelId = toOpencodeModelId(model);
+    const opencodeModelId = await resolveOpencodeModelId(model);
     const { text, images } = extractPrompt(body);
     if (!text && images.length === 0) {
       throw new Error("opencode-bridge: empty prompt (no text or images)");
