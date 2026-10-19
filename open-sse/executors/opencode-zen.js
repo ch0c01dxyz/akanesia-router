@@ -3,6 +3,8 @@ import { DefaultExecutor } from "./default.js";
 import { resolveSessionId } from "../utils/sessionManager.js";
 import { isMuseSparkModel, isOpencodeFreeTierModel } from "../providers/models/helpers.js";
 import { applyFingerprintTools } from "../utils/opencodeFingerprint.js";
+import { effectiveMaxTokens } from "../utils/tokenBudget.js";
+import { recordGateRejection } from "../utils/opencodeGateCooldown.js";
 import {
   normalizeResponsesInput,
   clampResponsesCallId,
@@ -221,7 +223,10 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
 
   async execute(args) {
     const credentials = this.prepareRequestCredentials(args);
-    return super.execute({ ...args, credentials });
+    const result = await super.execute({ ...args, credentials });
+    // P4: catat penolakan gate untuk cooldown tracker (bedakan throttled vs broken).
+    if (result?.response?.status === 403) recordGateRejection("opencode-zen");
+    return result;
   }
 
   buildHeaders(credentials, stream = true, url, model) {
@@ -273,6 +278,10 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
       if (out && typeof out === "object") {
         out.stream = true;
         if (out.tool_choice === "none") delete out.tool_choice;
+        // P1: reasoning token-budget floor untuk chat lane.
+        if (typeof out.max_tokens === "number") {
+          out.max_tokens = effectiveMaxTokens(out.max_tokens, this.provider, model || body?.model, out);
+        }
         applyFingerprintTools(out, false);
       }
       return out;
@@ -295,6 +304,11 @@ export class OpenCodeZenExecutor extends DefaultExecutor {
       }
       delete out.max_tokens;
       delete out.max_completion_tokens;
+      // P1: reasoning token-budget floor — model reasoning butuh budget jawaban +
+      // budget thinking agar tidak kosong dengan finish_reason "length".
+      if (typeof out.max_output_tokens === "number") {
+        out.max_output_tokens = effectiveMaxTokens(out.max_output_tokens, this.provider, model || body?.model, out);
+      }
       // OpenCode Zen menolak max_output_tokens < 16 (400 invalid_request_error).
       if (typeof out.max_output_tokens === "number") {
         out.max_output_tokens = Math.min(Math.max(out.max_output_tokens, 16), 65536);
