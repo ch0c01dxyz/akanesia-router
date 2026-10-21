@@ -15,6 +15,7 @@ import magnific from "./magnific.js";
 import deepai from "./deepai.js";
 import antigravity from "./antigravity.js";
 import segmind from "./segmind.js";
+import aihorde from "./aihorde.js";
 
 const ADAPTERS = {
   openai: createOpenAIAdapter("openai"),
@@ -38,6 +39,7 @@ const ADAPTERS = {
   magnific,
   deepai,
   segmind,
+  aihorde,
 };
 
 export function getImageAdapter(provider) {
