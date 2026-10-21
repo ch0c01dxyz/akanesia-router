@@ -1,13 +1,12 @@
-// OpenAI-compatible adapter (used by openai, minimax, openrouter, recraft)
+// OpenAI-compatible adapter (used by openai, minimax, openrouter, recraft, venice, tokenrouter)
 import { PROVIDER_MEDIA } from "../../providers/index.js";
 
 const imageCfg = (id) => PROVIDER_MEDIA[id]?.imageConfig || {};
 const imageUrl = (id) => imageCfg(id).baseUrl;
 
-export default function createOpenAIAdapter(providerId) {
-  const cfg = imageCfg(providerId);
+function buildAdapter(cfg, buildUrl) {
   return {
-    buildUrl: () => imageUrl(providerId),
+    buildUrl,
     buildHeaders: (creds) => {
       const headers = { "Content-Type": "application/json", ...(cfg.headers || {}) };
       const key = creds?.apiKey || creds?.accessToken;
@@ -30,4 +29,20 @@ export default function createOpenAIAdapter(providerId) {
     },
     normalize: (responseBody) => responseBody,
   };
+}
+
+export default function createOpenAIAdapter(providerId) {
+  const cfg = imageCfg(providerId);
+  return buildAdapter(cfg, () => imageUrl(providerId));
+}
+
+// Custom OpenAI-compatible providers (openai-compatible-*) have no registry
+// entry — the endpoint lives on the connection itself: providerSpecificData.baseUrl
+// is the same base the connection uses for /models and /chat/completions.
+export function createCompatibleOpenAIAdapter() {
+  return buildAdapter({}, (model, credentials) => {
+    const base = String(credentials?.providerSpecificData?.baseUrl || "").replace(/\/+$/, "");
+    if (!base) throw new Error("Custom provider connection is missing providerSpecificData.baseUrl");
+    return `${base}/images/generations`;
+  });
 }

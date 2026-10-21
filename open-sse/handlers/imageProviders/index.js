@@ -1,5 +1,6 @@
 // Image provider adapter registry
-import createOpenAIAdapter from "./openai.js";
+import createOpenAIAdapter, { createCompatibleOpenAIAdapter } from "./openai.js";
+import { OPENAI_COMPATIBLE_PREFIX } from "@/shared/constants/providers";
 import gemini from "./gemini.js";
 import codex from "./codex.js";
 import sdwebui from "./sdwebui.js";
@@ -24,6 +25,8 @@ const ADAPTERS = {
   recraft: createOpenAIAdapter("recraft"),
   "vercel-ai-gateway": createOpenAIAdapter("vercel-ai-gateway"),
   xai: createOpenAIAdapter("xai"),
+  venice: createOpenAIAdapter("venice"),
+  tokenrouter: createOpenAIAdapter("tokenrouter"),
   gemini,
   codex,
   sdwebui,
@@ -43,9 +46,16 @@ const ADAPTERS = {
 };
 
 export function getImageAdapter(provider) {
-  return ADAPTERS[provider] || null;
+  if (ADAPTERS[provider]) return ADAPTERS[provider];
+  // Custom OpenAI-compatible providers have no static entry — their image
+  // endpoint is derived from the connection's own baseUrl at request time.
+  if (typeof provider === "string" && provider.startsWith(OPENAI_COMPATIBLE_PREFIX)) {
+    return createCompatibleOpenAIAdapter();
+  }
+  return null;
 }
 
 export function isImageProvider(provider) {
-  return provider in ADAPTERS;
+  return provider in ADAPTERS
+    || (typeof provider === "string" && provider.startsWith(OPENAI_COMPATIBLE_PREFIX));
 }
