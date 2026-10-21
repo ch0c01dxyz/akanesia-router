@@ -175,10 +175,16 @@ export function decryptZedAccessToken(encryptedAccessToken, privateKeyVerifier) 
 
 export function buildZedUserAuthHeader(credentials) {
   const psd = credentials?.providerSpecificData || {};
-  const userId = psd.userId || credentials?.userId;
+  const userId = String(psd.userId || credentials?.userId || "").trim();
   const accessToken = credentials?.accessToken || credentials?.apiKey;
   if (!userId || !accessToken) {
     throw new Error("Zed credential is missing userId or accessToken");
+  }
+  // cloud.zed.dev only accepts "<numeric user id> <token>" — any other
+  // shape gets a bare 401 "Invalid Authorization header" that reads like
+  // a router bug. Fail here with the actual cause instead.
+  if (!/^\d+$/.test(userId)) {
+    throw new Error("Stored Zed userId is not a numeric Zed user id — reconnect the Zed connection");
   }
   return `${userId} ${accessToken}`;
 }

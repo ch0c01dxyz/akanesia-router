@@ -91,13 +91,16 @@ afterAll(() => {
   else process.env.DATA_DIR = originalDataDir;
 });
 
+let seedCounter = 0;
 async function seedZed(n) {
   return createProviderConnection({
     provider: "zed",
     authType: "oauth",
     accessToken: `tok-live-${n}-${Date.now()}`,
     email: `zed-live-${n}-${Date.now()}@example.com`,
-    providerSpecificData: { userId: `u-${n}`, systemId: `sys-${n}` },
+    // Real Zed user ids are numeric — cloud.zed.dev rejects any other
+    // shape, and buildZedUserAuthHeader now refuses to send it.
+    providerSpecificData: { userId: String(42000 + seedCounter++), systemId: `sys-${n}` },
     testStatus: "active",
   });
 }
