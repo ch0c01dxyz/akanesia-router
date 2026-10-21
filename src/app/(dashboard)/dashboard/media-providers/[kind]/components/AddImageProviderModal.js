@@ -18,8 +18,8 @@ function isImageModel(m) {
   return IMAGE_ID_PATTERN.test(id);
 }
 
-// Two-step wizard: pick a provider that already has a credentialed
-// connection, then pick which of its models are image models. The selection
+// Two-step wizard: pick a provider that already has a connection, then
+// pick which of its models are image models. The selection
 // is stored as custom models (type "image") — the same store ModelsCard,
 // /v1/models and the models API already read — so the provider shows up
 // on the Text to Image page with exactly these models, no new backend.
@@ -50,7 +50,10 @@ export default function AddImageProviderModal({ isOpen, onClose, onSaved }) {
       const byProvider = new Map();
       for (const c of conns) {
         if (!c.provider) continue;
-        if (!c.apiKey && !c.accessToken) continue; // must carry a credential
+        // The providers API never exposes the secret itself (allowlist
+        // sanitizer in providerSanitize.js) — a connection row's existence
+        // is the credential signal: apikey connections are only created
+        // with a key, OAuth ones with a token.
         if (!byProvider.has(c.provider)) byProvider.set(c.provider, []);
         byProvider.get(c.provider).push(c);
       }
@@ -183,11 +186,11 @@ export default function AddImageProviderModal({ isOpen, onClose, onSaved }) {
       {step === 1 && (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-text-muted mb-1">
-            Choose a provider that already has a connection with an API key.
+            Choose a provider that already has a connection.
           </p>
           {providers.length === 0 && (
             <p className="text-sm text-text-muted py-6 text-center">
-              No providers with a credentialed connection yet.
+              No providers with a connection yet.
             </p>
           )}
           {providers.map((p) => (
