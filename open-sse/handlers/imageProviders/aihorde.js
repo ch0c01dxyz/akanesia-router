@@ -2,12 +2,11 @@
 // No stored key → anonymous key "0000000000" (works, lowest queue priority).
 import { sleep, nowSec } from "./_base.js";
 import { PROVIDER_MEDIA } from "../../providers/index.js";
+import { HORDE_POLL_INTERVAL_MS, HORDE_POLL_TIMEOUT_MS, HORDE_HTTP_TIMEOUT_MS } from "../../config/hordeImageJobs.js";
 
 const BASE_URL = PROVIDER_MEDIA["aihorde"]?.imageConfig?.baseUrl;
 const ANON_KEY = "0000000000";
 // Horde jobs sit in a public queue: poll gently, allow long waits.
-const HORDE_POLL_INTERVAL_MS = 5000;
-const HORDE_POLL_TIMEOUT_MS = 600000;
 
 // Horde requires width/height in multiples of 64, range 64–3072.
 function parseSize(size) {
@@ -46,28 +45,28 @@ export default {
     const { id } = await response.json();
     if (!id) throw new Error("AI Horde did not return a job id");
     const deadline = Date.now() + HORDE_POLL_TIMEOUT_MS;
-    // The horde is a flaky volunteer network (shared IPs get transient
-    // 401/429/5xx on the check endpoint) — one bad poll must not kill a
-    // generation that has been queueing for minutes. Tolerate a run of
-    // consecutive failures, reset on any successful check.
-    let consecutiveFailures = 0;
+    // A temporary check failure says nothing about the accepted generation.
     while (Date.now() < deadline) {
       await sleep(HORDE_POLL_INTERVAL_MS);
-      const checkRes = await fetch(`${BASE_URL}/generate/check/${id}`, { headers }).catch(() => null);
+      const checkRes = await fetch(`${BASE_URL}/generate/check/${id}`, { headers, signal: AbortSignal.timeout(HORDE_HTTP_TIMEOUT_MS) }).catch(() => null);
       if (!checkRes?.ok) {
-        consecutiveFailures++;
-        if (consecutiveFailures >= 6) {
-          throw new Error(`AI Horde check failed: ${checkRes?.status ?? "network error"}`);
-        }
+        await checkRes?.body?.cancel();
+        if (checkRes?.status === 404 || checkRes?.status === 410) throw new Error("AI Horde generation expired");
         continue;
       }
-      consecutiveFailures = 0;
-      const check = await checkRes.json();
+      const check = await checkRes.json().catch(() => null);
+      if (!check) continue;
       if (check.faulted) throw new Error("AI Horde generation faulted");
       if (check.done) {
-        const statusRes = await fetch(`${BASE_URL}/generate/status/${id}`, { headers });
-        if (!statusRes.ok) throw new Error(`AI Horde status failed: ${statusRes.status}`);
-        return await statusRes.json();
+        const statusRes = await fetch(`${BASE_URL}/generate/status/${id}`, { headers, signal: AbortSignal.timeout(HORDE_HTTP_TIMEOUT_MS) }).catch(() => null);
+        if (!statusRes?.ok) {
+          await statusRes?.body?.cancel();
+          if (statusRes?.status === 404 || statusRes?.status === 410) throw new Error("AI Horde generation expired");
+          continue;
+        }
+        const status = await statusRes.json().catch(() => null);
+        if (status?.faulted) throw new Error("AI Horde generation faulted");
+        if (status?.done === true) return status;
       }
     }
     throw new Error("AI Horde polling timeout");
