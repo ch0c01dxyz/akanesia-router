@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Card, Badge, Button, AddCustomEmbeddingModal, NoAuthProxyCard, ProviderInfoCard } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
-import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, isCustomEmbeddingProvider } from "@/shared/constants/providers";
+import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, isCustomEmbeddingProvider, isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import ConnectionsCard from "@/app/(dashboard)/dashboard/providers/components/ConnectionsCard";
 import ModelsCard from "@/app/(dashboard)/dashboard/providers/components/ModelsCard";
 import { KIND_EXAMPLE_CONFIG } from "./components/exampleShared";
@@ -35,6 +35,31 @@ export default function MediaProviderDetailPage() {
   const [customLoading, setCustomLoading] = useState(isCustom);
   const [showEditModal, setShowEditModal] = useState(false);
 
+  // Dynamic compatible providers pinned to this kind via "Add
+  // provider/model from Endpoint": no static entry exists, so resolve a
+  // synthetic provider from its pinned (custom) models + its connection.
+  const isDynamic = (isOpenAICompatibleProvider(id) || isAnthropicCompatibleProvider(id)) && !AI_PROVIDERS[id];
+  const [pinState, setPinState] = useState({ loading: isDynamic, models: [], name: "", hasConnection: false });
+
+  useEffect(() => {
+    if (!isDynamic) return;
+    let cancelled = false;
+    Promise.all([
+      fetch("/api/models/custom", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+      fetch("/api/providers", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+    ]).then(([customData, provData]) => {
+      if (cancelled) return;
+      const models = (customData.models || []).filter(
+        (m) => m.providerAlias === id && (m.kind || m.type) === kind,
+      );
+      const conn = (provData.connections || []).find((c) => c.provider === id);
+      setPinState({ loading: false, models, name: conn?.name || "", hasConnection: !!conn });
+    });
+    return () => { cancelled = true; };
+  }, [id, isDynamic, kind]);
+
+  const isPinned = isDynamic && (pinState.models.length > 0 || pinState.hasConnection);
+
   // Fetch custom node info from API for custom embedding nodes
   useEffect(() => {
     if (!isCustom) return;
@@ -57,15 +82,20 @@ export default function MediaProviderDetailPage() {
   // For custom embedding nodes, build a synthetic provider object
   const provider = isCustom
     ? (customNode ? { id, name: customNode.name || "Custom Embedding", color: "#6366F1", textIcon: "CE" } : null)
-    : builtInProvider;
+    : builtInProvider || (isPinned
+      ? { id, name: pinState.name || "Custom Provider", color: "#0EA5E9", textIcon: "CP" }
+      : null);
 
-  if (!isCustom && !builtInProvider) return notFound();
+  if (isDynamic && pinState.loading) {
+    return <div className="text-text-muted text-sm py-12 text-center">Loading...</div>;
+  }
+  if (!isCustom && !builtInProvider && !isPinned) return notFound();
   if (isCustom && !customLoading && !customNode) return notFound();
   if (isCustom && customLoading) {
     return <div className="text-text-muted text-sm py-12 text-center">Loading...</div>;
   }
 
-  const kinds = isCustom ? ["embedding"] : (provider.serviceKinds ?? ["llm"]);
+  const kinds = isCustom ? ["embedding"] : isPinned ? [kind] : (provider.serviceKinds ?? ["llm"]);
   if (!isCustom && !kinds.includes(kind)) return notFound();
 
   return (
@@ -109,6 +139,7 @@ export default function MediaProviderDetailPage() {
             </div>
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               {isCustom && <Badge variant="default" size="sm">Custom · {customNode?.prefix}</Badge>}
+              {isPinned && <Badge variant="default" size="sm">Custom · from Endpoint</Badge>}
               {kinds.map((k) => (
                 <Badge key={k} variant={k === kind ? "primary" : "default"} size="sm">
                   {k.toUpperCase()}
@@ -193,7 +224,13 @@ export default function MediaProviderDetailPage() {
       )}
       {kind === "tts" && <TtsExampleCard providerId={id} />}
       {kind === "stt" && !isCustom && <SttExampleCard providerId={id} />}
-      {!isCustom && KIND_EXAMPLE_CONFIG[kind] && <GenericExampleCard providerId={id} kind={kind} />}
+      {!isCustom && KIND_EXAMPLE_CONFIG[kind] && (
+        <GenericExampleCard
+          providerId={id}
+          kind={kind}
+          modelsOverride={isPinned ? pinState.models.map((m) => ({ id: m.id, name: m.name })) : undefined}
+        />
+      )}
 
       {isCustom && (
         <AddCustomEmbeddingModal

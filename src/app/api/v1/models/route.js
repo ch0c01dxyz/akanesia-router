@@ -326,6 +326,17 @@ async function buildModelsListUncached(kindFilter, options = {}) {
     console.log("Could not fetch custom models");
   }
 
+  // Aliases owning a user-declared custom model of a requested kind. A
+  // dynamic compatible provider has no registry serviceKinds, so the
+  // provider-level kind gate below would skip it even for kinds the user
+  // explicitly pinned (e.g. image models added from the Text to Image page).
+  const customKindProviders = new Set();
+  for (const m of customModels) {
+    if (!m?.providerAlias) continue;
+    const kind = getModelKind(m) || LLM_KIND;
+    if (kindFilter.includes(kind)) customKindProviders.add(m.providerAlias);
+  }
+
   let modelAliases = {};
   try {
     modelAliases = await getModelAliases();
@@ -429,7 +440,18 @@ async function buildModelsListUncached(kindFilter, options = {}) {
     }
   } else {
     for (const [providerId, conn] of activeConnectionByProvider.entries()) {
-      if (!providerMatchesKinds(providerId, kindFilter)) continue;
+      if (!providerMatchesKinds(providerId, kindFilter)) {
+        // Still enter when the user pinned custom models of a requested
+        // kind for this provider — the per-model kind filter further down
+        // stays strict, so nothing of a wrong kind can leak through.
+        const staticAliasPeek = PROVIDER_ID_TO_ALIAS[providerId] || providerId;
+        const outputAliasPeek = (
+          conn?.providerSpecificData?.prefix || getProviderAlias(providerId) || staticAliasPeek
+        ).trim();
+        if (!customKindProviders.has(providerId)
+          && !customKindProviders.has(staticAliasPeek)
+          && !customKindProviders.has(outputAliasPeek)) continue;
+      }
 
       // Prefix node kustom yang bertabrakan dengan id/alias provider bawaan
       // tidak bisa di-routing oleh chat (getModelInfo memprioritaskan

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Card, Badge, Button, Toggle, AddCustomEmbeddingModal } from "@/shared/components";
 import ProviderIcon from "@/shared/components/ProviderIcon";
-import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, getProvidersByKind } from "@/shared/constants/providers";
+import { MEDIA_PROVIDER_KINDS, AI_PROVIDERS, getProvidersByKind, getProviderAlias } from "@/shared/constants/providers";
+import AddImageProviderModal from "./components/AddImageProviderModal";
 
 // Kinds that support combos (currently disabled for image/tts — temporarily hidden).
 // webSearch/webFetch handled by /web page.
@@ -144,6 +145,8 @@ export default function MediaProviderKindPage() {
   const [customNodes, setCustomNodes] = useState([]);
   const [combos, setCombos] = useState([]);
   const [showAddCustomEmbedding, setShowAddCustomEmbedding] = useState(false);
+  const [imageCustomModels, setImageCustomModels] = useState([]);
+  const [showAddImageProvider, setShowAddImageProvider] = useState(false);
 
   // webSearch/webFetch listing pages are merged into /web
   useEffect(() => {
@@ -154,7 +157,17 @@ export default function MediaProviderKindPage() {
 
   const kindConfig = MEDIA_PROVIDER_KINDS.find((k) => k.id === kind);
   const isEmbedding = kind === "embedding";
+  const isImage = kind === "image";
   const supportsCombo = COMBO_KINDS.has(kind);
+
+  const fetchImageCustomModels = () => {
+    fetch("/api/models/custom", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setImageCustomModels(
+        (d.models || []).filter((m) => (m.kind || m.type) === "image"),
+      ))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     if (!kindConfig) return;
@@ -174,7 +187,8 @@ export default function MediaProviderKindPage() {
         .then((d) => setCombos(d.combos || []))
         .catch(() => {});
     }
-  }, [isEmbedding, supportsCombo, kindConfig]);
+    if (isImage) fetchImageCustomModels();
+  }, [isEmbedding, supportsCombo, kindConfig, isImage]);
 
   if (!kindConfig) return notFound();
 
@@ -189,7 +203,24 @@ export default function MediaProviderKindPage() {
     textIcon: "CE",
   }));
 
-  const allProviders = [...providers, ...customProviders];
+  // Providers pinned to Text to Image via "Add provider/model from
+  // Endpoint": dynamic providers (no static entry) whose user-selected
+  // image models are stored as custom models. Static providers already
+  // have their own card, so only the dynamic ones are added here.
+  const staticKeys = new Set(providers.flatMap((p) => [p.id, getProviderAlias(p.id)]));
+  const pinnedProviders = [...new Set(imageCustomModels.map((m) => m.providerAlias).filter(Boolean))]
+    .filter((alias) => !staticKeys.has(alias))
+    .map((alias) => {
+      const conn = connections.find((c) => c.provider === alias);
+      return {
+        id: alias,
+        name: conn?.name || "Custom Provider",
+        color: "#0EA5E9",
+        textIcon: "CP",
+      };
+    });
+
+  const allProviders = [...providers, ...customProviders, ...pinnedProviders];
 
   const handleToggleProvider = async (providerId, newActive) => {
     const providerConns = connections.filter((c) => c.provider === providerId);
@@ -229,7 +260,7 @@ export default function MediaProviderKindPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {(isEmbedding || supportsCombo) && (
+      {(isEmbedding || supportsCombo || isImage) && (
         <div className="flex items-center justify-end gap-2">
           {supportsCombo && (
             <Button size="sm" icon="add" onClick={handleCreateCombo}>Create Combo</Button>
@@ -237,6 +268,11 @@ export default function MediaProviderKindPage() {
           {isEmbedding && (
             <Button size="sm" icon="add" onClick={() => setShowAddCustomEmbedding(true)}>
               Add Custom Embedding
+            </Button>
+          )}
+          {isImage && (
+            <Button size="sm" icon="add" onClick={() => setShowAddImageProvider(true)}>
+              Add provider/model from Endpoint
             </Button>
           )}
         </div>
@@ -271,7 +307,25 @@ export default function MediaProviderKindPage() {
               onToggle={handleToggleProvider}
             />
           ))}
+          {pinnedProviders.map((provider) => (
+            <MediaProviderCard
+              key={provider.id}
+              provider={provider}
+              kind={kind}
+              connections={connections}
+              isCustom
+              onToggle={handleToggleProvider}
+            />
+          ))}
         </div>
+      )}
+
+      {isImage && showAddImageProvider && (
+        <AddImageProviderModal
+          isOpen={showAddImageProvider}
+          onClose={() => setShowAddImageProvider(false)}
+          onSaved={fetchImageCustomModels}
+        />
       )}
 
       {isEmbedding && (
