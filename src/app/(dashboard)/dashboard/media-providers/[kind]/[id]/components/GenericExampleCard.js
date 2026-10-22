@@ -34,10 +34,11 @@ function toImagePreviewSrc(value) {
   return `data:image/png;base64,${trimmed}`;
 }
 
-export function GenericExampleCard({ providerId, kind, modelsOverride }) {
+export function GenericExampleCard({ providerId, kind, modelsOverride, providerAliasOverride }) {
   const providerAlias = getProviderAlias(providerId);
   const resolvedId = resolveProviderId(providerAlias);
-  const safeProviderAlias = resolvedId === providerId ? providerAlias : providerId;
+  // Node providers are publicly addressed by their prefix, not the raw id.
+  const safeProviderAlias = providerAliasOverride ?? (resolvedId === providerId ? providerAlias : providerId);
   const kindConfig = MEDIA_PROVIDER_KINDS.find((k) => k.id === kind);
   const exConfig = KIND_EXAMPLE_CONFIG[kind];
   const safeExConfig = exConfig || {};

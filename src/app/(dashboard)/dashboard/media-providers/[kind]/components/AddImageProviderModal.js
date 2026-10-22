@@ -65,6 +65,10 @@ export default function AddImageProviderModal({ isOpen, onClose, onSaved }) {
         id,
         name: nodeById.get(id)?.name || AI_PROVIDERS[id]?.name || cs[0]?.name || id,
         sub: nodeById.get(id)?.prefix || id,
+        // Public alias the pins are stored under: the node's prefix when
+        // the provider is a node (same convention as /v1/models), else
+        // the registry alias / raw id.
+        alias: nodeById.get(id)?.prefix || getProviderAlias(id),
         count: cs.length,
         isDynamic: !AI_PROVIDERS[id],
       }));
@@ -73,14 +77,18 @@ export default function AddImageProviderModal({ isOpen, onClose, onSaved }) {
     });
   }, [isOpen]);
 
+  // Saved pins for a provider, across every key form: the effective alias
+  // (node prefix) plus legacy keys (registry alias / raw provider id) from
+  // before pins moved to the prefix convention.
   const existingFor = useCallback(
     (providerId) => {
-      const alias = getProviderAlias(providerId);
+      const entry = providers.find((p) => p.id === providerId);
+      const keys = new Set([entry?.alias, providerId, getProviderAlias(providerId)].filter(Boolean));
       return customModels.filter(
-        (m) => m.providerAlias === alias && (m.kind || m.type) === "image",
+        (m) => keys.has(m.providerAlias) && (m.kind || m.type) === "image",
       );
     },
-    [customModels],
+    [customModels, providers],
   );
 
   const goToModels = async () => {
@@ -139,22 +147,31 @@ export default function AddImageProviderModal({ isOpen, onClose, onSaved }) {
     setSaving(true);
     setError("");
     try {
-      const alias = getProviderAlias(selectedProvider);
+      const entry = providers.find((p) => p.id === selectedProvider);
+      const alias = entry?.alias || getProviderAlias(selectedProvider);
       const existing = existingFor(selectedProvider);
-      const existingIds = new Set(existing.map((m) => m.id));
+      const deleteEntry = async (m) => {
+        const params = new URLSearchParams({ providerAlias: m.providerAlias, id: m.id, type: "image" });
+        await fetch(`/api/models/custom?${params}`, { method: "DELETE" });
+      };
       for (const id of checked) {
-        if (existingIds.has(id)) continue;
-        const res = await fetch("/api/models/custom", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ providerAlias: alias, id, type: "image" }),
-        });
-        if (!res.ok) throw new Error(`Failed to save model ${id}`);
+        const entries = existing.filter((m) => m.id === id);
+        if (!entries.some((m) => m.providerAlias === alias)) {
+          const res = await fetch("/api/models/custom", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ providerAlias: alias, id, type: "image" }),
+          });
+          if (!res.ok) throw new Error(`Failed to save model ${id}`);
+        }
+        // Migrate: drop copies of a kept model stored under a legacy key.
+        for (const m of entries) {
+          if (m.providerAlias !== alias) await deleteEntry(m);
+        }
       }
       for (const m of existing) {
         if (checked.has(m.id)) continue;
-        const params = new URLSearchParams({ providerAlias: alias, id: m.id, type: "image" });
-        await fetch(`/api/models/custom?${params}`, { method: "DELETE" });
+        await deleteEntry(m);
       }
       onSaved?.();
       onClose();

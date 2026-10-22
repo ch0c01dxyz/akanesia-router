@@ -187,6 +187,31 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
   const pageInfo = useMemo(() => getPageInfo(pathname), [pathname]);
   const { title, description, icon, breadcrumbs } = pageInfo;
 
+  // Media detail for a dynamic provider (node): the route param is the raw
+  // node id and getPageInfo can only fall back to it — resolve the node's
+  // human name so the header/breadcrumb show the provider name instead.
+  const mediaDetailId = pathname?.match(/\/media-providers\/[^/]+\/([^/]+)$/)?.[1] || "";
+  const needsNodeName = !!mediaDetailId && !AI_PROVIDERS[mediaDetailId];
+  const [nodeName, setNodeName] = useState({ id: "", name: "" });
+  useEffect(() => {
+    if (!needsNodeName) return;
+    let cancelled = false;
+    fetch("/api/provider-nodes", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        const node = (d.nodes || []).find((n) => n.id === mediaDetailId);
+        setNodeName({ id: mediaDetailId, name: node?.name || "" });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [mediaDetailId, needsNodeName]);
+  const resolvedNodeName = nodeName.id === mediaDetailId ? nodeName.name : "";
+  const displayTitle = resolvedNodeName && title === mediaDetailId ? resolvedNodeName : title;
+  const displayBreadcrumbs = resolvedNodeName
+    ? breadcrumbs.map((b) => (b.label === mediaDetailId ? { ...b, label: resolvedNodeName } : b))
+    : breadcrumbs;
+
   useEffect(() => {
     let cancelled = false;
 
@@ -240,13 +265,13 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
 
       {/* Page title with breadcrumbs */}
       <div className="flex flex-col min-w-0 flex-1">
-        {breadcrumbs.length > 0 ? (
+        {displayBreadcrumbs.length > 0 ? (
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            {breadcrumbs.map((crumb, index) => (
+            {displayBreadcrumbs.map((crumb, index) => (
               <div
                 key={`${crumb.label}-${crumb.href || "current"}`}
                 className={`items-center gap-1.5 sm:gap-2 min-w-0 ${
-                  index < breadcrumbs.length - 1 ? "hidden sm:flex shrink-0" : "flex flex-1"
+                  index < displayBreadcrumbs.length - 1 ? "hidden sm:flex shrink-0" : "flex flex-1"
                 }`}
               >
                 {index > 0 && (
@@ -280,7 +305,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
               </div>
             ))}
           </div>
-        ) : title ? (
+        ) : displayTitle ? (
           <div>
             <div className="flex items-center gap-2">
               {icon && (
@@ -289,7 +314,7 @@ export default function Header({ onMenuClick, showMenuButton = true }) {
                 </span>
               )}
               <h1 className="text-base lg:text-2xl font-semibold tracking-tight truncate">
-                {translate(title)}
+                {translate(displayTitle)}
               </h1>
             </div>
             {description && (

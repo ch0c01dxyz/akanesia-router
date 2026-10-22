@@ -168,9 +168,12 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
     } catch (e) { console.log("add custom model error:", e); }
   };
 
-  const handleDeleteCustomModel = async (modelId) => {
+  const handleDeleteCustomModel = async (model) => {
     try {
-      const params = new URLSearchParams({ providerAlias, id: modelId, type: effectiveType });
+      // Delete under the entry's own key — entries may predate the alias
+      // override (e.g. pinned under the raw provider id before nodes
+      // switched to their prefix as the public alias).
+      const params = new URLSearchParams({ providerAlias: model.providerAlias || providerAlias, id: model.id, type: effectiveType });
       const res = await fetch(`/api/models/custom?${params}`, { method: "DELETE" });
       if (res.ok) {
         await fetchData();
@@ -206,9 +209,11 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
       })
     : allBuiltIn;
 
-  // Custom models for this provider + kind, dedupe vs built-in
+  // Custom models for this provider + kind, dedupe vs built-in. Entries
+  // keyed by the raw provider id are accepted alongside the (possibly
+  // overridden) alias so older pins stay visible.
   const myCustomModels = customModels.filter(
-    (m) => m.providerAlias === providerAlias
+    (m) => (m.providerAlias === providerAlias || m.providerAlias === providerId)
       && getModelKind(m, "llm") === effectiveType
       && !builtInModels.some((b) => b.id === m.id)
   );
@@ -253,7 +258,7 @@ export default function ModelsCard({ providerId, kindFilter, providerAliasOverri
               copied={copied}
               onCopy={copy}
               onSetAlias={() => {}}
-              onDeleteAlias={() => handleDeleteCustomModel(model.id)}
+              onDeleteAlias={() => handleDeleteCustomModel(model)}
               testStatus={modelTestResults[model.id]}
               onTest={() => handleTestModel(model.id)}
               isTesting={testingModelId === model.id}

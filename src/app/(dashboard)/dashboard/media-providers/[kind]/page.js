@@ -216,19 +216,26 @@ export default function MediaProviderKindPage() {
   // image models are stored as custom models. Static providers already
   // have their own card, so only the dynamic ones are added here.
   const staticKeys = new Set(providers.flatMap((p) => [p.id, getProviderAlias(p.id)]));
-  const pinnedProviders = [...new Set(imageCustomModels.map((m) => m.providerAlias).filter(Boolean))]
-    .filter((alias) => !staticKeys.has(alias))
-    .map((alias) => {
-      const conn = connections.find((c) => c.provider === alias);
-      const node = imageNodes.find((n) => n.id === alias);
-      const isAnthropicNode = node?.type === "anthropic-compatible";
-      return {
-        id: alias,
-        name: node?.name || conn?.name || "Custom Provider",
-        color: node ? (isAnthropicNode ? "#D97757" : "#10A37F") : "#0EA5E9",
-        textIcon: node ? (isAnthropicNode ? "AC" : "OC") : "CP",
-      };
-    });
+  const pinnedProviders = [...new Map(
+    [...new Set(imageCustomModels.map((m) => m.providerAlias).filter(Boolean))]
+      .map((alias) => {
+        // Pins are keyed by the provider's public alias — for nodes that
+        // is the prefix; legacy pins used the raw node id. Resolve both.
+        const node = imageNodes.find((n) => n.id === alias || n.prefix === alias);
+        const providerId = node?.id || alias;
+        const conn = connections.find((c) => c.provider === providerId);
+        const isAnthropicNode = node?.type === "anthropic-compatible";
+        return [providerId, {
+          id: providerId,
+          alias,
+          name: node?.name || AI_PROVIDERS[providerId]?.name || conn?.name || "Custom Provider",
+          color: node ? (isAnthropicNode ? "#D97757" : "#10A37F") : "#0EA5E9",
+          textIcon: node ? (isAnthropicNode ? "AC" : "OC") : "CP",
+        }];
+      })
+      // Static providers already have their own card on this page.
+      .filter(([, p]) => !staticKeys.has(p.id) && !staticKeys.has(p.alias)),
+  ).values()];
 
   const allProviders = [...providers, ...customProviders, ...pinnedProviders];
 

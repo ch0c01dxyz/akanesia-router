@@ -39,7 +39,7 @@ export default function MediaProviderDetailPage() {
   // provider/model from Endpoint": no static entry exists, so resolve a
   // synthetic provider from its pinned (custom) models + its connection.
   const isDynamic = (isOpenAICompatibleProvider(id) || isAnthropicCompatibleProvider(id)) && !AI_PROVIDERS[id];
-  const [pinState, setPinState] = useState({ loading: isDynamic, models: [], name: "", nodeType: "", hasConnection: false });
+  const [pinState, setPinState] = useState({ loading: isDynamic, models: [], name: "", nodeType: "", prefix: "", hasConnection: false });
 
   useEffect(() => {
     if (!isDynamic) return;
@@ -50,17 +50,21 @@ export default function MediaProviderDetailPage() {
       fetch("/api/provider-nodes", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
     ]).then(([customData, provData, nodesData]) => {
       if (cancelled) return;
-      const models = (customData.models || []).filter(
-        (m) => m.providerAlias === id && (m.kind || m.type) === kind,
-      );
       const conn = (provData.connections || []).find((c) => c.provider === id);
-      // Compatible providers are nodes: the human name lives on the node.
+      // Compatible providers are nodes: the human name lives on the node,
+      // and its prefix is the provider's public alias (pins are keyed by
+      // it; legacy pins used the raw id — accept both).
       const node = (nodesData.nodes || []).find((n) => n.id === id);
+      const pinKeys = new Set([id, node?.prefix].filter(Boolean));
+      const models = (customData.models || []).filter(
+        (m) => pinKeys.has(m.providerAlias) && (m.kind || m.type) === kind,
+      );
       setPinState({
         loading: false,
         models,
         name: node?.name || conn?.name || "",
         nodeType: node?.type || "",
+        prefix: node?.prefix || "",
         hasConnection: !!conn,
       });
     });
@@ -212,7 +216,7 @@ export default function MediaProviderDetailPage() {
         <ModelsCard
           providerId={id}
           kindFilter={kind}
-          providerAliasOverride={isCustom ? customNode?.prefix : undefined}
+          providerAliasOverride={isCustom ? customNode?.prefix : (isPinned && pinState.prefix ? pinState.prefix : undefined)}
         />
       )}
 
@@ -243,6 +247,7 @@ export default function MediaProviderDetailPage() {
           providerId={id}
           kind={kind}
           modelsOverride={isPinned ? pinState.models.map((m) => ({ id: m.id, name: m.name })) : undefined}
+          providerAliasOverride={isPinned && pinState.prefix ? pinState.prefix : undefined}
         />
       )}
 
