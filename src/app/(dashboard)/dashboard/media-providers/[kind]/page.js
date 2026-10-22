@@ -146,6 +146,7 @@ export default function MediaProviderKindPage() {
   const [combos, setCombos] = useState([]);
   const [showAddCustomEmbedding, setShowAddCustomEmbedding] = useState(false);
   const [imageCustomModels, setImageCustomModels] = useState([]);
+  const [imageNodes, setImageNodes] = useState([]);
   const [showAddImageProvider, setShowAddImageProvider] = useState(false);
 
   // webSearch/webFetch listing pages are merged into /web
@@ -187,7 +188,14 @@ export default function MediaProviderKindPage() {
         .then((d) => setCombos(d.combos || []))
         .catch(() => {});
     }
-    if (isImage) fetchImageCustomModels();
+    if (isImage) {
+      fetchImageCustomModels();
+      // Compatible providers are nodes — their human names live there.
+      fetch("/api/provider-nodes", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => setImageNodes(d.nodes || []))
+        .catch(() => {});
+    }
   }, [isEmbedding, supportsCombo, kindConfig, isImage]);
 
   if (!kindConfig) return notFound();
@@ -212,11 +220,13 @@ export default function MediaProviderKindPage() {
     .filter((alias) => !staticKeys.has(alias))
     .map((alias) => {
       const conn = connections.find((c) => c.provider === alias);
+      const node = imageNodes.find((n) => n.id === alias);
+      const isAnthropicNode = node?.type === "anthropic-compatible";
       return {
         id: alias,
-        name: conn?.name || "Custom Provider",
-        color: "#0EA5E9",
-        textIcon: "CP",
+        name: node?.name || conn?.name || "Custom Provider",
+        color: node ? (isAnthropicNode ? "#D97757" : "#10A37F") : "#0EA5E9",
+        textIcon: node ? (isAnthropicNode ? "AC" : "OC") : "CP",
       };
     });
 

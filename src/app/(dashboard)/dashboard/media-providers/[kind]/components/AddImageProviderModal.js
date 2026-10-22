@@ -43,10 +43,14 @@ export default function AddImageProviderModal({ isOpen, onClose, onSaved }) {
     Promise.all([
       fetch("/api/providers", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
       fetch("/api/models/custom", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
-    ]).then(([provData, customData]) => {
+      fetch("/api/provider-nodes", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+    ]).then(([provData, customData, nodesData]) => {
       const conns = provData.connections || [];
       setConnections(conns);
       setCustomModels(customData.models || []);
+      // Compatible providers are nodes: the human name (and prefix) lives
+      // on the node, not on the connection — resolve it from there first.
+      const nodeById = new Map((nodesData.nodes || []).map((n) => [n.id, n]));
       const byProvider = new Map();
       for (const c of conns) {
         if (!c.provider) continue;
@@ -59,7 +63,8 @@ export default function AddImageProviderModal({ isOpen, onClose, onSaved }) {
       }
       const list = [...byProvider.entries()].map(([id, cs]) => ({
         id,
-        name: AI_PROVIDERS[id]?.name || cs[0]?.name || id,
+        name: nodeById.get(id)?.name || AI_PROVIDERS[id]?.name || cs[0]?.name || id,
+        sub: nodeById.get(id)?.prefix || id,
         count: cs.length,
         isDynamic: !AI_PROVIDERS[id],
       }));
@@ -206,7 +211,7 @@ export default function AddImageProviderModal({ isOpen, onClose, onSaved }) {
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{p.name}</span>
-                <span className="block truncate text-xs text-text-muted">{p.id}</span>
+                <span className="block truncate text-xs text-text-muted">{p.sub}</span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 {p.isDynamic && <Badge variant="default" size="sm">Custom</Badge>}

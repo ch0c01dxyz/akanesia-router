@@ -39,7 +39,7 @@ export default function MediaProviderDetailPage() {
   // provider/model from Endpoint": no static entry exists, so resolve a
   // synthetic provider from its pinned (custom) models + its connection.
   const isDynamic = (isOpenAICompatibleProvider(id) || isAnthropicCompatibleProvider(id)) && !AI_PROVIDERS[id];
-  const [pinState, setPinState] = useState({ loading: isDynamic, models: [], name: "", hasConnection: false });
+  const [pinState, setPinState] = useState({ loading: isDynamic, models: [], name: "", nodeType: "", hasConnection: false });
 
   useEffect(() => {
     if (!isDynamic) return;
@@ -47,13 +47,22 @@ export default function MediaProviderDetailPage() {
     Promise.all([
       fetch("/api/models/custom", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
       fetch("/api/providers", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
-    ]).then(([customData, provData]) => {
+      fetch("/api/provider-nodes", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
+    ]).then(([customData, provData, nodesData]) => {
       if (cancelled) return;
       const models = (customData.models || []).filter(
         (m) => m.providerAlias === id && (m.kind || m.type) === kind,
       );
       const conn = (provData.connections || []).find((c) => c.provider === id);
-      setPinState({ loading: false, models, name: conn?.name || "", hasConnection: !!conn });
+      // Compatible providers are nodes: the human name lives on the node.
+      const node = (nodesData.nodes || []).find((n) => n.id === id);
+      setPinState({
+        loading: false,
+        models,
+        name: node?.name || conn?.name || "",
+        nodeType: node?.type || "",
+        hasConnection: !!conn,
+      });
     });
     return () => { cancelled = true; };
   }, [id, isDynamic, kind]);
@@ -83,7 +92,12 @@ export default function MediaProviderDetailPage() {
   const provider = isCustom
     ? (customNode ? { id, name: customNode.name || "Custom Embedding", color: "#6366F1", textIcon: "CE" } : null)
     : builtInProvider || (isPinned
-      ? { id, name: pinState.name || "Custom Provider", color: "#0EA5E9", textIcon: "CP" }
+      ? {
+          id,
+          name: pinState.name || "Custom Provider",
+          color: pinState.nodeType ? (pinState.nodeType === "anthropic-compatible" ? "#D97757" : "#10A37F") : "#0EA5E9",
+          textIcon: pinState.nodeType ? (pinState.nodeType === "anthropic-compatible" ? "AC" : "OC") : "CP",
+        }
       : null);
 
   if (isDynamic && pinState.loading) {
