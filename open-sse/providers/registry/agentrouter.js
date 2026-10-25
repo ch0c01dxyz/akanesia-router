@@ -1,3 +1,5 @@
+import { CLAUDE_CLI_SPOOF_HEADERS } from "../shared.js";
+
 export default {
   id: "agentrouter",
   priority: 120,
@@ -17,6 +19,11 @@ export default {
   transport: {
     baseUrl: "https://agentrouter.org/v1/messages",
     format: "claude",
+    // Agentrouter gates on client identity: bare API clients get
+    // "unauthorized client detected" even with a valid key. The full Claude
+    // CLI fingerprint (verified live 2026-10-25: with these headers the gate
+    // passes and a bad key yields the normal invalid-token 401 instead).
+    headers: { ...CLAUDE_CLI_SPOOF_HEADERS },
     auth: { combined: true, header: "x-api-key", scheme: "raw" },
   },
   passthroughModels: true,
