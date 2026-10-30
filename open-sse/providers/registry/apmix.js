@@ -1,0 +1,68 @@
+export default {
+  id: "apmix",
+  priority: 120,
+  alias: "apmix",
+  display: {
+    name: "Apmix",
+    color: "#6366F1",
+    textIcon: "AP",
+  },
+  category: "apikey",
+  authType: "apikey",
+  transport: {
+    baseUrl: "https://api.apmix.ai/v1/chat/completions",
+    validateUrl: "https://api.apmix.ai/v1/models",
+    // DefaultExecutor does not route via responsesBaseUrl (it uses baseUrl;
+    // the /responses path only applies to openai-compatible-* node providers).
+    // Kept verbatim from the OmniRoute source for future executors.
+    responsesBaseUrl: "https://api.apmix.ai/v1/responses",
+  },
+  // Seed verbatim from OmniRoute (origin/release/v3.8.53, shared.ts apmix):
+  // the catalog is plan-scoped per key, so this is only the offline fallback
+  // and the live list comes from modelsFetcher. Source declares NO
+  // passthroughModels, so none is declared here either.
+  models: [
+    { id: "claude-haiku-4-5", name: "Claude Haiku 4.5" },
+    { id: "claude-sonnet-5", name: "Claude Sonnet 5" },
+    { id: "claude-opus-5", name: "Claude Opus 5" },
+    { id: "claude-opus-4-8", name: "Claude Opus 4.8" },
+    { id: "claude-opus-4-7", name: "Claude Opus 4.7" },
+    { id: "claude-opus-4-6", name: "Claude Opus 4.6" },
+    { id: "claude-fable-5", name: "Claude Fable 5" },
+    { id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6" },
+    { id: "gpt-5.6-terra", name: "GPT-5.6 Terra" },
+    { id: "gpt-5.6-sol", name: "GPT-5.6 Sol" },
+    { id: "gpt-5.6-luna", name: "GPT-5.6 Luna" },
+    { id: "gpt-5.5", name: "GPT-5.5" },
+    { id: "gpt-6-astra", name: "GPT-6 Astra" },
+    { id: "gpt-6-sol", name: "GPT-6 Sol" },
+    { id: "gpt-6-luna", name: "GPT-6 Luna" },
+    { id: "gpt-6-luna-free", name: "GPT-6 Luna Free" },
+    { id: "gemini-3.8-flash", name: "Gemini 3.8 Flash" },
+    { id: "gemini-3.7-flash", name: "Gemini 3.7 Flash" },
+    { id: "gemini-3.6-flash", name: "Gemini 3.6 Flash" },
+    { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro" },
+    { id: "grok-4.5", name: "Grok 4.5" },
+    { id: "grok-4.6", name: "Grok 4.6" },
+    { id: "grok-4.7", name: "Grok 4.7" },
+    { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro" },
+    { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+    { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash" },
+    { id: "deepseek-v4-flash-free", name: "DeepSeek V4 Flash Free" },
+    { id: "qwen3.8-flash", name: "Qwen3.8 Flash" },
+    { id: "qwen3.8-max", name: "Qwen3.8 Max" },
+    { id: "glm-5.3-flash", name: "GLM 5.3 Flash" },
+    { id: "glm-5.3", name: "GLM 5.3" },
+    { id: "glm-5.2", name: "GLM 5.2" },
+    { id: "glm-5-turbo", name: "GLM 5 Turbo" },
+    { id: "kimi-k2.7-code", name: "Kimi K2.7 Code" },
+    { id: "kimi-k3", name: "Kimi K3" },
+    { id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro" },
+    { id: "mimo-v2.5", name: "MiMo V2.5" },
+    { id: "hy4-preview", name: "HY4 Preview" },
+    { id: "composer-2.5-fast", name: "Composer 2.5 Fast" },
+    { id: "minimax-m3", name: "MiniMax M3", contextLength: 1048576, supportsVision: true },
+    { id: "muse-spark-1.3", name: "Muse Spark 1.3" },
+  ],
+  modelsFetcher: { url: "https://api.apmix.ai/v1/models", type: "openai" },
+};

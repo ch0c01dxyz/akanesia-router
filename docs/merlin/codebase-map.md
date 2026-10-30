@@ -336,7 +336,7 @@ Format: `hash` — subjek — file kunci — catatan.
 - Vitest: `npx vitest run --config tests/vitest.config.js <file>`.
 - Fetch-on-open di useEffect disengaja (AGENTS.md #10) → eslint-disable, jangan refactor.
 - OmniRoute (`~/workspace/OmniRoute-sparse`): HANYA acuan provider/model;
-  `git fetch` + baca `origin/release/v3.8.51`; JANGAN merge/pull/reset.
+  `git fetch` + baca `origin/release/v3.8.53` (tip 689b1eb57, terverifikasi 2026-10-30; v3.8.51 stagnan sejak 29 Sep); JANGAN merge/pull/reset.
 - Upstream 9router (`~/workspace/9router-upstream`): sumber diff port manual.
 - Jangan samakan "9router" (upstream decolua) dengan "akanesia-router" (milik Egar).
 - Test: 344 file di `tests/unit/`; build: `npm run build` (~40-70 dtk).

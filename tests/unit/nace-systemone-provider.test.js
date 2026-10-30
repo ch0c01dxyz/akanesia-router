@@ -87,10 +87,9 @@ describe("handleSystemoneCore for nace", () => {
     expect(r.url).toBe(NACE_URL);
     expect(r.headers.Authorization).toBe("Bearer nace_sk_test");
     expect(r.headers["Content-Type"]).toBe("application/json");
-    // Local divergence from upstream: this tree's systemoneCore still sends
-    // x-opencode-session to every System One lane (pre-existing behaviour
-    // for v1m/openrouter), not only Zen lanes. An extra header is ignored
-    // by Drex; narrowing it is out of scope for this provider port.
+    // Since the clef port, systemoneCore sends x-opencode-session only to
+    // opencode/opencode-zen lanes; other System One lanes get no session header.
+    expect(r.headers["x-opencode-session"]).toBeUndefined();
   });
 
   it("forwards the model id, state, questions and top-level images array untouched", async () => {

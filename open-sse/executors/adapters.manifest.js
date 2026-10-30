@@ -377,6 +377,14 @@ export const ADAPTER_MANIFEST = {
     ],
     "specialized": false
   },
+  "ainetcafe": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "ainetcafe"
+    ],
+    "specialized": false
+  },
   "aion": {
     "file": "./default.js",
     "exportName": "DefaultExecutor",
@@ -454,6 +462,14 @@ export const ADAPTER_MANIFEST = {
     "exportName": "DefaultExecutor",
     "args": [
       "api-airforce"
+    ],
+    "specialized": false
+  },
+  "apmix": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "apmix"
     ],
     "specialized": false
   },
@@ -542,6 +558,22 @@ export const ADAPTER_MANIFEST = {
     "exportName": "DefaultExecutor",
     "args": [
       "bazaarlink"
+    ],
+    "specialized": false
+  },
+  "beatapi": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "beatapi"
+    ],
+    "specialized": false
+  },
+  "bigmodel": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "bigmodel"
     ],
     "specialized": false
   },
@@ -809,6 +841,14 @@ export const ADAPTER_MANIFEST = {
     ],
     "specialized": false
   },
+  "daoxe": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "daoxe"
+    ],
+    "specialized": false
+  },
   "databricks": {
     "file": "./default.js",
     "exportName": "DefaultExecutor",
@@ -846,6 +886,14 @@ export const ADAPTER_MANIFEST = {
     "exportName": "DefaultExecutor",
     "args": [
       "deepseek"
+    ],
+    "specialized": false
+  },
+  "demonroute": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "demonroute"
     ],
     "specialized": false
   },
@@ -1134,6 +1182,14 @@ export const ADAPTER_MANIFEST = {
     "exportName": "DefaultExecutor",
     "args": [
       "gigachat"
+    ],
+    "specialized": false
+  },
+  "gisoo": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "gisoo"
     ],
     "specialized": false
   },
@@ -1665,6 +1721,14 @@ export const ADAPTER_MANIFEST = {
     ],
     "specialized": false
   },
+  "nan": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "nan"
+    ],
+    "specialized": false
+  },
   "nanobanana": {
     "file": "./default.js",
     "exportName": "DefaultExecutor",
@@ -1806,6 +1870,14 @@ export const ADAPTER_MANIFEST = {
     "exportName": "DefaultExecutor",
     "args": [
       "oneminai"
+    ],
+    "specialized": false
+  },
+  "onomeo": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "onomeo"
     ],
     "specialized": false
   },
@@ -2313,6 +2385,14 @@ export const ADAPTER_MANIFEST = {
     ],
     "specialized": false
   },
+  "tokenmarket": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "tokenmarket"
+    ],
+    "specialized": false
+  },
   "tokenreply": {
     "file": "./default.js",
     "exportName": "DefaultExecutor",
@@ -2382,6 +2462,14 @@ export const ADAPTER_MANIFEST = {
     "exportName": "DefaultExecutor",
     "args": [
       "uncloseai"
+    ],
+    "specialized": false
+  },
+  "unifically": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "unifically"
     ],
     "specialized": false
   },
@@ -2537,6 +2625,14 @@ export const ADAPTER_MANIFEST = {
     ],
     "specialized": false
   },
+  "y-api": {
+    "file": "./default.js",
+    "exportName": "DefaultExecutor",
+    "args": [
+      "y-api"
+    ],
+    "specialized": false
+  },
   "yi": {
     "file": "./default.js",
     "exportName": "DefaultExecutor",
@@ -2618,5 +2714,5 @@ export const ADAPTER_MANIFEST = {
     "specialized": false
   }
 };
-export const ADAPTER_IDS = ["adapta-web","agentrouter","agnes","agy","ai21","aihorde","aimlapi","ainative","aion","alibaba","alicode","alicode-intl","alims-intl","alitp-intl","ant-ling","anthropic","antigravity","anyapi","api-airforce","arcee-ai","assemblyai","atria","auggie","auriko","aws-polly","azure","bai","baichuan","baidu","bailian-coding-plan","baseten","bazaarlink","bedrock","bedrock-xai","black-forest-labs","blackbox","bluesminds","br","brave-search","brx","byteplus","bytez","cartesia","cerebras","charm-hyper","chat-oripe","chatanywhere","chatgpt-web","chatgpt-web-codex","cheaperinference","chenzk","chutes","claude","cline","clinepass","cloudcode-one","cloudflare-ai","cloudflare-playground","clova-studio","codebuddy-cn","codebuddy-intl","codestral","codex","codex-app-server","cohere","comfyui","command-code","commandcode","conol-web","copilot-m365-web","copilot-web","coqui","coze","crof","cu","cua","cursor","cursor-api","dahl","databricks","deepai","deepgram","deepinfra","deepseek","devin-cli-agentic","devin-desktop","dgrid","dify","digitalocean","dit","doubao","duckduckgo-web","dxnt","edge-tts","electronhub","elevenlabs","eurouter","exa","factory","fal-ai","fastrouter","featherless","featherless-ai","firecrawl","fireworks","fish-audio","free-ai","freeaiapikey","freebuff","freeinference","freemodel-dev","freetheai","friendliai","g4f-gemini","g4f-groq","g4f-nvidia","g4f-ollama","g4f-pollinations","galadriel","gb","gcli","gemini","gemini-cli","ghe-copilot","gigachat","github","gitlab","gitlawb","glm","glm-cn","google-pse","google-tts","greenpt","grok-cli","grok-web","groq","haiper","hcnsec","helixmind","helyxai","heroku","huggingchat","huggingface","hyperagent","hyperbolic","ideogram","iflow","iflytek","inception","inference-net","inner-ai","internlm","inworld","jina-ai","jina-reader","kenari","kie","kilo-gateway","kilocode","kimchi","kimi","kiro","lambda-ai","leonardo","linkup","liquid","literouter","llamagate","llm-kiwi","llm7","llmgateway","lmarena","local-device","logfare","longcat","lyceum","magnific","maritalk","maxai","meganova-ai","meta-llama","mimo-free","minimax","minimax-cn","minimax-code","minimax-code-global","mistral","mixlayer","mlx-gemma","mmf","mnn-ai","modal","modelscope","monsterapi","moonshot","morph","muse","muse-code","muse-spark-web","nace","naga-ac","naga-ai","nanobanana","nanogpt","nara","navy","nebius","nimble-search","nlpcloud","notion-web","nous","novita","nscale","nube","nvidia","ofoxai","ollama","ollama-cloud","ollama-local","ollama-search","oneminai","openadapter","openai","opencode","opencode-go","opencode-zen","openference","openference-api","openrouter","openvecta","opper","orcarouter","ovhcloud","perplexity","perplexity-agent","perplexity-web","pioneer","plamo","playht","poe","poixe-ai","pollinations","poolside","predibase","promptql","publicai","qianfan","qiniu","qoder","qoder-cn","qwen-cloud","qwen-cloud-token-plan","recraft","regolo","reka","requesty","routeway","runcrate","runwayml","sambanova","sarvam","scaleway","sdwebui","sealion","searchapi","searxng","seekai","segmind","selfhosted-embedding","selfhosted-stt","selfhosted-tts","sensenova","serper","siliconflow","snowflake","sparkdesk","speka","stability-ai","stepfun","sumopod","synthetic","t3-web","tabitoken","tavily","tencent","tencent-aistudio-web","tinycms-web","tinyfish","together","token-kiosk","tokenharbor","tokenreply","tokenrouter","topaz","tortoise","typhoon","uc","uc-direct","udio","uncloseai","unorouter","upstage","v0-vercel","v1m","venice","veoaifree-web","vercel-ai-gateway","vertex","vertex-partner","void-ai","volcengine","volcengine-ark","voyage-ai","wafer","wandb","writer","x5lab","xai","xiaomi-mimo","xiaomi-mimo-token-plan","xiaomi-tokenplan","xkiro","xquik","yi","yolo-auto","youcom","yuanbao-web","zai","zai-web","zcode","zed","zed-hosted","zenmux","zenmux-free","zerolimitai","zylo-api"];
+export const ADAPTER_IDS = ["adapta-web","agentrouter","agnes","agy","ai21","aihorde","aimlapi","ainative","ainetcafe","aion","alibaba","alicode","alicode-intl","alims-intl","alitp-intl","ant-ling","anthropic","antigravity","anyapi","api-airforce","apmix","arcee-ai","assemblyai","atria","auggie","auriko","aws-polly","azure","bai","baichuan","baidu","bailian-coding-plan","baseten","bazaarlink","beatapi","bedrock","bedrock-xai","bigmodel","black-forest-labs","blackbox","bluesminds","br","brave-search","brx","byteplus","bytez","cartesia","cerebras","charm-hyper","chat-oripe","chatanywhere","chatgpt-web","chatgpt-web-codex","cheaperinference","chenzk","chutes","claude","cline","clinepass","cloudcode-one","cloudflare-ai","cloudflare-playground","clova-studio","codebuddy-cn","codebuddy-intl","codestral","codex","codex-app-server","cohere","comfyui","command-code","commandcode","conol-web","copilot-m365-web","copilot-web","coqui","coze","crof","cu","cua","cursor","cursor-api","dahl","daoxe","databricks","deepai","deepgram","deepinfra","deepseek","demonroute","devin-cli-agentic","devin-desktop","dgrid","dify","digitalocean","dit","doubao","duckduckgo-web","dxnt","edge-tts","electronhub","elevenlabs","eurouter","exa","factory","fal-ai","fastrouter","featherless","featherless-ai","firecrawl","fireworks","fish-audio","free-ai","freeaiapikey","freebuff","freeinference","freemodel-dev","freetheai","friendliai","g4f-gemini","g4f-groq","g4f-nvidia","g4f-ollama","g4f-pollinations","galadriel","gb","gcli","gemini","gemini-cli","ghe-copilot","gigachat","gisoo","github","gitlab","gitlawb","glm","glm-cn","google-pse","google-tts","greenpt","grok-cli","grok-web","groq","haiper","hcnsec","helixmind","helyxai","heroku","huggingchat","huggingface","hyperagent","hyperbolic","ideogram","iflow","iflytek","inception","inference-net","inner-ai","internlm","inworld","jina-ai","jina-reader","kenari","kie","kilo-gateway","kilocode","kimchi","kimi","kiro","lambda-ai","leonardo","linkup","liquid","literouter","llamagate","llm-kiwi","llm7","llmgateway","lmarena","local-device","logfare","longcat","lyceum","magnific","maritalk","maxai","meganova-ai","meta-llama","mimo-free","minimax","minimax-cn","minimax-code","minimax-code-global","mistral","mixlayer","mlx-gemma","mmf","mnn-ai","modal","modelscope","monsterapi","moonshot","morph","muse","muse-code","muse-spark-web","nace","naga-ac","naga-ai","nan","nanobanana","nanogpt","nara","navy","nebius","nimble-search","nlpcloud","notion-web","nous","novita","nscale","nube","nvidia","ofoxai","ollama","ollama-cloud","ollama-local","ollama-search","oneminai","onomeo","openadapter","openai","opencode","opencode-go","opencode-zen","openference","openference-api","openrouter","openvecta","opper","orcarouter","ovhcloud","perplexity","perplexity-agent","perplexity-web","pioneer","plamo","playht","poe","poixe-ai","pollinations","poolside","predibase","promptql","publicai","qianfan","qiniu","qoder","qoder-cn","qwen-cloud","qwen-cloud-token-plan","recraft","regolo","reka","requesty","routeway","runcrate","runwayml","sambanova","sarvam","scaleway","sdwebui","sealion","searchapi","searxng","seekai","segmind","selfhosted-embedding","selfhosted-stt","selfhosted-tts","sensenova","serper","siliconflow","snowflake","sparkdesk","speka","stability-ai","stepfun","sumopod","synthetic","t3-web","tabitoken","tavily","tencent","tencent-aistudio-web","tinycms-web","tinyfish","together","token-kiosk","tokenharbor","tokenmarket","tokenreply","tokenrouter","topaz","tortoise","typhoon","uc","uc-direct","udio","uncloseai","unifically","unorouter","upstage","v0-vercel","v1m","venice","veoaifree-web","vercel-ai-gateway","vertex","vertex-partner","void-ai","volcengine","volcengine-ark","voyage-ai","wafer","wandb","writer","x5lab","xai","xiaomi-mimo","xiaomi-mimo-token-plan","xiaomi-tokenplan","xkiro","xquik","y-api","yi","yolo-auto","youcom","yuanbao-web","zai","zai-web","zcode","zed","zed-hosted","zenmux","zenmux-free","zerolimitai","zylo-api"];
 export const ADAPTER_FILES = ["./antigravity.js","./auggie.js","./azure.js","./bedrock.js","./cheaperinference.js","./clova-studio.js","./codebuddy-cn.js","./codebuddy-intl.js","./codex.js","./commandcode.js","./cursor.js","./default.js","./freebuff.js","./gemini-cli.js","./ghe-copilot.js","./github.js","./grok-cli.js","./grok-web.js","./iflow.js","./kimchi.js","./kiro.js","./mimo-free.js","./minimax-code.js","./moonshot.js","./ollama-local.js","./opencode-bridge.js","./opencode-go.js","./opencode-zen.js","./perplexity-web.js","./pollinations.js","./qoder.js","./vertex.js","./xiaomi-mimo.js","./xiaomi-tokenplan.js","./zed.js","./zenmux-free.js"];

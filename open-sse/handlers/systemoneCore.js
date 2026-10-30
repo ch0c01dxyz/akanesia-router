@@ -4,10 +4,12 @@ import { PROVIDER_MEDIA } from "../providers/index.js";
 import { getModelUpstreamId } from "../config/providerModels.js";
 import { generateSessionId } from "../executors/opencode-zen.js";
 
+const OPENCODE_PROVIDERS = new Set(["opencode", "opencode-zen"]);
+
 /**
  * Join a saved host with the registry path, when the lane declares one.
- * Only nace declares `path` today, so lanes without it behave exactly as
- * before (saved host as-is, else the registry baseUrl).
+ * Only nace and ollama-local declare `path` today, so lanes without it
+ * behave exactly as before (saved host as-is, else the registry baseUrl).
  */
 export function buildSystemoneUrl(override, cfg) {
   const base = override?.trim();
@@ -75,8 +77,8 @@ export async function handleSystemoneCore({
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(cfg?.headers || {}),
-    // Zen lanes expect the official client session header on every request.
-    "x-opencode-session": generateSessionId(),
+    // Zen lanes expect the official client session header; other providers don't need it.
+    ...(OPENCODE_PROVIDERS.has(provider) ? { "x-opencode-session": generateSessionId() } : {}),
   };
   // Cloudflare memvalidasi model body sebagai selector pendek (mis. "clef-flash"), bukan id penuh.
   const requestBody = { ...body, model: getModelUpstreamId(provider, model) || model };

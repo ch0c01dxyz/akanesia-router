@@ -21,6 +21,10 @@ const DEFAULT_TTS_RESPONSE_EXAMPLE = `// Audio will appear here after running.
 export function TtsExampleCard({ providerId }) {
   const providerAlias = getProviderAlias(providerId);
   const config = TTS_PROVIDER_CONFIG[providerId] || TTS_PROVIDER_CONFIG["edge-tts"];
+  const formatOptions = config.formatOptions || [
+    { value: "mp3", label: "MP3 (Binary)" },
+    { value: "json", label: "JSON (Base64)" },
+  ];
 
   // Voice state
   const [selectedVoice, setSelectedVoice]     = useState(config.defaultVoiceId || "");
@@ -46,7 +50,7 @@ export function TtsExampleCard({ providerId }) {
   const [useTunnel, setUseTunnel]       = useState(false);
   const [localEndpoint, setLocalEndpoint]   = useState("");
   const [tunnelEndpoint, setTunnelEndpoint] = useState("");
-  const [responseFormat, setResponseFormat] = useState("mp3"); // mp3 | json
+  const [responseFormat, setResponseFormat] = useState(() => config.defaultFormat || config.formatOptions?.[0]?.value || "mp3");
   const [audioUrl, setAudioUrl]         = useState("");
   const [jsonResponse, setJsonResponse] = useState(null); // Store JSON response
   const [running, setRunning]           = useState(false);
@@ -201,6 +205,11 @@ export function TtsExampleCard({ providerId }) {
       const voice = activeVoiceId.trim();
       return model ? `${providerAlias}/${model}${voice ? `/${voice}` : ""}` : "";
     }
+    if (providerId === "ollama-local") {
+      const model = (selectedModel || "phonon:multilingual").trim();
+      const voice = activeVoiceId.trim();
+      return `${providerAlias}/${model}${voice && voice !== "default" ? `/${voice}` : ""}`;
+    }
     if (config.hasModelSelector && selectedModel && activeVoiceId) return `${providerAlias}/${selectedModel}/${activeVoiceId}`;
     if (config.hasModelSelector && selectedModel) return `${providerAlias}/${selectedModel}`;
     if (activeVoiceId) return `${providerAlias}/${activeVoiceId}`;
@@ -211,6 +220,9 @@ export function TtsExampleCard({ providerId }) {
     const b = { model: modelFull, input };
     if (config.hasLanguageHint && languageHint) b.language = languageHint;
     if (config.hasStyleInput && style.trim()) b.style = style.trim();
+    if (responseFormat && responseFormat !== "json" && responseFormat !== "mp3") {
+      b.response_format = responseFormat;
+    }
     return b;
   })();
   const curlSnippet = `curl -X POST ${endpoint}/v1/audio/speech${responseFormat === "json" ? "?response_format=json" : ""} \\
@@ -495,8 +507,9 @@ export function TtsExampleCard({ providerId }) {
               onChange={(e) => setResponseFormat(e.target.value)}
               className="w-full px-3 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:border-primary"
             >
-              <option value="mp3">MP3 (Binary)</option>
-              <option value="json">JSON (Base64)</option>
+              {formatOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
           </Row>
 

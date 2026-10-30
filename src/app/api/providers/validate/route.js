@@ -386,6 +386,17 @@ export async function POST(request) {
         case "nanobanana":
         case "chutes":
         case "runcrate":
+        case "apmix":
+        case "beatapi":
+        case "daoxe":
+        case "demonroute":
+        case "nan":
+        case "onomeo":
+        case "tokenmarket":
+        case "unifically":
+        case "y-api":
+        case "ainetcafe":
+        case "gisoo":
         case "xiaomi-mimo":
         case "xiaomi-tokenplan":
         case "nvidia": {

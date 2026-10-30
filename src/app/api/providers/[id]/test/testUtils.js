@@ -237,7 +237,7 @@ function parseProviderErrorMessage(bodyText, fallback) {
 
 async function probeCloudCodeAssistAccess(connection, accessToken, effectiveProxy = null) {
   const userAgent = connection.provider === "antigravity"
-    ? "google-api-nodejs-client/9.15.1 vscode-antigravity/1.107.0"
+    ? (ANTIGRAVITY_CONFIG.loadCodeAssistUserAgent || "antigravity/hub/2.24.0 darwin/arm64")
     : "google-api-nodejs-client/9.15.1 gemini-cli/0.34.0";
 
   const res = await fetchWithConnectionProxy(CLOUD_CODE_ASSIST_TEST_URL, {
@@ -752,9 +752,29 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
       case "agnes":
       case "bai":
       case "runcrate":
+      case "apmix":
+      case "beatapi":
+      case "daoxe":
+      case "demonroute":
+      case "nan":
+      case "onomeo":
+      case "tokenmarket":
+      case "unifically":
+      case "y-api":
+      case "ainetcafe":
+      case "gisoo":
       case "muse": {
         const cfg = PROVIDERS[connection.provider];
         const res = await fetchWithConnectionProxy(cfg.validateUrl, { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
+        return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
+      }
+      case "bigmodel": {
+        // No validateUrl in registry (upstream declares no modelsUrl): mirror the
+        // validate route's default probe, derived from baseUrl, instead of joining
+        // the generic group above (which would fetch an undefined URL).
+        const cfg = PROVIDERS[connection.provider];
+        const modelsUrl = cfg.baseUrl.replace(/\/chat\/completions$/, "/models");
+        const res = await fetchWithConnectionProxy(modelsUrl, { headers: { Authorization: `Bearer ${connection.apiKey}` } }, effectiveProxy);
         return { valid: res.ok, error: res.ok ? null : "Invalid API key" };
       }
       case "ollama": {
