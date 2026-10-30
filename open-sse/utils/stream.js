@@ -2,7 +2,7 @@ import { translateResponse, initState } from "../translator/index.js";
 import { FORMATS } from "../translator/formats.js";
 import { trackPendingRequest, appendRequestLog } from "@/lib/usageDb.js";
 import { extractUsage, mergeUsage, hasValidUsage, estimateUsage, logUsage, addBufferToUsage, filterUsageForFormat, attachTokensPerSecond, COLORS } from "./usageTracking.js";
-import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE } from "./streamHelpers.js";
+import { parseSSELine, hasValuableContent, fixInvalidId, formatSSE, ensureStreamToolCallIds } from "./streamHelpers.js";
 import { getOpenAIResponsesEventName, isOpenAIResponsesTerminalEvent, formatIncompleteOpenAIResponsesStreamFailure } from "./responsesStreamHelpers.js";
 import { dbg, isDebugEnabled } from "./debugLog.js";
 
@@ -183,6 +183,13 @@ export function createSSEStream(options = {}) {
   let buffer = "";
   let usage = null;
 
+  // Tool-call ids already sent to the client, keyed by tool-call index.
+  // A late fragment that opens a NEW index without an id must not reach
+  // the client as-is: strict clients abort the turn (#4992). The fast
+  // path below already bails to the slow path for any tool_calls line, so
+  // this covers every tool-call fragment on the passthrough path.
+  const seenToolCallIds = new Map();
+
   // Per-stream decoder with stream:true to correctly handle multi-byte chars split across chunks
   const decoder = new TextDecoder("utf-8", { fatal: false });
 
@@ -337,6 +344,11 @@ export function createSSEStream(options = {}) {
 
               const idFixed = fixInvalidId(parsed);
 
+              // A fragment that opens a new tool-call index without an id
+              // breaks strict OpenAI-compatible clients. Mint/reuse one
+              // before the chunk reaches the client (#4992).
+              const toolCallIdFixed = ensureStreamToolCallIds(parsed, seenToolCallIds);
+
               // Ensure OpenAI-required fields are present on streaming chunks (Letta compat)
               let fieldsInjected = false;
               if (parsed.choices !== undefined) {
@@ -410,7 +422,7 @@ export function createSSEStream(options = {}) {
                 parsed.usage = filterUsageForFormat(buffered, FORMATS.OPENAI);
                 output = `data: ${JSON.stringify(parsed)}\n`;
                 injectedUsage = true;
-              } else if (idFixed || fieldsInjected) {
+              } else if (idFixed || fieldsInjected || toolCallIdFixed) {
                 output = `data: ${JSON.stringify(parsed)}\n`;
                 injectedUsage = true;
               }

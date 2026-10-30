@@ -5,6 +5,23 @@ import { getModelUpstreamId } from "../config/providerModels.js";
 import { generateSessionId } from "../executors/opencode-zen.js";
 
 /**
+ * Join a saved host with the registry path, when the lane declares one.
+ * Only nace declares `path` today, so lanes without it behave exactly as
+ * before (saved host as-is, else the registry baseUrl).
+ */
+export function buildSystemoneUrl(override, cfg) {
+  const base = override?.trim();
+  if (!base) return cfg?.baseUrl;
+  if (!cfg?.path) return base;
+  const host = base.replace(/\/+$/, "");
+  const path = cfg.path.replace(/\/+$/, "");
+  if (host.endsWith(path)) return host;
+  const prefix = path.slice(0, path.lastIndexOf("/"));
+  if (prefix && host.endsWith(prefix)) return host + path.slice(prefix.length);
+  return host + path;
+}
+
+/**
  * Core System One (Jev) handler — native decision payload pass-through.
  * URL/headers come from the registry's systemoneConfig; body and JSON response
  * are forwarded untouched (decision models have no chat translation layer).
@@ -22,7 +39,7 @@ export async function handleSystemoneCore({
   const cfg = PROVIDER_MEDIA[provider]?.systemoneConfig;
   // Base URL bisa di-override per koneksi via providerSpecificData (mis. v1m
   // dengan endpoint kustom); fallback ke konfigurasi registry.
-  let targetUrl = credentials?.providerSpecificData?.baseUrl || cfg?.baseUrl;
+  let targetUrl = buildSystemoneUrl(credentials?.providerSpecificData?.baseUrl, cfg);
   if (!targetUrl) {
     return createErrorResult(
       HTTP_STATUS.BAD_REQUEST,

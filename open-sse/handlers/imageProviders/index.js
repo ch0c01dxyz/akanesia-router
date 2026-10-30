@@ -27,6 +27,7 @@ const ADAPTERS = {
   xai: createOpenAIAdapter("xai"),
   venice: createOpenAIAdapter("venice"),
   tokenrouter: createOpenAIAdapter("tokenrouter"),
+  sensenova: createOpenAIAdapter("sensenova"),
   gemini,
   codex,
   sdwebui,
