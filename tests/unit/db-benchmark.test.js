@@ -43,6 +43,8 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  global._dbAdapter?.instance?.close();
+  delete global._dbAdapter;
   if (tempSqlite) fs.rmSync(tempSqlite, { recursive: true, force: true });
   if (tempLowdb) fs.rmSync(tempLowdb, { recursive: true, force: true });
   if (originalDataDir === undefined) delete process.env.DATA_DIR;

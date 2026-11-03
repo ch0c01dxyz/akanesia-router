@@ -146,13 +146,15 @@ describe("adapters.manifest.js hasil generate", () => {
     expect(new Set(ids).size).toBe(ids.length); // tanpa duplikat
     expect(ADAPTER_IDS.length).toBe(ids.length);
     // File registry (index.js hasil generate): hitung entri aktif.
-    // 3 provider SENGAJA dinonaktifkan (trae, devin-cli, windsurf) → 328 aktif.
+    // Retired providers stay out of the registry; active IDs must all have adapters.
     const registryIndex = (await import("node:fs")).readFileSync(
       new URL("../../open-sse/providers/registry/index.js", import.meta.url),
       "utf8"
     );
     const jumlahEntri = (registryIndex.match(/^import p\d+ from/gm) || []).length;
-    expect(jumlahEntri).toBe(328);
+    const { default: REGISTRY } = await import("../../open-sse/providers/registry/index.js");
+    expect(jumlahEntri).toBe(REGISTRY.length);
+    for (const entry of REGISTRY) expect(ADAPTER_MANIFEST[entry.id]).toBeDefined();
     for (const id of ADAPTER_IDS) {
       expect(ADAPTER_MANIFEST[id].file).toMatch(/\.js$/); // ekstensi wajib
       expect(typeof ADAPTER_MANIFEST[id].exportName).toBe("string");

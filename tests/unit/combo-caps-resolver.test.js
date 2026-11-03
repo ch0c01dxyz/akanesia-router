@@ -17,8 +17,8 @@ describe("aggregateComboCapabilities: resolveCaps override", () => {
 
   it("falls back to the pattern default without a resolver", () => {
     const caps = aggregateComboCapabilities(models);
-    // glm-5.3 has no exact entry, so the *glm-5.3* pattern gives 200k and caps the combo.
-    expect(caps.contextWindow).toBe(200_000);
+    // The current GLM/DeepSeek catalog already advertises a 1M context.
+    expect(caps.contextWindow).toBe(1_000_000);
   });
 
   it("uses the fed limits when a resolver supplies them", () => {
@@ -65,7 +65,7 @@ describe("aggregateComboCapabilities: resolveCaps override", () => {
     expect(caps.contextWindow).toBe(getCapabilitiesForModel("kimi", "kimi-k3").contextWindow);
   });
 
-  it("claude-haiku-5-5 combo: 1M only through the provider-alias resolver", () => {
+  it("claude-haiku-5-5 combo keeps the catalog's 1M limit with either resolver", () => {
     const seats = ["ocg/claude-haiku-5-5", "cmc/claude-haiku-5-5"];
     const seatCaps = (fullId) => {
       const slash = fullId.indexOf("/");
@@ -73,7 +73,7 @@ describe("aggregateComboCapabilities: resolveCaps override", () => {
       const providerId = { ocg: "opencode-go", cmc: "commandcode" }[fullId.slice(0, slash)] || fullId.slice(0, slash);
       return getCapabilitiesForModel(providerId, fullId.slice(slash + 1));
     };
-    expect(aggregateComboCapabilities(seats).contextWindow).toBe(200_000);
+    expect(aggregateComboCapabilities(seats).contextWindow).toBe(1_000_000);
     expect(aggregateComboCapabilities(seats, null, seatCaps).contextWindow).toBe(1_000_000);
   });
 });

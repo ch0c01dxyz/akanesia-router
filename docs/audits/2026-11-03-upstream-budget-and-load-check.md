@@ -1,5 +1,7 @@
 # Batas fallback, pembatalan satu akun, dan pemeriksaan beban
 
+Tindak lanjut: [perbaikan suite dan kontrak provider](2026-11-03-remaining-suite-repairs.md) menghasilkan gate offline dengan 4.967 tes lulus dan nol kegagalan. Angka kegagalan di bawah merupakan hasil historis sebelum tindak lanjut tersebut.
+
 ## Perubahan yang diterapkan
 
 - Error konfigurasi proxy diberi kode `ERR_PROXY_CONFIG` dan tidak lagi masuk retry jaringan pada executor default. Pemilihan akun berikutnya tetap tersedia.

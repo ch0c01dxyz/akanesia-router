@@ -18,6 +18,8 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  global._dbAdapter?.instance?.close();
+  delete global._dbAdapter;
   if (tempDir) fs.rmSync(tempDir, { recursive: true, force: true });
   if (originalDataDir === undefined) delete process.env.DATA_DIR;
   else process.env.DATA_DIR = originalDataDir;
@@ -26,10 +28,12 @@ afterAll(() => {
 describe("DB Concurrency — atomic safety", () => {
   it("100 parallel saveRequestUsage → no count loss", async () => {
     const N = 100;
+    const timestamp = new Date().toISOString();
     const promises = [];
     for (let i = 0; i < N; i++) {
       promises.push(db.saveRequestUsage({
         provider: "openai", model: "gpt-4", connectionId: "c1",
+        timestamp,
         tokens: { prompt_tokens: 10, completion_tokens: 5 },
         endpoint: "/v1/chat", status: "ok",
       }));

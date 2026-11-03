@@ -9,6 +9,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+const originalFetch = globalThis.fetch;
+afterEach(() => { globalThis.fetch = originalFetch; });
 
 // ─── DefaultExecutor.buildHeaders() ──────────────────────────────────────────
 
@@ -268,7 +270,9 @@ describe("proxyAwareFetch — api.anthropic.com routing", () => {
     vi.restoreAllMocks();
   });
 
-  it("routes api.anthropic.com to gotScraping (non-streaming) and returns ok response", async () => {
+  it("uses native fetch for api.anthropic.com without the retired gotScraping path", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ id: "msg_test" }));
+    globalThis.fetch = fetchMock;
     // Mock got-scraping before module load
     vi.doMock("got-scraping", () => {
       const mockGotScraping = vi.fn().mockResolvedValue({
@@ -292,7 +296,8 @@ describe("proxyAwareFetch — api.anthropic.com routing", () => {
       body: JSON.stringify({ model: "claude-3-5-sonnet-20241022", messages: [] }),
     });
 
-    expect(gotScraping).toHaveBeenCalledOnce();
+    expect(gotScraping).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(res.ok).toBe(true);
     expect(res.status).toBe(200);
     const data = await res.json();

@@ -95,17 +95,24 @@ export function parseCursorUsableModels(payload) {
  */
 function http2PostProto(url, headers, body, signal, timeoutMs) {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason || new DOMException("Request aborted", "AbortError"));
+      return;
+    }
     const urlObj = new URL(url);
     const client = http2.connect(`https://${urlObj.host}`);
     const chunks = [];
     let responseHeaders = {};
     let settled = false;
+    let req, onAbort;
 
     const finish = (fn) => (...args) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
-      try { client.close(); } catch {}
+      if (onAbort) signal.removeEventListener("abort", onAbort);
+      try { req?.close(); } catch {}
+      try { client.destroy(); } catch {}
       fn(...args);
     };
 
@@ -115,7 +122,7 @@ function http2PostProto(url, headers, body, signal, timeoutMs) {
 
     client.on("error", finish(reject));
 
-    const req = client.request({
+    req = client.request({
       ":method": "POST",
       ":path": urlObj.pathname,
       ":authority": urlObj.host,
@@ -134,9 +141,8 @@ function http2PostProto(url, headers, body, signal, timeoutMs) {
     req.on("error", finish(reject));
 
     if (signal) {
-      const onAbort = finish(() => reject(new Error("Request aborted")));
-      if (signal.aborted) onAbort();
-      else signal.addEventListener("abort", onAbort, { once: true });
+      onAbort = finish(() => reject(signal.reason || new DOMException("Request aborted", "AbortError")));
+      signal.addEventListener("abort", onAbort, { once: true });
     }
 
     req.end(body && body.length ? Buffer.from(body) : undefined);

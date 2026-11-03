@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { getCapabilitiesForModel } from "../../open-sse/providers/capabilities.js";
+import { applyThinking } from "../../open-sse/translator/concerns/thinkingUnified.js";
 
 describe("getCapabilitiesForModel", () => {
+  it("uses a supported native thinking format for Gemini Argon", () => {
+    const body = applyThinking("gemini", "gemini-4-argon", { reasoning_effort: "high" });
+    expect(getCapabilitiesForModel(undefined, "gemini-4-argon").thinkingFormat).toBe("gemini-level");
+    expect(body.generationConfig.thinkingConfig.thinkingLevel).toBe("high");
+  });
 
   it("reports DeepSeek V4.1-Flash ids as vision-capable without dropping their thinking/context", () => {
     const v41 = { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 };

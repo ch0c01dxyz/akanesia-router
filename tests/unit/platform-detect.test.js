@@ -165,8 +165,8 @@ describe("varian async (tidak blokir event loop)", () => {
 
   it("findOnPathAsync: memakai extraPath", async () => {
     const dir = fs.mkdtempSync(path.join(tmpDir, "bin-async-"));
-    const exe = path.join(dir, "alat-async");
-    fs.writeFileSync(exe, "#!/bin/sh\nexit 0\n");
+    const exe = path.join(dir, IS_WINDOWS ? "alat-async.cmd" : "alat-async");
+    fs.writeFileSync(exe, IS_WINDOWS ? "@exit /b 0\r\n" : "#!/bin/sh\nexit 0\n");
     fs.chmodSync(exe, 0o755);
     expect(await findOnPathAsync("alat-async", dir)).toBe(exe);
   });

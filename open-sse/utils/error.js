@@ -1,4 +1,4 @@
-import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES } from "../config/errorConfig.js";
+import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES, isAccountVerificationError } from "../config/errorConfig.js";
 import { bacaBodyTerbatas } from "./bacaBodyTerbatas.js";
 import { upstreamRetryResetMs } from "./upstreamHeaders.js";
 
@@ -9,7 +9,8 @@ import { upstreamRetryResetMs } from "./upstreamHeaders.js";
  * @returns {object} Error response object
  */
 export function buildErrorBody(statusCode, message) {
-  const errorInfo = ERROR_TYPES[statusCode] || 
+  const errorInfo = (isAccountVerificationError(statusCode, message)
+    ? { type: "permission_error", code: "email_verification_required" } : ERROR_TYPES[statusCode]) ||
     (statusCode >= 500 
       ? { type: "server_error", code: "internal_server_error" }
       : { type: "invalid_request_error", code: "" });

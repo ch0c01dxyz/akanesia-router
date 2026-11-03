@@ -31,6 +31,8 @@ vi.mock("../../open-sse/executors/index.js", () => ({
 
 vi.mock("../../open-sse/translator/index.js", () => ({
   translateRequest: translateRequestMock,
+  ensureTranslatorsFor: vi.fn(async () => {}),
+  ensureTranslatorsForRequest: vi.fn(async () => {}),
 }));
 
 vi.mock("../../open-sse/handlers/chatCore/nonStreamingHandler.js", () => ({

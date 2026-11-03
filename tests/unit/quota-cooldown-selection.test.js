@@ -15,6 +15,16 @@ beforeEach(() => { vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(now)
 afterEach(() => vi.useRealTimers());
 
 describe("quota cooldown selection", () => {
+  it("holds an email-unverified account across models without disabling its credential", async () => {
+    db.getProviderConnections.mockResolvedValue([{ id: "verify", backoffLevel: 0 }]);
+    db.getSettings.mockResolvedValue({ providerRetryDelaySeconds: { tokenharbor: 1 } });
+    expect(await markAccountUnavailable("verify", 403, "Verify your email address to use the API", "tokenharbor", "first-model"))
+      .toMatchObject({ shouldFallback: true, cooldownMs: 1800000 });
+    const patch = db.updateProviderConnection.mock.calls[0][1];
+    expect(patch.modelLock___all).toBe(at(1800));
+    expect(patch["modelLock_first-model"]).toBeUndefined();
+    expect(patch.isActive).toBeUndefined();
+  });
   it("reports the first usable requested-model account, not an unrelated shorter lock", async () => {
     db.getProviderConnections.mockResolvedValue([
       { id: "slow", modelLock_requested: at(120), modelLock_other: at(1), errorCode: 402, lastError: "no credits" },

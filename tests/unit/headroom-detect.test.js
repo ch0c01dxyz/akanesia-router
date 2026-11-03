@@ -38,8 +38,8 @@ const PIP_LIST_JSON = JSON.stringify([
 // pengecekan isExecutablePath memakai fs asli (tanpa mock fs).
 function makeFakeBin({ withHeadroomExtras = true } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hr-detect-"));
-  const headroomBin = path.join(dir, "headroom");
-  const binPython = path.join(dir, "python3");
+  const headroomBin = path.join(dir, process.platform === "win32" ? "headroom.exe" : "headroom");
+  const binPython = path.join(dir, process.platform === "win32" ? "python.exe" : "python3");
   for (const p of [headroomBin, binPython]) {
     fs.writeFileSync(p, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   }
@@ -55,6 +55,7 @@ import {
 } from "../../src/lib/headroom/detect.js";
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
   invalidateHeadroomStatusCache();
 });
@@ -88,7 +89,7 @@ describe("headroom detect (async)", () => {
     const { headroomBin, binPython } = makeFakeBin();
     mockExecFile((file, args) => {
       const a = args.join(" ");
-      if (file === "which" && args[0] === "headroom") return `${headroomBin}\n`;
+      if ((file === "which" || file === "where") && args[0] === "headroom") return `${headroomBin}\n`;
       if (file === headroomBin && a === "--version") return "headroom 0.26.0\n";
       if (file === binPython && a === "--version") return "Python 3.13.0\n";
       if (file === binPython && a === "-m pip show headroom-ai") {
@@ -107,7 +108,7 @@ describe("headroom detect (async)", () => {
     global.fetch = vi.fn(async () => new Response("ok", { status: 200 }));
     mockExecFile((file, args) => {
       const a = args.join(" ");
-      if (file === "which" && args[0] === "headroom") return `${headroomBin}\n`;
+      if ((file === "which" || file === "where") && args[0] === "headroom") return `${headroomBin}\n`;
       if (file === headroomBin && a === "--version") return "headroom 0.26.0\n";
       if (file === binPython && a === "--version") return "Python 3.13.0\n";
       if (file === binPython && a === "-m pip show headroom-ai") {
@@ -131,6 +132,7 @@ describe("headroom detect (async)", () => {
   });
 
   it("treats a reachable external proxy as running without local CLI", async () => {
+    vi.spyOn(fs, "existsSync").mockReturnValue(false);
     global.fetch = vi.fn(async () => new Response("ok", { status: 200 }));
     mockExecFile(() => { throw new Error("not found"); });
 

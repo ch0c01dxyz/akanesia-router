@@ -3,7 +3,7 @@ import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/con
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
 import { resolveProviderRetryDelayMs } from "./providerRetryDelay.js";
 import { ensureAntigravityCooldownsRestored } from "./argonCooldownStore.js";
-import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
+import { MAX_RATE_LIMIT_COOLDOWN_MS, isAccountVerificationError } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getAntigravityQuotaCache } from "./antigravityQuota.js";
 import { recordFailure, recordSuccess } from "./quotaIncidents.js";
@@ -309,7 +309,9 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
   if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0 };
 
   const reason = typeof errorText === "string" ? errorText.slice(0, 200) : "Provider error";
-  const lockUpdate = buildModelLockUpdate(githubResetAtMs ? null : model, cooldownMs);
+  const requiresVerification = isAccountVerificationError(status, errorText);
+  if (requiresVerification) cooldownMs = MAX_RATE_LIMIT_COOLDOWN_MS;
+  const lockUpdate = buildModelLockUpdate(githubResetAtMs || requiresVerification ? null : model, cooldownMs);
 
   await updateProviderConnection(connectionId, {
     ...lockUpdate,

@@ -103,7 +103,7 @@ describe("OpenCodeGoExecutor routing + sanitization", () => {
       reasoning_effort: "high",
     };
     const out = ex.transformRequest(MODEL, body, true, {});
-    expect(out.max_output_tokens).toBe(2048);
+    expect(out.max_output_tokens).toBe(6144);
     expect(out.max_tokens).toBeUndefined();
     expect(out.reasoning).toEqual({ effort: "high", summary: "auto" });
     expect(out.stream).toBe(true);

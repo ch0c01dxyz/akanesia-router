@@ -188,10 +188,10 @@ export const MODEL_CAPABILITIES = {
   "glm-5.3-flash-free":      { vision: true, videoInput: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 32000 },
   "deepseek-v4.1-flash-free":{ vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 32000 },
   "nemotron-3.5-super-vl-free": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
-  "claude-haiku-5-5":        { vision: true, pdf: true, reasoning: true, thinkingFormat: "anthropic", contextWindow: 1000000, maxOutput: 128000 },
+  "claude-haiku-5-5":        { vision: true, pdf: true, reasoning: true, thinkingFormat: "claude-budget", contextWindow: 1000000, maxOutput: 128000 },
   // NOTE: sonnet/opus 5-5 must NOT be re-declared here — the canonical entries
   // above (claude-adaptive + forcedToolChoice:false) win only when unique.
-  "gemini-4-argon":          { vision: true, videoInput: true, audioInput: true, pdf: true, reasoning: true, thinkingFormat: "gemini", contextWindow: 1048576, maxOutput: 65536 },
+  "gemini-4-argon":          { vision: true, videoInput: true, audioInput: true, pdf: true, reasoning: true, thinkingFormat: "gemini-level", contextWindow: 1048576, maxOutput: 65536 },
   "gpt-6-luna":              { vision: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1050000, maxOutput: 128000 },
   "gpt-6-sol":               { vision: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1050000, maxOutput: 128000 },
   "gpt-6.1-sol":             { vision: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1050000, maxOutput: 128000 },

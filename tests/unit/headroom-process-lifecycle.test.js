@@ -22,7 +22,8 @@ function freePort() {
   });
 }
 
-beforeAll(() => {
+let proc, invalidateHeadroomStatusCache;
+beforeAll(async () => {
   // Fake headroom binary: `headroom proxy --port <p>` serves /health after a
   // short boot delay (exercises the wait-for-health path); `--version` exits 0.
   const script = `#!/usr/bin/env node
@@ -47,11 +48,11 @@ setTimeout(() => {
   }
   process.env.PATH = `${BIN_DIR}${path.delimiter}${process.env.PATH}`;
   process.env.DATA_DIR = path.join(TMP, "data");
+  proc = await import("../../src/lib/headroom/process.js");
+  ({ invalidateHeadroomStatusCache } = await import("../../src/lib/headroom/detect.js"));
 });
 
 // Dynamic import AFTER env setup so DATA_DIR and PATH are picked up.
-const proc = await import("../../src/lib/headroom/process.js");
-const { invalidateHeadroomStatusCache } = await import("../../src/lib/headroom/detect.js");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
