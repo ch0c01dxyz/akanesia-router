@@ -31,6 +31,8 @@ function isPrivateIp(ip) {
   if (a === 192 && b === 168) return true;
   if (a === 169 && b === 254) return true; // link-local + cloud metadata
   if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+  if (a >= 224 && a <= 239) return true; // multicast — never a valid fetch target
+  if (a >= 240) return true; // reserved Class E + limited broadcast — never public
   return false;
 }
 

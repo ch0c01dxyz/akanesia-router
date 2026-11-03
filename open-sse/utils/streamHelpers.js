@@ -9,8 +9,10 @@ const sharedEncoder = new TextEncoder();
 export function parseSSELine(line, format = null) {
   if (!line) return null;
 
-  // NDJSON format (Ollama): raw JSON lines without "data:" prefix
-  if (format === FORMATS.OLLAMA) {
+  // NDJSON: raw JSON lines without "data:" prefix. Not Ollama-only: any
+  // provider emitting bare JSON lines (e.g. Ollama-compatible backends behind
+  // an OPENAI targetFormat) must parse; SSE lines always start with "data:".
+  if (format === FORMATS.OLLAMA || line.trim().startsWith("{")) {
     const trimmed = line.trim();
     if (trimmed.startsWith("{")) {
       try {

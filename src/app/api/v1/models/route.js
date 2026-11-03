@@ -426,9 +426,13 @@ async function buildModelsListUncached(kindFilter, options = {}) {
     }
 
     for (const customModel of customModels) {
-      if (!customModel?.id || (customModel.type && customModel.type !== "llm")) continue;
-      // Custom models without active connection are LLM-only by current schema
-      if (!kindFilter.includes(LLM_KIND)) continue;
+      if (!customModel?.id) continue;
+      // Samakan dengan cabang berkoneksi: filter per-kind via getModelKind
+      // (dulu custom model non-llm hilang dari /v1/models/{kind} saat nol
+      // koneksi). imageToText tetap masuk daftar llm (chat berkemampuan vision).
+      const kind = getModelKind(customModel) || LLM_KIND;
+      const allowAsLlm = kind === "imageToText" && kindFilter.includes(LLM_KIND);
+      if (!kindFilter.includes(kind) && !allowAsLlm) continue;
       const providerAlias = customModel.providerAlias;
       if (!providerAlias) continue;
 

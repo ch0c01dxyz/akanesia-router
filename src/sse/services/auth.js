@@ -1,4 +1,4 @@
-import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProxyPools } from "@/lib/localDb";
+import { getProviderConnections, getProviderConnectionById, validateApiKey, updateProviderConnection, getSettings, getProxyPools } from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
 import { resolveProviderRetryDelayMs } from "./providerRetryDelay.js";
@@ -345,7 +345,18 @@ export async function clearAccountError(connectionId, currentConnection, model =
   await recordSuccess(connectionId, model);
 
   if (!connectionId || connectionId === "noauth") return;
-  const conn = currentConnection._connection || currentConnection;
+  // Snapshot _connection diambil saat seleksi akun — kegagalan konkuren
+  // pada model lain bisa mengunci + menulis error state setelahnya. Putusan
+  // reset error state harus memakai state DB segar, kalau tidak reset ini
+  // menimpa jejak kegagalan konkuren tersebut. Fail-open ke snapshot bila
+  // baca ulang gagal (perilaku lama).
+  let conn = currentConnection._connection || currentConnection;
+  try {
+    const fresh = await getProviderConnectionById(connectionId);
+    if (fresh) conn = fresh;
+  } catch {
+    // Abaikan — snapshot tetap dipakai.
+  }
   const now = Date.now();
   const allLockKeys = Object.keys(conn).filter(k => k.startsWith("modelLock_"));
 

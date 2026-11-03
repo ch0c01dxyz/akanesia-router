@@ -1,7 +1,9 @@
 export default {
   id: "featherless-ai",
   priority: 50,
-  alias: "featherless",
+  // No alias: "featherless" belongs to the featherless provider (id == alias).
+  // A duplicate alias here overwrote its PROVIDER_MODELS entry and broke
+  // alias→id resolution order-dependently.
   display: {
     name: "Featherless Ai",
     icon: "smart_toy",

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteProviderConnectionsByProvider, deleteProviderNode, getProviderConnections, getProviderNodeById, updateProviderConnection, updateProviderNode } from "@/models";
+import { deleteProviderConnectionsByProvider, deleteProviderNode, getProviderConnections, getProviderNodeById, getProviderNodes, updateProviderConnection, updateProviderNode } from "@/models";
 import { sanitizeCustomHeaders } from "@/shared/utils/customHeaders.js";
 import { isReservedProviderPrefix } from "@/sse/services/model.js";
 
@@ -28,6 +28,16 @@ export async function PUT(request, { params }) {
     if (isReservedProviderPrefix(prefix)) {
       return NextResponse.json(
         { error: `Prefix "${prefix.trim()}" is reserved by a built-in provider. Choose a different prefix.` },
+        { status: 400 }
+      );
+    }
+
+    // Sama seperti pembuatan: prefix duplikat antar node membuat node kedua
+    // tidak pernah ter-routing (find() exact-match, node pertama menang).
+    const prefixClash = (await getProviderNodes()).find((n) => n.prefix === prefix.trim() && n.id !== id);
+    if (prefixClash) {
+      return NextResponse.json(
+        { error: `Prefix "${prefix.trim()}" sudah dipakai node "${prefixClash.name}".` },
         { status: 400 }
       );
     }

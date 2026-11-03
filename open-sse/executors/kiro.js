@@ -324,9 +324,9 @@ export class KiroExecutor extends BaseExecutor {
 
   // Retry only endpoint/auth-surface failures. Payload-invalid HTTP 400 must be
   // terminal: sending the same malformed body to every surface cannot repair it.
-  shouldRetry(status, urlIndex) {
-    const hasFallback = urlIndex + 1 < this.getFallbackCount();
-    return super.shouldRetry(status, urlIndex)
+  shouldRetry(status, urlIndex, fallbackCount = this.getFallbackCount()) {
+    const hasFallback = urlIndex + 1 < fallbackCount;
+    return super.shouldRetry(status, urlIndex, fallbackCount)
       || (hasFallback && KIRO_ENDPOINT_FALLBACK_STATUSES.has(status));
   }
 
@@ -448,7 +448,10 @@ export class KiroExecutor extends BaseExecutor {
     const retry = await BaseExecutor.prototype.execute.call(this, {
       ...args,
       body: repairBody,
-      signal: options.signal
+      signal: options.signal,
+      // Single-surface: the retry must surface its own failure (e.g. 401 body)
+      // instead of sweeping auth surfaces and stalling the committed stream.
+      fallbackLimit: 1
     });
     if (!retry?.response?.ok) {
       let body = "";

@@ -110,7 +110,13 @@ export function captureThinking(body) {
   const cfg = extractThinking(body);
   if (!cfg || cfg.mode === "none") return cfg;
   const display = openAIThinkingDisplay(body);
-  return display ? { ...cfg, display } : cfg;
+  const out = display ? { ...cfg, display } : { ...cfg };
+  // Responses API: an explicit summary choice (notably "none") is client
+  // intent, not a default — carry it so applyThinking does not force "auto".
+  if (body.reasoning && typeof body.reasoning === "object" && typeof body.reasoning.summary === "string" && body.reasoning.summary) {
+    out.summary = body.reasoning.summary;
+  }
+  return out;
 }
 
 function openAIThinkingDisplay(body) {
@@ -257,7 +263,7 @@ function stripAll(body) {
 }
 
 // Apply unified thinking config to body in the resolved provider-native format.
-function applyFormat(fmt, body, cfg, caps, supportedLevels, display) {
+function applyFormat(fmt, body, cfg, caps, supportedLevels, display, summary) {
   const none = cfg.mode === "none";
   const canDisable = caps.thinkingCanDisable !== false;
   // Model cannot disable thinking → clamp "none" to minimal effort instead.
@@ -281,7 +287,7 @@ function applyFormat(fmt, body, cfg, caps, supportedLevels, display) {
           ? body.reasoning
           : {};
         body.reasoning = { ...current, effort: normalizeOpenAILevel(level, supportedLevels) };
-        if (!body.reasoning.summary) body.reasoning.summary = "auto";
+        if (!body.reasoning.summary) body.reasoning.summary = summary || "auto";
       }
       delete body.reasoning_effort;
       break;
@@ -446,6 +452,6 @@ export function applyThinking(targetFormat, model, body, provider = null, intent
   // An OpenAI-shaped client's ask arrives via the captured intent instead.
   const display = typeof body.thinking?.display === "string" ? body.thinking.display : intent?.display;
   stripAll(body);
-  applyFormat(fmt, body, cfg, caps, supportedLevels, display);
+  applyFormat(fmt, body, cfg, caps, supportedLevels, display, intent?.summary);
   return body;
 }

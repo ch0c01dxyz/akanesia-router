@@ -384,6 +384,15 @@ export function createSSEStream(options = {}) {
                 }
               }
 
+              // Usage must be captured even when the chunk carries nothing else:
+              // a usage-only chunk (empty delta, no finish_reason) is dropped
+              // below as valueless, but its token counts are real — extracting
+              // after the drop replaced real usage with an estimate.
+              const extracted = extractUsage(parsed);
+              if (extracted) {
+                usage = mergeUsage(usage, extracted);
+              }
+
               if (!hasValuableContent(parsed, FORMATS.OPENAI)) {
                 continue;
               }
@@ -402,18 +411,22 @@ export function createSSEStream(options = {}) {
                 tandaiTokenKontenPertama();
               }
 
-              const extracted = extractUsage(parsed);
-              if (extracted) {
-                usage = mergeUsage(usage, extracted);
-              }
-
               responsesTerminal = isOpenAIResponsesTerminalEvent(currentOpenAIResponsesEvent, parsed);
 
               const isFinishChunk = parsed.choices?.[0]?.finish_reason;
               if (isFinishChunk && !hasValidUsage(parsed.usage)) {
-                const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
-                usage = denganTokensPerSecond(estimated);
-                parsed.usage = filterUsageForFormat(usage, FORMATS.OPENAI);
+                // Prefer usage accumulated from earlier chunks (e.g. a
+                // usage-only chunk) over an estimate — estimating here
+                // silently discarded real counts already extracted above.
+                if (hasValidUsage(usage)) {
+                  usage = denganTokensPerSecond(usage);
+                  const buffered = addBufferToUsage(usage);
+                  parsed.usage = filterUsageForFormat(buffered, FORMATS.OPENAI);
+                } else {
+                  const estimated = estimateUsage(body, totalContentLength, FORMATS.OPENAI);
+                  usage = denganTokensPerSecond(estimated);
+                  parsed.usage = filterUsageForFormat(usage, FORMATS.OPENAI);
+                }
                 output = `data: ${JSON.stringify(parsed)}\n`;
                 injectedUsage = true;
               } else if (isFinishChunk && usage) {
@@ -578,9 +591,17 @@ export function createSSEStream(options = {}) {
             // Inject estimated usage if finish chunk has no valid usage
             const isFinishChunk = item.type === "message_delta" || item.choices?.[0]?.finish_reason;
             if (state.finishReason && isFinishChunk && !hasValidUsage(item.usage) && totalContentLength > 0) {
-              const estimated = estimateUsage(body, totalContentLength, sourceFormat);
-              state.usage = denganTokensPerSecond(estimated);
-              item.usage = filterUsageForFormat(state.usage, sourceFormat); // Filter + already has buffer
+              // Same rule as the passthrough path: usage already extracted
+              // from earlier chunks wins over an estimate.
+              if (hasValidUsage(state.usage)) {
+                state.usage = denganTokensPerSecond(state.usage);
+                const buffered = addBufferToUsage(state.usage);
+                item.usage = filterUsageForFormat(buffered, sourceFormat);
+              } else {
+                const estimated = estimateUsage(body, totalContentLength, sourceFormat);
+                state.usage = denganTokensPerSecond(estimated);
+                item.usage = filterUsageForFormat(state.usage, sourceFormat); // Filter + already has buffer
+              }
             } else if (state.finishReason && isFinishChunk && state.usage) {
               // Add buffer and filter usage for client (but keep original in state.usage for logging)
               state.usage = denganTokensPerSecond(state.usage);
@@ -630,8 +651,22 @@ export function createSSEStream(options = {}) {
             if (buffer.startsWith("data:") && !buffer.startsWith("data: ")) {
               output = "data: " + buffer.slice(5);
             }
-            reqLogger?.appendConvertedChunk?.(output);
-            enqueueKeKlien(controller, sharedEncoder.encode(output));
+            // A truncated tail line is not JSON — the transform loop drops
+            // non-JSON data lines, so flush must not forward the garbage.
+            if (output.startsWith("data:")) {
+              const payload = output.slice(5).trim();
+              if (payload !== "[DONE]") {
+                try {
+                  JSON.parse(payload);
+                } catch {
+                  output = null;
+                }
+              }
+            }
+            if (output) {
+              reqLogger?.appendConvertedChunk?.(output);
+              enqueueKeKlien(controller, sharedEncoder.encode(output));
+            }
           }
 
           // IMPORTANT: In passthrough mode we still must terminate the SSE stream.

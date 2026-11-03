@@ -1,7 +1,9 @@
 export default {
   id: "baidu",
-  alias: "qianfan",
-  aliases: ["qianfan", "ernie", "baidu-qianfan"],
+  // No alias: "qianfan" belongs to the qianfan provider (id == alias).
+  // A duplicate alias here overwrote its PROVIDER_MODELS entry and broke
+  // alias→id resolution order-dependently.
+  aliases: ["ernie", "baidu-qianfan"],
   uiAlias: "qianfan",
   category: "apikey",
   authType: "apikey",

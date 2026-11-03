@@ -65,6 +65,18 @@ export function buildCombosExport(combos, strategies = {}) {
   };
 }
 
+// Aturan models yang sama dipakai POST/PUT/PATCH combo: undefined/null berarti
+// "tidak diubah" (POST default ke []), selain itu wajib array string non-kosong
+// — string polos yang lolos akan tersimpan sebagai JSON string dan merusak
+// consumer yang mengira models selalu array.
+export function isValidComboModels(models) {
+  return (
+    models === undefined ||
+    models === null ||
+    (Array.isArray(models) && models.every((m) => typeof m === "string" && !!m))
+  );
+}
+
 // Validates a parsed import file. Returns { ok: true, mode, combos } or
 // { ok: false, error }. Never throws on malformed input.
 export function parseComboImportFile(body) {

@@ -109,7 +109,29 @@ export function translateNonStreamingResponse(responseBody, targetFormat, source
   // Gemini / Antigravity
   if (targetFormat === FORMATS.GEMINI || targetFormat === FORMATS.ANTIGRAVITY || targetFormat === FORMATS.GEMINI_CLI || targetFormat === FORMATS.VERTEX) {
     const response = responseBody.response || responseBody;
-    if (!response?.candidates?.[0]) return responseBody;
+    if (!response?.candidates?.[0]) {
+      // Safety-blocked prompt: return a real completion with content_filter
+      // instead of a candidate-less Gemini body an OpenAI client cannot read.
+      if (response?.promptFeedback?.blockReason) {
+        const blockedUsage = response.usageMetadata || responseBody.usageMetadata;
+        const blocked = {
+          id: `chatcmpl-${response.responseId || Date.now()}`,
+          object: "chat.completion",
+          created: Math.floor(new Date(response.createTime || Date.now()).getTime() / 1000),
+          model: response.modelVersion || "gemini",
+          choices: [{ index: 0, message: { role: "assistant", content: "" }, finish_reason: "content_filter" }]
+        };
+        if (blockedUsage) {
+          blocked.usage = {
+            prompt_tokens: (blockedUsage.promptTokenCount || 0) + (blockedUsage.thoughtsTokenCount || 0),
+            completion_tokens: blockedUsage.candidatesTokenCount || 0,
+            total_tokens: blockedUsage.totalTokenCount || 0
+          };
+        }
+        return blocked;
+      }
+      return responseBody;
+    }
 
     const candidate = response.candidates[0];
     const content = candidate.content;

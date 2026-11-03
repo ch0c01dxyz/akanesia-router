@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { FORMATS } from "../../open-sse/translator/formats.js";
 import { createSSETransformStreamWithLogger } from "../../open-sse/utils/stream.js";
+// Side-effect import: translators register lazily via TRANSLATOR_MANIFEST in
+// production (chatCore awaits ensureTranslatorsForRequest first). This test
+// builds the stream directly, so it must load the Ollama translator itself —
+// without it, raw NDJSON chunks pass through untranslated.
+import "../../open-sse/translator/response/ollama-to-openai.js";
 
 // Ollama streams NDJSON — one raw JSON object per line, no "data: " prefix.
 // Whatever arrives without a closing newline stays in the line buffer and is

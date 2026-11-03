@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCombos, createCombo, getComboByName } from "@/lib/localDb";
+import { isValidComboModels } from "@/lib/combosPortable";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,10 @@ export async function POST(request) {
     const existing = await getComboByName(name);
     if (existing) {
       return NextResponse.json({ error: "Combo name already exists" }, { status: 400 });
+    }
+
+    if (!isValidComboModels(models)) {
+      return NextResponse.json({ error: "models harus berupa array string" }, { status: 400 });
     }
 
     const combo = await createCombo({ name, models: models || [], kind: kind || null });

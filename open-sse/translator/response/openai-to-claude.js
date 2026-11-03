@@ -233,10 +233,16 @@ export function openaiToClaudeResponse(chunk, state) {
           idx = state.toolIdToIdx.get(tc.id);
         }
       } else if (state.toolIdToIdx.size > 0) {
-        // Chunk lanjutan tanpa id: cari idx dari tool call terakhir yang aktif
-        // (fallback ke upstreamIdx bila tidak ada mapping)
-        const lastIdx = [...state.toolIdToIdx.values()].pop();
-        if (lastIdx !== undefined) idx = lastIdx;
+        // Chunk lanjutan tanpa id: pakai mapping upstream-index → internal idx
+        // yang dicatat saat blok dibuka (mis. delta Responses → OpenAI membawa
+        // index benar tanpa id; tanpa ini semua delta jatuh ke tool terakhir).
+        // Fallback ke tool terakhir bila index tak dikenal.
+        const mapped = state.toolUpstreamIdxToIdx?.get(upstreamIdx);
+        if (mapped !== undefined) idx = mapped;
+        else {
+          const lastIdx = [...state.toolIdToIdx.values()].pop();
+          if (lastIdx !== undefined) idx = lastIdx;
+        }
       }
 
       // GLM/fireworks repeats id+null-name on every arg chunk; open block once per idx
@@ -246,6 +252,9 @@ export function openaiToClaudeResponse(chunk, state) {
 
         const toolBlockIndex = state.nextBlockIndex++;
         state.toolCalls.set(idx, { id: tc.id, name: tc.function?.name || "", blockIndex: toolBlockIndex });
+        // Catat mapping upstream-index → internal idx untuk delta tanpa id.
+        if (!state.toolUpstreamIdxToIdx) state.toolUpstreamIdxToIdx = new Map();
+        state.toolUpstreamIdxToIdx.set(upstreamIdx, idx);
 
         // Strip prefix from tool name for response
         let toolName = tc.function?.name || "";

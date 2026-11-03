@@ -44,7 +44,27 @@ export function geminiToOpenAIResponse(chunk, state) {
   
   // Handle Antigravity wrapper
   const response = chunk.response || chunk;
-  if (!response || !response.candidates?.[0]) return null;
+  if (!response || !response.candidates?.[0]) {
+    // Candidate-less chunk: a usage-only trailer still carries counts worth
+    // keeping, and a safety block must surface as content_filter — otherwise
+    // the client sees a silent empty stream with no finish reason.
+    const usageMeta = response?.usageMetadata || chunk?.usageMetadata;
+    const trailerUsage = usageMeta ? toOpenAIUsage(usageMeta, "gemini") : null;
+    if (trailerUsage) state.usage = trailerUsage;
+    if (response?.promptFeedback?.blockReason) {
+      if (!state.messageId) {
+        state.messageId = response.responseId || `msg_${Date.now()}`;
+        state.model = response.modelVersion || state.model || "gemini";
+        state.functionIndex = 0;
+        state.geminiToolCallCount = 0;
+      }
+      const finalChunk = buildChunk(chunkMeta(state), {}, OPENAI_FINISH.CONTENT_FILTER);
+      if (state.usage) finalChunk.usage = state.usage;
+      state.finishReason = OPENAI_FINISH.CONTENT_FILTER;
+      return [finalChunk];
+    }
+    return null;
+  }
 
   const results = [];
   const candidate = response.candidates[0];

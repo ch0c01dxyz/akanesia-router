@@ -46,6 +46,7 @@ const BLOCKED_V4_RANGES = [
   [ipv4ToInt("169.254.0.0"), 16], // includes 169.254.169.254 cloud metadata
   [ipv4ToInt("172.16.0.0"), 12],
   [ipv4ToInt("192.168.0.0"), 16],
+  [ipv4ToInt("224.0.0.0"), 4], // multicast — never a valid fetch target
   [ipv4ToInt("240.0.0.0"), 4], // reserved "Class E" — never a public destination
   [ipv4ToInt("255.255.255.255"), 32], // limited broadcast (inside 240/4; listed explicitly)
 ];
@@ -126,6 +127,8 @@ function isBlockedIpv6Groups(g) {
   if (g.every((x) => x === 0)) return true;
   // link-local fe80::/10
   if ((g[0] & 0xffc0) === 0xfe80) return true;
+  // multicast ff00::/8 — never a valid fetch target
+  if ((g[0] & 0xff00) === 0xff00) return true;
   // unique local fc00::/7
   if ((g[0] & 0xfe00) === 0xfc00) return true;
   // IPv4-mapped ::ffff:0:0/96 (0:0:0:0:0:ffff:a.b.c.d — the 0xffff marker is

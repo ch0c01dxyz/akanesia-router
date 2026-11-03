@@ -81,8 +81,8 @@ export class BaseExecutor {
     return body;
   }
 
-  shouldRetry(status, urlIndex) {
-    return status === HTTP_STATUS.RATE_LIMITED && urlIndex + 1 < this.getFallbackCount();
+  shouldRetry(status, urlIndex, fallbackCount = this.getFallbackCount()) {
+    return status === HTTP_STATUS.RATE_LIMITED && urlIndex + 1 < fallbackCount;
   }
 
   // Override in subclass for provider-specific refresh
@@ -98,8 +98,10 @@ export class BaseExecutor {
     return { status: response.status, message: bodyText || `HTTP ${response.status}` };
   }
 
-  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null }) {
-    const fallbackCount = this.getFallbackCount();
+  async execute({ model, body, stream, credentials, signal, log, proxyOptions = null, providerOverrides = null, fallbackLimit = null }) {
+    // fallbackLimit caps the URL sweep (integrity retries are single-surface by
+    // design: a repair attempt must surface its failure, not sweep surfaces).
+    const fallbackCount = fallbackLimit > 0 ? Math.min(this.getFallbackCount(), fallbackLimit) : this.getFallbackCount();
     let lastError = null;
     let lastStatus = 0;
     const retryAttemptsByUrl = {};
@@ -161,13 +163,16 @@ export class BaseExecutor {
           signal: mergedSignal
         }, proxyOptions);
         clearTimeout(connectTimer);
+        // A falsy fetch result (broken adapter/mock) used to crash below on
+        // `response.headers` with a cryptic TypeError; fail as a network error.
+        if (!response) throw new Error("fetch returned no response");
         const ct = response.headers?.get?.("content-type") || "";
         const cl = response.headers?.get?.("content-length") || "?";
         dbg("FETCH", `${this.provider.toUpperCase()} ← ${response.status} | ttft=${Date.now() - fetchT0}ms | ct=${ct} | cl=${cl}`);
 
         if (await tryRetry(urlIndex, response.status, `status ${response.status}`, response)) { urlIndex--; continue; }
 
-        if (this.shouldRetry(response.status, urlIndex)) {
+        if (this.shouldRetry(response.status, urlIndex, fallbackCount)) {
           log?.debug?.("RETRY", `${response.status} on ${url}, trying fallback ${urlIndex + 1}`);
           lastStatus = response.status;
           continue;

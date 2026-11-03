@@ -55,6 +55,16 @@ export async function POST(request) {
       );
     }
 
+    // Prefix duplikat antar node = node kedua tidak pernah ter-routing
+    // (resolveNodePrefixId memakai find() exact-match, node pertama menang).
+    const prefixClash = (await getProviderNodes()).find((n) => n.prefix === prefix.trim());
+    if (prefixClash) {
+      return NextResponse.json(
+        { error: `Prefix "${prefix.trim()}" sudah dipakai node "${prefixClash.name}".` },
+        { status: 400 }
+      );
+    }
+
     // Ide #8: custom headers per node (Advanced Option)
     const sanitized = sanitizeCustomHeaders(customHeaders);
     if (sanitized.error) {

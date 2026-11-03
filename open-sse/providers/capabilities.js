@@ -131,7 +131,7 @@ export const MODEL_CAPABILITIES = {
   "glm-4.6v":          { vision: true, videoInput: true, reasoning: true, thinkingFormat: "zai", contextWindow: 128000, maxOutput: 32768 },
   "glm-4.5v":          { vision: true, videoInput: true, reasoning: true, thinkingFormat: "zai", contextWindow: 64000, maxOutput: 16384 },
   // GLM-5.2 has 1M context — pattern *glm-5* only gives 200k, so override here
-  "glm-5.2":           { reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, contextWindow: 1000000, maxOutput: 131072 },
+  "glm-5.2":           { reasoning: true, thinkingFormat: "zai", thinkingCanDisable: false, thinkingEffortSupported: true, contextWindow: 1000000, maxOutput: 131072 },
 
   // DeepSeek's first V4 model with image input; text limits match V4-Flash.
   "deepseek-v4-flash-vision-exp": { vision: true, reasoning: true, thinkingFormat: "deepseek", contextWindow: 1000000, maxOutput: 384000 },
@@ -189,8 +189,8 @@ export const MODEL_CAPABILITIES = {
   "deepseek-v4.1-flash-free":{ vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 200000, maxOutput: 32000 },
   "nemotron-3.5-super-vl-free": { vision: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1048576, maxOutput: 131072 },
   "claude-haiku-5-5":        { vision: true, pdf: true, reasoning: true, thinkingFormat: "anthropic", contextWindow: 1000000, maxOutput: 128000 },
-  "claude-sonnet-5-5":       { vision: true, pdf: true, reasoning: true, thinkingFormat: "anthropic", contextWindow: 1000000, maxOutput: 128000 },
-  "claude-opus-5-5":         { vision: true, pdf: true, reasoning: true, thinkingFormat: "anthropic", contextWindow: 1000000, maxOutput: 128000 },
+  // NOTE: sonnet/opus 5-5 must NOT be re-declared here — the canonical entries
+  // above (claude-adaptive + forcedToolChoice:false) win only when unique.
   "gemini-4-argon":          { vision: true, videoInput: true, audioInput: true, pdf: true, reasoning: true, thinkingFormat: "gemini", contextWindow: 1048576, maxOutput: 65536 },
   "gpt-6-luna":              { vision: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1050000, maxOutput: 128000 },
   "gpt-6-sol":               { vision: true, pdf: true, reasoning: true, thinkingFormat: "openai", contextWindow: 1050000, maxOutput: 128000 },
