@@ -420,6 +420,17 @@ export default function ProvidersPage() {
       matchSearch(info.name) &&
       matchStatus(getProviderStats(key, "cookie"), info.noAuth),
   );
+  // System One-only providers (mis. Nace, v1m) tidak punya model llm sehingga
+  // tersaring dari grid API Key di atas; tanpa seksi ini mereka tidak bisa
+  // ditemukan maupun ditambahkan dari halaman ini sama sekali.
+  const systemoneEntries = Object.entries(APIKEY_PROVIDERS).filter(
+    ([key, info]) =>
+      !info.hidden &&
+      (info.serviceKinds ?? []).includes("systemone") &&
+      !(info.serviceKinds ?? ["llm"]).includes("llm") &&
+      matchSearch(info.name) &&
+      matchStatus(getProviderStats(key, "apikey"), info.noAuth),
+  );
 
   if (loading) {
     return (
@@ -435,6 +446,7 @@ export default function ProvidersPage() {
     freeEntries.length > 0 ||
     freeTierEntries.length > 0 ||
     apikeyEntries.length > 0 ||
+    systemoneEntries.length > 0 ||
     compatibleProviders.length > 0 ||
     anthropicCompatibleProviders.length > 0;
 
@@ -691,6 +703,32 @@ export default function ProvidersPage() {
             Show all {apikeyEntries.length} providers
           </button>
         )}
+      </div>
+      )}
+
+      {/* System One Providers — decision-only providers without llm models (Nace, v1m) */}
+      {systemoneEntries.length > 0 && (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg sm:text-xl font-semibold flex items-center gap-2 leading-tight">
+            System One Providers{" "}
+            <span className="text-xs font-normal text-text-muted">
+              ({systemoneEntries.length})
+            </span>
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+          {systemoneEntries.map(([key, info]) => (
+            <ApiKeyProviderCard
+              key={key}
+              providerId={key}
+              provider={info}
+              stats={getProviderStats(key, "apikey")}
+              authType="apikey"
+              onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+            />
+          ))}
+        </div>
       </div>
       )}
 
