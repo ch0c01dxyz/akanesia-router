@@ -242,6 +242,7 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
         vercelRelayUrl: resolvedProxy.vercelRelayUrl || "",
       },
       connectionId: connection.id,
+      activeAccountCount: connections.length,
       // Include current status for optimization check
       testStatus: connection.testStatus,
       lastError: connection.lastError,

@@ -393,7 +393,7 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   if (proxyConfigError) {
     console.error(`[ProxyFetch] ${proxyConfigError} | target=${targetUrl}`);
     if (!proxyUrl) {
-      throw new Error(`[ProxyFetch] ${proxyConfigError}`);
+      throw Object.assign(new Error(`[ProxyFetch] ${proxyConfigError}`), { code: "ERR_PROXY_CONFIG" });
     }
   }
 

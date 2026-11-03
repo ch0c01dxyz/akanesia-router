@@ -20,7 +20,7 @@ import { handleComboChat, handleFusionChat, detectRequiredCapabilities } from "o
 import { augmentModelsWithCapacityAdapter, withCapacityAdapterStripping, getActiveAdapterStrategy } from "open-sse/services/capacityAdapter.js";
 import { handleBypassRequest } from "open-sse/utils/bypassHandler.js";
 import { ensureTranslatorsFor } from "open-sse/translator/index.js";
-import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
+import { HTTP_STATUS, CHAT_UPSTREAM_BUDGET_MS } from "open-sse/config/runtimeConfig.js";
 import { clampQuotaMaxFallbacks } from "open-sse/config/quotaErrorClasses.js";
 import { detectFormatByEndpoint } from "open-sse/translator/formats.js";
 import * as log from "../utils/logger.js";
@@ -289,11 +289,15 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   // Try with available accounts (fallback on errors)
   const excludeConnectionIds = new Set();
   const accountFallbackLimit = clampQuotaMaxFallbacks(chatSettings.quotaMaxFallbacks);
+  const upstreamDeadline = Date.now() + CHAT_UPSTREAM_BUDGET_MS;
   let lastError = null;
   let lastStatus = null;
   let lastHeaders = null;
 
   while (true) {
+    if (Date.now() >= upstreamDeadline) {
+      return errorResponse(HTTP_STATUS.GATEWAY_TIMEOUT, "Upstream connection and fallback budget exhausted");
+    }
     const credentials = await getProviderCredentials(provider, excludeConnectionIds, model, { settings: chatSettings, requestedModel: requestedModel || model });
 
     // All accounts unavailable
@@ -311,6 +315,9 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       log.warn("CHAT", "No more accounts available", { provider });
       return errorResponse(lastStatus || HTTP_STATUS.SERVICE_UNAVAILABLE, lastError || "All accounts unavailable", lastHeaders);
     }
+
+    const clientSignal = credentials.activeAccountCount === 1 ? request?.signal : undefined;
+    if (clientSignal?.aborted) return errorResponse(HTTP_STATUS.CLIENT_CLOSED_REQUEST, "Request aborted");
 
     // Account selection shown in the unified "▶" line (acc:...)
     const refreshedCredentials = await checkAndRefreshToken(provider, credentials);
@@ -331,6 +338,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       body: { ...body, model: `${provider}/${model}` },
       modelInfo: { provider, model },
       credentials: refreshedCredentials,
+      upstreamDeadline,
+      clientSignal,
       log,
       clientRawRequest,
       connectionId: credentials.connectionId,
@@ -373,6 +382,8 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     });
 
     if (result.success) return result.response;
+    if (clientSignal?.aborted) return errorResponse(HTTP_STATUS.CLIENT_CLOSED_REQUEST, "Request aborted");
+    if (Date.now() >= upstreamDeadline) return errorResponse(HTTP_STATUS.GATEWAY_TIMEOUT, "Upstream connection and fallback budget exhausted");
 
     // Antigravity 409/429: refresh live quota to get exact resetAt before locking
     let quotaResetMs = null;

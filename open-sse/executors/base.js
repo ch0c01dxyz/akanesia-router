@@ -199,7 +199,7 @@ export class BaseExecutor {
         // (name="Error", bukan "AbortError") sehingga chatCore memetakannya
         // ke 502 → failover akun tetap jalan. Client abort asli
         // (AbortError) diteruskan apa adanya → 499.
-        if (isConnectTimeout || signal?.aborted || error.name === "AbortError") throw error;
+        if (isConnectTimeout || signal?.aborted || error.name === "AbortError" || error.code === "ERR_PROXY_CONFIG") throw error;
 
         // Map network/fetch exceptions to 502 retry config
         if (await tryRetry(urlIndex, HTTP_STATUS.BAD_GATEWAY, `network "${error.message}"`)) { urlIndex--; continue; }

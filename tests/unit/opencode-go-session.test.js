@@ -155,7 +155,7 @@ describe("chatCore provider session forwarding", () => {
       fileURLToPath(new URL("../../open-sse/handlers/chatCore.js", import.meta.url)),
       "utf8",
     );
-    const calls = [...source.matchAll(/executor\.execute\(\{([\s\S]*?)\}\)/g)].map((match) => match[1]);
+    const calls = [...source.matchAll(/executeUpstream\(executor,\s*\{([\s\S]*?)\}, upstreamDeadline, clientSignal\)/g)].map((match) => match[1]);
 
     expect(calls).toHaveLength(2);
     for (const call of calls) {

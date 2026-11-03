@@ -35,6 +35,24 @@ export function isAbortError(err) {
   if (err.name === "TypeError" && err.message === "terminated") return true;
   return false;
 }
+
+// Release the deadline at response headers so healthy long-running streams survive.
+export async function executeUpstream(executor, options, deadline, clientSignal) {
+  const controller = new AbortController();
+  const signals = [options.signal, clientSignal].filter(Boolean);
+  let timer;
+  if (deadline) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new DOMException("Upstream connection budget exhausted", "TimeoutError");
+    timer = setTimeout(() => controller.abort(new DOMException("Upstream connection budget exhausted", "TimeoutError")), remaining);
+    signals.push(controller.signal);
+  }
+  try {
+    return await executor.execute({ ...options, signal: signals.length ? AbortSignal.any(signals) : undefined });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 import { takeRenamedToolNames } from "../utils/opencodeFingerprint.js";
 import { injectCaveman } from "../rtk/caveman.js";
 import { injectPonytail } from "../rtk/ponytail.js";
@@ -77,7 +95,7 @@ export function stripContinuityFields(body) {
   return body;
 }
 
-export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides }) {
+export async function handleChatCore({ body, modelInfo, credentials, log, onCredentialsRefreshed, onRequestSuccess, onDisconnect, clientRawRequest, connectionId, userAgent, apiKey, ccFilterNaming, rtkEnabled, headroomEnabled, headroomUrl, headroomCompressUserMessages, headroomTimeoutMs, cavemanEnabled, cavemanLevel, ponytailEnabled, ponytailLevel, pxpipeEnabled, pxpipeMinChars, pxpipeTimeoutMs, pxpipeTransform, onPxpipeEvent, sourceFormatOverride, providerThinking, providerOverrides, upstreamDeadline, clientSignal }) {
   const { provider, model } = modelInfo;
   // Label provider yang terbaca di log terminal (lihat utils/providerLogLabel.js).
   const providerLogLabel = () => providerLabelForLog(provider, credentials);
@@ -415,7 +433,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   // exception: it is decoded by the executor into OpenAI-compatible output.
   let providerResponseFormat = targetFormat;
   try {
-    const result = await executor.execute({
+    const result = await executeUpstream(executor, {
       model,
       body: translatedBody,
       stream,
@@ -426,7 +444,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
       log,
       proxyOptions,
       providerOverrides,
-    });
+    }, upstreamDeadline, clientSignal);
     providerResponse = result.response;
     providerUrl = result.url;
     providerHeaders = result.headers;
@@ -441,6 +459,15 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
     // header tetap wajib di-redact karena value-nya bisa berisi API key.
     reqLogger.logTargetRequest(providerUrl, redactCustomHeaders(providerHeaders, credentials), finalBody);
   } catch (error) {
+    if (clientSignal?.aborted) {
+      trackPendingRequest(model, provider, connectionId, false);
+      streamController.handleError(new DOMException("Request aborted", "AbortError"));
+      return createErrorResult(HTTP_STATUS.CLIENT_CLOSED_REQUEST, "Request aborted");
+    }
+    if (upstreamDeadline && Date.now() >= upstreamDeadline) {
+      trackPendingRequest(model, provider, connectionId, false);
+      return createErrorResult(HTTP_STATUS.GATEWAY_TIMEOUT, "Upstream connection and fallback budget exhausted");
+    }
     trackPendingRequest(model, provider, connectionId, false, true);
     appendRequestLog({ model, provider, connectionId, status: `FAILED ${isAbortError(error) ? 499 : HTTP_STATUS.BAD_GATEWAY}` }).catch(() => { });
     saveRequestDetail(buildRequestDetail({
@@ -522,7 +549,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
             try { await onCredentialsRefreshed(newCredentials); } catch (e) { log?.warn?.("TOKEN", `onCredentialsRefreshed failed: ${e.message}`); }
           }
           try {
-            const retryResult = await executor.execute({
+            const retryResult = await executeUpstream(executor, {
               model,
               body: translatedBody,
               stream,
@@ -533,7 +560,7 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
               log,
               proxyOptions,
               providerOverrides,
-            });
+            }, upstreamDeadline, clientSignal);
             if (retryResult.response.ok) {
               providerResponse = retryResult.response;
               providerUrl = retryResult.url;

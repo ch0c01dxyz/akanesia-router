@@ -15,7 +15,8 @@ vi.mock("@/sse/services/tokenRefresh.js", () => ({ checkAndRefreshToken: vi.fn(a
 vi.mock("open-sse/handlers/chatCore.js", () => ({ handleChatCore: mocks.core }));
 const { handleChat } = await import("../../src/sse/handlers/chat.js");
 
-const request = () => new Request("http://localhost/v1/chat/completions", {
+const request = (signal) => new Request("http://localhost/v1/chat/completions", {
+  signal,
   method: "POST", headers: { "content-type": "application/json" },
   body: JSON.stringify({ model: "openai/test-model", messages: [{ role: "user", content: "hello" }], stream: false }),
 });
@@ -28,6 +29,46 @@ beforeEach(() => {
 });
 
 describe("bounded account fallback", () => {
+  it("does not start a single-account request after the client aborts", async () => {
+    mocks.getProviderCredentials.mockResolvedValue({ connectionId: "only", activeAccountCount: 1 });
+    expect((await handleChat(request(AbortSignal.abort()))).status).toBe(499);
+    expect(mocks.core).not.toHaveBeenCalled();
+    expect(mocks.markAccountUnavailable).not.toHaveBeenCalled();
+  });
+
+  it("stops an in-flight single-account abort without penalizing the account", async () => {
+    const controller = new AbortController();
+    mocks.getProviderCredentials.mockResolvedValue({ connectionId: "only", activeAccountCount: 1 });
+    mocks.core.mockImplementationOnce(async ({ clientSignal }) => {
+      controller.abort();
+      expect(clientSignal.aborted).toBe(true);
+      return { success: false, status: 499 };
+    });
+    expect((await handleChat(request(controller.signal))).status).toBe(499);
+    expect(mocks.markAccountUnavailable).not.toHaveBeenCalled();
+  });
+
+  it("preserves fallback after client abort for a multiple-account provider", async () => {
+    mocks.getProviderCredentials.mockResolvedValue({ connectionId: "multiple", activeAccountCount: 2 });
+    mocks.core.mockResolvedValueOnce({ success: false, status: 502, error: "network", response: Response.json({}, { status: 502 }) })
+      .mockResolvedValueOnce({ success: true, response: Response.json({ choices: [] }) });
+    expect((await handleChat(request(AbortSignal.abort()))).status).toBe(200);
+    expect(mocks.core).toHaveBeenCalledTimes(2);
+    expect(mocks.core.mock.calls[0][0].clientSignal).toBeUndefined();
+  });
+
+  it("stops fallback when the shared connection budget expires without locking the account", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+    mocks.core.mockImplementationOnce(async ({ upstreamDeadline }) => {
+      now.mockReturnValue(upstreamDeadline);
+      return { success: false, status: 504 };
+    });
+    try {
+      expect((await handleChat(request())).status).toBe(504);
+      expect(mocks.core).toHaveBeenCalledTimes(1);
+      expect(mocks.markAccountUnavailable).not.toHaveBeenCalled();
+    } finally { now.mockRestore(); }
+  });
   it("stops a large exhausted pool at one initial attempt plus the configured fallback count", async () => {
     const response = await handleChat(request());
     expect(mocks.core).toHaveBeenCalledTimes(2);

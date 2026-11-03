@@ -1,9 +1,6 @@
 # ============================================================
 # akanesia-router — .gitignore
-# Repo ini PRIVATE: hanya cache & artefak build yang di-ignore.
-# Semua source, docs, dan file .env ikut ter-commit.
-# PERINGATAN: jika repo ini dijadikan publik, hapus .env dari
-# git (git rm --cached .env) dan rotasi semua secret di dalamnya.
+# Keep runtime secrets local; .env.example documents the environment contract.
 # ============================================================
 
 # --- Cache: dependencies ---
@@ -54,6 +51,9 @@ logs/
 9router-*
 
 # --- File sensitif / temporary lokal ---
+.env
+.env.*
+!.env.example
 *.pem
 .engine-token.txt
 .tmp-prov.json

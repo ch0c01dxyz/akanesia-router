@@ -21,9 +21,15 @@ function makeExec(config) {
 
 const creds = { apiKey: "k" };
 
-beforeEach(() => fetchMock.mockReset());
+beforeEach(() => { fetchMock.mockReset(); });
 
 describe("BaseExecutor.execute — retry by status (config-driven)", () => {
+  it("fails immediately for invalid local proxy configuration", async () => {
+    const error = Object.assign(new Error("Invalid proxy pool"), { code: "ERR_PROXY_CONFIG" });
+    fetchMock.mockRejectedValue(error);
+    await expect(makeExec({ baseUrl: "https://x/api" }).execute({ model: "m", body: {}, stream: false, credentials: creds })).rejects.toThrow("Invalid proxy pool");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("retries 502 `attempts` times then succeeds", async () => {
     const ex = makeExec({ baseUrl: "https://x/api", retry: { 502: { attempts: 3, delayMs: 0 } } });
     fetchMock

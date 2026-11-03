@@ -8,6 +8,7 @@ export const HTTP_STATUS = {
   NOT_ACCEPTABLE: 406,
   REQUEST_TIMEOUT: 408,
   RATE_LIMITED: 429,
+  CLIENT_CLOSED_REQUEST: 499,
   SERVER_ERROR: 500,
   BAD_GATEWAY: 502,
   SERVICE_UNAVAILABLE: 503,
@@ -39,6 +40,9 @@ function envMs(name, def) {
   const n = parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : def;
 }
+
+// Budget for obtaining upstream headers across account fallbacks, not active generation.
+export const CHAT_UPSTREAM_BUDGET_MS = envMs("CHAT_UPSTREAM_BUDGET_MS", 90000);
 
 function envUrl(name, def) {
   const raw = process.env[name]?.trim();
