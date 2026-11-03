@@ -21,7 +21,7 @@ import {
  * @param {object} opts
  * @param {object} opts.body - Client request body
  * @param {string[]} opts.models - Combo model candidate array
- * @param {string} [opts.routerModel] - System One router model (defaults to oc/jev-1.13-free)
+ * @param {string} [opts.routerModel] - System One router model (defaults to nace/drex-max)
  * @param {object} [opts.log] - Logger
  * @param {number} [opts.timeoutMs=DEFAULT_SYSTEMONE_TIMEOUT_MS] - Hard ceiling for router evaluation
  * @returns {Promise<{ choice: string, confidence: number|null, probabilities: Record<string, number>|null } | null>}

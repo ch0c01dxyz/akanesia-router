@@ -590,7 +590,7 @@ const fmtK = (n) => {
 function getRouterModelStatus(routerModel, activeProviders) {
   const effectiveModel = (typeof routerModel === "string" && routerModel.trim())
     ? routerModel.trim()
-    : "oc/jev-1.13-free";
+    : "nace/drex-max";
   const slashIdx = effectiveModel.indexOf("/");
   const prefix = slashIdx !== -1 ? effectiveModel.slice(0, slashIdx) : effectiveModel;
   const providerId = resolveProviderId(prefix);
@@ -704,7 +704,7 @@ function ComboCard({ combo, getCaps, comboByName = {}, activeProviders = [], cop
                     title="Pick the System One model that decides model routing"
                   >
                     <span className="material-symbols-outlined text-[13px]">psychology</span>
-                    <span className="truncate">{routerModel || "Auto — oc/jev-1.13-free"}</span>
+                    <span className="truncate">{routerModel || "Auto — nace/drex-max"}</span>
                   </button>
                   {routerStatus.ready ? (
                     <Badge variant="success" size="sm" dot>{routerStatus.label}</Badge>

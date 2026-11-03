@@ -4,7 +4,7 @@
  * before generation begins, with session stickiness for prompt-cache retention.
  */
 
-export const DEFAULT_SYSTEMONE_ROUTER_MODEL = "oc/jev-1.13-free";
+export const DEFAULT_SYSTEMONE_ROUTER_MODEL = "nace/drex-max";
 export const DEFAULT_SYSTEMONE_TIMEOUT_MS = 8000;
 export const MAX_STATE_CHARS = 2000;
 export const MAX_STICKY_SESSIONS = 5000;
