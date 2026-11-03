@@ -2,159 +2,152 @@
   <img src="public/logo.png" alt="Akanesia-Router" width="160" />
 </p>
 
-<h1 align="center">Akanesia-Gateway (<code>akanesia-router</code>)</h1>
+# Akanesia-Gateway
 
-<p align="center">
-  Gateway routing AI lokal + dashboard web. Satu endpoint kompatibel OpenAI (<code>/v1/*</code>)
-  yang me-routing request ke 323 provider upstream — dengan translasi format,
-  combo fallback, multi-account, quota tracking, dan token saver.
-</p>
+Akanesia-Gateway (`akanesia-router`) adalah gateway AI lokal dengan dashboard web. Aplikasi meneruskan request ke provider yang dipilih, menerjemahkan format API, dan mencoba akun atau model lain saat terjadi kegagalan.
 
-<p align="center">
-  Nama paket: <code>akanesia-router</code> · Versi: <code>1.5.0</code> · Sebelumnya dikenal sebagai 9Router.
-</p>
+Versi repository: **1.5.0**.
 
-## Asal-usul
+## Fitur
 
-Proyek ini dikembangkan dari **[9router](https://github.com/decolua/9router)**
-oleh decolua — terima kasih atas fondasi open-source-nya. Akanesia-Router
-melanjutkan pengembangan secara independen dengan rebrand, ratusan provider
-tambahan (hasil merge OmniRoute), dan fitur-fitur baru di bawah ini.
-Lisensi tetap Apache 2.0.
+- Routing antar akun dengan strategi round-robin atau fill-first, combo fallback antar model, dan alias model melalui Route-Masking.
+- Endpoint Chat Completions, Responses, Messages, serta translasi format OpenAI, Claude, dan Gemini.
+- Koneksi provider melalui API key, OAuth, atau cookie sesuai dukungan provider; beberapa akun dapat dipasang pada provider yang sama.
+- Penemuan dan sinkronisasi model, custom header, serta pengelompokan model di dashboard.
+- Pemantauan penggunaan, latensi, cache, dan kuota ketika provider menyediakan datanya. Cooldown membantu menghindari percobaan berulang pada akun yang sedang dibatasi.
+- RTK untuk kompresi `tool_result` dan integrasi Headroom untuk kompresi prompt. Penghematan bergantung pada isi request dan pengaturan kompresi.
+- Playground dengan Test, Compare, dan Probe, serta log dan replay request upstream yang gagal.
+- Proxy HTTP/SOCKS, proxy pool, mode strict, pengecualian `noProxy`, dan relay Vercel/Cloudflare.
 
-## Fitur Utama
+Dashboard menyediakan konfigurasi untuk klien seperti Claude Code, Codex, Cursor, Cline, dan OpenCode. Ketersediaan model, kuota, dan fitur tetap mengikuti akun serta provider upstream yang digunakan.
 
-### Routing & Fallback
-- **Smart routing** — round-robin & fill-first antar akun/koneksi per provider
-- **Combo fallback** — rantai otomatis (langganan → murah → gratis) tanpa downtime,
-  dengan deteksi error per-provider (mis. aturan khusus Codex)
-- **Route-Masking** — nama samaran (alias) untuk model, dengan validasi duplikat
+## Menjalankan dari source
 
-### Penghematan & Quota
-- **RTK Token Saver** — kompres otomatis `tool_result`, hemat 20–40% token
-- **Headroom dashboard** — pantau kompresi, penghematan USD, latensi, dan cache
-- **Quota tracking** — pantau pemakaian & sisa kuota tiap koneksi; kartu quota
-  di dashboard dengan backoff otomatis saat limit tercapai
-
-### Translasi & Kompatibilitas
-- **Translasi format** — OpenAI ↔ Claude ↔ Gemini ↔ OpenAI Responses,
-  satu endpoint untuk semua
-- **Universal** — kompatibel dengan Claude Code, Cursor, Cline, Codex,
-  OpenCode, dan puluhan CLI tools lain (kartu konfigurasi sekali klik
-  per tool di dashboard)
-- **Model discovery** — `/model` picker terisi otomatis dari endpoint
-  `/v1/models` gateway
-
-### Manajemen Provider
-- **323 provider** — API key, OAuth (device-code), maupun cookie-based;
-  koneksi multi-akun per provider
-- **Custom header per-provider** — override header HTTP per provider,
-  dengan daftar blokir (Authorization, Cookie, dsb.)
-- **Proxy pool** — routing via proxy HTTP/SOCKS, mode strict (fail-closed),
-  pengecualian `noProxy`, dan relay Vercel/Cloudflare
-- **Check Models** — impor & sinkronisasi daftar model dari endpoint
-  `/models` tiap provider, manual atau terjadwal
-- **Kategori model** — tab All/Premium/Free di detail provider dengan
-  penandaan manual per model
-
-### Developer Experience
-- **Playground per-provider** — tab Test, Compare (2–3 model sejajar
-  dengan metrik TTFT/latensi/token), dan Probe (fingerprinting model)
-- **Console Log** — replay request upstream yang gagal, buffer log
-  terpusat yang bisa di-streaming
-- **CLI launcher** — `akanesia-router` (atau `aka-gateway`): tray icon,
-  auto-update, dan perintah `connect` untuk server remote
-
-### Keamanan & Local-first
-- **Local-first** — berjalan lokal/intranet, data tetap di mesin sendiri
-- API key terpisah per klien (`sk_9router`), secret tersimpan terenkripsi,
-  redaksi otomatis di log
-
-## Instalasi
-
-Prasyarat: **Node.js 18+** (disarankan 22 LTS) dan npm.
-
-### Cara 1 — CLI launcher (paling mudah)
-
-```bash
-npm install -g akanesia-router
-akanesia-router
-```
-
-Dashboard: `http://localhost:20128/dashboard` · API: `http://localhost:20128/v1`.
-Data tersimpan di `~/.9router`.
-
-### Cara 2 — dari source
+Siapkan **Node.js 24 atau lebih baru**, npm, dan Git. Installer Node tersedia di [nodejs.org](https://nodejs.org); pengguna macOS/Linux juga dapat memakai [nvm](https://github.com/nvm-sh/nvm).
 
 ```bash
 git clone https://github.com/ch0c01dxyz/akanesia-router.git
 cd akanesia-router
-cp .env.example .env   # isi JWT_SECRET & INITIAL_PASSWORD
 npm install
-npm run dev            # dev, port 20127
-# atau production:
-npm run build && npm start   # port 20128
 ```
 
-### Windows
+Salin konfigurasi contoh. Di PowerShell:
 
-1. Install **Node.js LTS** dari [nodejs.org](https://nodejs.org) (centang "Add to PATH").
-2. Buka PowerShell / Terminal:
-   ```powershell
-   npm install -g akanesia-router
-   akanesia-router
-   ```
-3. Ikon tray muncul di system tray; server berjalan di background.
+```powershell
+Copy-Item .env.example .env
+```
 
-### Ubuntu / Linux
-
-1. Install Node.js 22 dan git:
-   ```bash
-   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-   sudo apt install -y nodejs git
-   ```
-   (alternatif: via [nvm](https://github.com/nvm-sh/nvm))
-2. Agar `npm install -g` bisa tanpa sudo (disarankan):
-   ```bash
-   mkdir -p ~/.npm-global
-   npm config set prefix ~/.npm-global
-   echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
-   source ~/.bashrc
-   ```
-3. Install dan jalankan:
-   ```bash
-   npm install -g akanesia-router
-   akanesia-router
-   ```
-4. Di server headless, CLI berjalan sebagai server biasa. Di desktop
-   Linux, ikon tray tersedia bila lingkungan desktop menyediakan system tray.
-
-## Mulai Cepat
+Di macOS/Linux:
 
 ```bash
-cp .env.example .env && npm install
-npm run dev      # dev server, port 20127
+cp .env.example .env
 ```
+
+Edit `.env` sebelum menjalankan aplikasi:
+
+- Ganti nilai contoh untuk secret dan password, termasuk `JWT_SECRET` dan `INITIAL_PASSWORD`. Password awal berlaku saat password dashboard belum tersimpan.
+- Isi `DATA_DIR` dengan direktori yang dapat ditulisi, atau kosongkan untuk memakai lokasi bawaan.
+- Contoh `.env` memakai port `20128`. Untuk script source di repository ini, sesuaikan nilai lokalnya ke `20127`:
+
+```dotenv
+PORT=20127
+BASE_URL=http://localhost:20127
+NEXT_PUBLIC_BASE_URL=http://localhost:20127
+```
+
+Untuk pengembangan:
 
 ```bash
-npm run build    # production build
-npm start        # production server (default port 20128)
+npm run dev
 ```
 
-Arahkan CLI tool favoritmu ke `http://localhost:20128/v1` dan mulai pakai.
+Untuk menjalankan build produksi:
 
-Perintah lain: `npx eslint .` untuk lint. Test ada di paket terpisah `tests/`
-(vitest) — lihat `docs/TESTING.md`.
+```bash
+npm run build
+npm start
+```
+
+Kedua script memakai port **20127**. Buka dashboard di [http://localhost:20127/dashboard](http://localhost:20127/dashboard). Base URL untuk klien OpenAI-compatible adalah `http://localhost:20127/v1`.
+
+Alternatif mode pengembangan dengan Webpack tersedia melalui `npm run dev:webpack`.
+
+## Menghubungkan klien
+
+1. Tambahkan koneksi provider di dashboard dan isi kredensial yang sesuai.
+2. Sinkronkan daftar model, lalu pilih ID dari dashboard atau `GET /v1/models`.
+3. Buat API key gateway untuk klien. Gunakan key tersebut pada klien, bukan API key provider.
+4. Atur endpoint sesuai protokol yang dipakai klien.
+
+| Protokol | Endpoint pada server source |
+|---|---|
+| Chat Completions | `http://localhost:20127/v1/chat/completions` |
+| Responses | `http://localhost:20127/v1/responses` |
+| Messages | `http://localhost:20127/v1/messages` |
+| Daftar model | `http://localhost:20127/v1/models` |
+
+Contoh request melalui Bash. Ganti `<API_KEY_GATEWAY>` dan `<ID_MODEL>` dengan nilai dari dashboard:
+
+```bash
+curl http://localhost:20127/v1/chat/completions \
+  -H "Authorization: Bearer <API_KEY_GATEWAY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "<ID_MODEL>",
+    "messages": [{"role": "user", "content": "Balas dengan OK."}],
+    "stream": false
+  }'
+```
+
+## CLI launcher
+
+Direktori [`cli/`](cli/) memuat launcher desktop dan perintah `connect` untuk mengatur klien yang memakai server remote. Launcher memakai port **20128** secara bawaan, berbeda dari script source di atas. Pada desktop yang mendukungnya, launcher menyediakan ikon tray.
+
+Untuk memasang dependensi CLI dan melihat opsi dari checkout ini:
+
+```bash
+npm install --prefix cli
+node cli/cli.js --help
+```
+
+Script pembuatan paket tersedia di [`cli/package.json`](cli/package.json). Build server dari source dapat dijalankan langsung dengan `npm start` tanpa launcher.
+
+## Data dan kredensial
+
+`DATA_DIR` menentukan lokasi data aplikasi. Jika tidak diisi, lokasi bawaannya:
+
+| Sistem operasi | Direktori |
+|---|---|
+| Windows | `%APPDATA%\9router` |
+| macOS/Linux | `~/.9router` |
+
+Database SQLite berada di `db/data.sqlite` dalam direktori tersebut. Konfigurasi dan riwayat disimpan lokal; isi request diteruskan ke provider yang digunakan.
+
+Kredensial provider tersimpan dalam data aplikasi. Batasi akses ke direktori data dan `.env`, serta sertakan direktori data dalam backup. `.env` tidak dilacak Git. Untuk akses jarak jauh, gunakan autentikasi dashboard, API key klien, dan HTTPS.
+
+## Pengembangan dan pengujian
+
+Dependensi tes dipasang terpisah dari aplikasi:
+
+```bash
+npm install --prefix tests
+npm --prefix tests test
+```
+
+Suite bawaan tidak menjalankan tes live `*.live.test.js`; tes tersebut memerlukan `RUN_LIVE_TESTS=1`. Tes komponen cloud hanya dijalankan jika source komponennya tersedia. Detail ada di [panduan pengujian](docs/TESTING.md).
+
+Lint tersedia melalui `npx eslint .`. Panduan perubahan source ada di [`docs/specs/`](docs/specs/); untuk mesin routing dan translasi, baca [`open-sse/AGENTS.md`](open-sse/AGENTS.md).
 
 ## Dokumentasi
 
-- `docs/specs/` — dokumen struktur proyek: `AGENTS.md`, `ARCHITECTURE.md`,
-  `CLAUDE.md`, `DESIGN.md`, `PRD.md`, `RULES.md`, `TECH_STACK.md`
-  (panduan wajib dibaca sebelum mengubah repo ini)
-- `docs/` — panduan deployment, keamanan, testing, changelog, dan ide pengembangan
-- `open-sse/` — mesin routing & translasi provider (lihat `open-sse/AGENTS.md`
-  bila menyentuh area ini)
+- [Deployment](docs/DEPLOYMENT.md)
+- [Keamanan](docs/SECURITY.md)
+- [Arsitektur](docs/ARCHITECTURE.md)
+- [Changelog](docs/CHANGELOG.md)
+- [Laporan audit dan perbaikan](docs/audits/)
 
-## Lisensi
+## Asal-usul dan lisensi
 
-Apache License 2.0 — lihat file `LICENSE`.
+Proyek ini dikembangkan dari [9router](https://github.com/decolua/9router) oleh decolua, lalu dilanjutkan secara independen sebagai Akanesia-Router. Sebagian integrasi provider berasal dari penggabungan OmniRoute.
+
+Lisensi tetap [Apache License 2.0](LICENSE).
