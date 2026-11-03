@@ -217,6 +217,11 @@ function createStreamingResponse(sourceFormat, model, text) {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
+        // Synthetic SSE built here bypasses the central header path
+        // (streamingHandler uses SSE_HEADERS_CORS, which already carries
+        // this) — set it explicitly so a buffering reverse proxy streams
+        // the bypass response like a live one.
+        "X-Accel-Buffering": "no",
         "Access-Control-Allow-Origin": "*"
       }
     })

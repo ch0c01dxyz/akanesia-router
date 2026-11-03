@@ -52,6 +52,16 @@ describe("assertPublicUrl: literal hostname/IP bypasses from #3714", () => {
     }
   });
 
+  it("blocks reserved 240.0.0.0/4 and the limited broadcast address", () => {
+    for (const url of [
+      "http://240.0.0.1/",
+      "http://255.255.255.255/",
+      "http://[::ffff:240.0.0.1]/", // IPv4-mapped form embeds the same blocked IPv4
+    ]) {
+      expect(() => assertPublicUrl(url), url).toThrow();
+    }
+  });
+
   it("still allows public hosts, including public IPv6", () => {
     expect(() => assertPublicUrl("https://api.openai.com/v1/models")).not.toThrow();
     expect(() => assertPublicUrl("http://8.8.8.8/")).not.toThrow();

@@ -46,6 +46,8 @@ const BLOCKED_V4_RANGES = [
   [ipv4ToInt("169.254.0.0"), 16], // includes 169.254.169.254 cloud metadata
   [ipv4ToInt("172.16.0.0"), 12],
   [ipv4ToInt("192.168.0.0"), 16],
+  [ipv4ToInt("240.0.0.0"), 4], // reserved "Class E" — never a public destination
+  [ipv4ToInt("255.255.255.255"), 32], // limited broadcast (inside 240/4; listed explicitly)
 ];
 
 function isBlockedIpv4Int(ip) {

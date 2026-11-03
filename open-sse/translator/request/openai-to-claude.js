@@ -146,10 +146,19 @@ Respond ONLY with the JSON object, no other text.`);
   if (body.tools && Array.isArray(body.tools)) {
     result.tools = [];
     for (const tool of body.tools) {
+      // Chat Completions custom tools arrive wrapped as
+      // { type: "custom", custom: { name, ... } }; reading the name off the
+      // wrapper yields no name and the tool is lost (upstream #18314). Unwrap
+      // only when `custom` is an object — a Claude-format tool that merely
+      // declares type:"custom" with top-level fields (Claude Code v2.1+) has
+      // no `custom` key and keeps its existing passthrough behavior below.
+      const source = tool?.type === "custom" && tool.custom && typeof tool.custom === "object" && !Array.isArray(tool.custom)
+        ? tool.custom
+        : tool;
       // Pass-through built-in tools (e.g. web_search_20250305) without prefix or conversion
-      const toolType = tool.type;
+      const toolType = source.type;
       if (toolType && toolType !== OPENAI_BLOCK.FUNCTION) {
-        result.tools.push(tool);
+        result.tools.push(source);
         continue;
       }
 
@@ -161,7 +170,7 @@ Respond ONLY with the JSON object, no other text.`);
       // MiniMax M3 at api.minimaxi.com) reject payloads where this branch
       // falls through with `toolData.name === undefined`, returning their
       // upstream code (2013) "invalid tool type". See #2435.
-      const toolData = tool.function ?? tool;
+      const toolData = source.function ?? source;
       const originalName = toolData.name;
 
       // Claude OAuth requires prefixed tool names to avoid conflicts

@@ -18,8 +18,9 @@ export default {
     baseUrl: "https://api.ideogram.ai",
   },
   models: [
-    { id: "V_3", name: "Ideogram V3" },
-    { id: "V_2A", name: "Ideogram V2A" },
+    { id: "V_3", name: "Ideogram V3", kind: "image" },
+    { id: "V_2A", name: "Ideogram V2A", kind: "image" },
   ],
+  serviceKinds: ["image"],
 };
 

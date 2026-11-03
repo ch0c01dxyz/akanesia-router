@@ -18,8 +18,9 @@ export default {
     baseUrl: "https://cloud.leonardo.ai/api/rest/v1",
   },
   models: [
-    { id: "phoenix", name: "Phoenix" },
-    { id: "sdxl", name: "SDXL" },
+    { id: "phoenix", name: "Phoenix", kind: "image" },
+    { id: "sdxl", name: "SDXL", kind: "image" },
   ],
+  serviceKinds: ["image"],
 };
 
