@@ -12,6 +12,7 @@
 // which also fixes item ordering for every reasoning_content provider (DeepSeek,
 // GLM, Qwen, Kimi), not just Claude.
 import { describe, it, expect } from "vitest";
+import "../translator/registerAll.js";
 import { claudeToOpenAIResponse } from "../../open-sse/translator/response/claude-to-openai.js";
 import { FORMATS } from "../../open-sse/translator/formats.js";
 import { createSSETransformStreamWithLogger } from "../../open-sse/utils/stream.js";

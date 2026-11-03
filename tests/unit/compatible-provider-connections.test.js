@@ -8,6 +8,8 @@ const originalDataDir = process.env.DATA_DIR;
 async function setupTestContext(nodeData) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "9router-compatible-provider-"));
   process.env.DATA_DIR = tempDir;
+  global._dbAdapter?.instance?.close();
+  delete global._dbAdapter;
   vi.resetModules();
   vi.doMock("next/server", () => ({
     NextResponse: {
@@ -33,6 +35,8 @@ async function setupTestContext(nodeData) {
     POST,
     getProviderConnections,
     cleanup() {
+      global._dbAdapter?.instance?.close();
+      delete global._dbAdapter;
       fs.rmSync(tempDir, { recursive: true, force: true });
     },
   };

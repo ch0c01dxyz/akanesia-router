@@ -175,11 +175,12 @@ function convertClaudeMessage(msg) {
           break;
 
         case CLAUDE_BLOCK.IMAGE:
-          if (block.source?.type === "base64") {
+          if (block.source?.type === "base64" || block.source?.type === "url") {
             parts.push({
               type: OPENAI_BLOCK.IMAGE_URL,
               image_url: {
-                url: encodeDataUri(block.source.media_type, block.source.data)
+                url: block.source.type === "url" ? block.source.url
+                  : encodeDataUri(block.source.media_type, block.source.data)
               }
             });
           }
@@ -203,10 +204,11 @@ function convertClaudeMessage(msg) {
             resultContent = block.content;
           } else if (Array.isArray(block.content)) {
             for (const c of block.content) {
-              if (c?.type === CLAUDE_BLOCK.IMAGE && c.source?.type === "base64") {
+              if (c?.type === CLAUDE_BLOCK.IMAGE && (c.source?.type === "base64" || c.source?.type === "url")) {
                 resultImages.push({
                   type: OPENAI_BLOCK.IMAGE_URL,
-                  image_url: { url: encodeDataUri(c.source.media_type, c.source.data) }
+                  image_url: { url: c.source.type === "url" ? c.source.url
+                    : encodeDataUri(c.source.media_type, c.source.data) }
                 });
               }
             }
@@ -217,6 +219,8 @@ function convertClaudeMessage(msg) {
             resultContent = JSON.stringify(block.content);
           }
 
+          // OpenAI has no is_error field; keep failure semantics in valid tool text.
+          if (block.is_error) resultContent = `[Tool error]\n${resultContent}`;
           toolResults.push({
             role: ROLE.TOOL,
             tool_call_id: block.tool_use_id,

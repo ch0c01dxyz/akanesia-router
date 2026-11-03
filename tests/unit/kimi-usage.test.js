@@ -10,7 +10,7 @@ import { USAGE_SUPPORTED_PROVIDERS, USAGE_APIKEY_PROVIDERS } from "../../src/sha
 import { PROVIDERS } from "../../open-sse/providers/index.js";
 import { parseQuotaData } from "../../src/app/(dashboard)/dashboard/usage/components/ProviderLimits/utils.js";
 
-const KIMI_USAGE_URL = "https://api.kimi.com/coding/v1/usages";
+const KIMI_USAGE_URL = "https://api.kimi.ai/coding/v1/usages";
 
 function jsonResponse(body, status = 200) {
   return new Response(JSON.stringify(body), {

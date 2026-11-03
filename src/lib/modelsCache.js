@@ -7,6 +7,24 @@
 
 const MODELS_CACHE_TTL_MS = 30_000;
 const modelsCache = new Map(); // key -> { data, expiresAt }
+const pendingBuilds = new Map();
+
+export async function getOrBuildModelsCache(kindFilter, skipDynamicFetch, build) {
+  const cached = getModelsCache(kindFilter, skipDynamicFetch);
+  if (cached) return cached;
+  const key = modelsCacheKey(kindFilter, skipDynamicFetch);
+  if (pendingBuilds.has(key)) return pendingBuilds.get(key);
+  const pending = Promise.resolve().then(build);
+  pendingBuilds.set(key, pending);
+  try {
+    const data = await pending;
+    // An invalidated build must not repopulate the cache with stale settings.
+    if (pendingBuilds.get(key) === pending) setModelsCache(kindFilter, skipDynamicFetch, data);
+    return data;
+  } finally {
+    if (pendingBuilds.get(key) === pending) pendingBuilds.delete(key);
+  }
+}
 
 export function modelsCacheKey(kindFilter, skipDynamicFetch) {
   const kinds = Array.isArray(kindFilter) ? [...kindFilter].sort().join(",") : "";
@@ -31,4 +49,5 @@ export function setModelsCache(kindFilter, skipDynamicFetch, data) {
 /** Kosongkan seluruh cache — dipanggil setelah alias Route-Masking berubah. */
 export function invalidateModelsCache() {
   modelsCache.clear();
+  pendingBuilds.clear();
 }

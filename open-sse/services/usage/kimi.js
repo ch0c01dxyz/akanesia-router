@@ -2,7 +2,7 @@
  * Kimi Coding usage — GET /v1/usages
  *
  * Dual auth (single provider id `kimi`):
- *   - apiKey present → x-api-key only (platform / coding API key)
+ *   - apiKey present → x-api-key only (Kimi Code API key)
  *   - else accessToken → Bearer + X-Msh-* (device-code OAuth)
  *
  * Note: chat messages use combined x-api-key; /usages OAuth is Bearer.
@@ -13,7 +13,7 @@ import { proxyAwareFetch } from "../../utils/proxyFetch.js";
 import { parseResetTime, toFiniteNumber } from "./shared.js";
 import { buildKimiHeaders } from "../../config/appConstants.js";
 
-const USAGE_URL = "https://api.kimi.com/coding/v1/usages";
+const USAGE_URL = "https://api.kimi.ai/coding/v1/usages";
 
 const PLAN_LEVELS = {
   LEVEL_BASIC: "Moderato",

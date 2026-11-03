@@ -8,16 +8,26 @@ const R2O = (body) => translateRequest(FORMATS.OPENAI_RESPONSES, FORMATS.OPENAI,
 const O2R = (body) => translateRequest(FORMATS.OPENAI, FORMATS.OPENAI_RESPONSES, "m", body, true, null, null);
 
 describe("Codex CLI Responses → OpenAI", () => {
-  // openai-responses.js:103 — function_call with empty name skipped, can leave tool_calls: []
-  // KNOWN BUG: empty tool_calls array is rejected by OpenAI/Codex
-  it.fails("assistant has no empty tool_calls array when all names are empty", () => {
+  it("assistant has no empty tool_calls array when all names are empty", () => {
     const out = R2O({
       input: [
         { type: "function_call", call_id: "c1", name: "", arguments: "{}" },
       ],
     });
     const asst = out.messages.find((m) => m.role === "assistant" && m.tool_calls);
-    expect(asst?.tool_calls?.length ?? 0, "empty tool_calls[] produced").toBeGreaterThan(0);
+    expect(asst, "empty tool_calls[] produced").toBeUndefined();
+  });
+
+  it("skips nameless calls without dropping the next valid call or its result", () => {
+    const out = R2O({ input: [
+      { type: "function_call", call_id: "bad", name: "  ", arguments: "{}" },
+      { type: "function_call", call_id: "good", name: "lookup", arguments: '{"id":1}' },
+      { type: "function_call_output", call_id: "good", output: "found" },
+    ] });
+    expect(out.messages.find(m => m.role === "assistant").tool_calls).toEqual([
+      { id: "good", type: "function", function: { name: "lookup", arguments: '{"id":1}' } },
+    ]);
+    expect(out.messages.find(m => m.role === "tool")).toMatchObject({ tool_call_id: "good", content: "found" });
   });
 
   it("function_call arguments end up as a string", () => {

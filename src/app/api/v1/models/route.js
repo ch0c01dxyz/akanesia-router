@@ -22,12 +22,13 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { isReservedProviderPrefix } from "@/sse/services/model.js";
 import { koneksiPunyaKredensial, cariKoneksiBerkredensial, ROUTE_MASKING_OWNED_BY, ROUTE_MASK_NAME_REGEX } from "@/lib/routeMasking.js";
-import { getModelsCache, setModelsCache, invalidateModelsCache } from "@/lib/modelsCache.js";
+import { getOrBuildModelsCache, invalidateModelsCache } from "@/lib/modelsCache.js";
 export { invalidateModelsCache };
 import { fetchCompatibleModels } from "@/lib/compatibleModelsFetch.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 import { collapseProviderPrefix } from "@/lib/modelIdPrefix.js";
+import { mapPool } from "@/lib/mapPool.js";
 
 // Qoder shares one live resolver across intl (qoder) and CN (qoder-cn); the
 // credentials carry the provider id so qoderModels picks the right region's
@@ -210,6 +211,7 @@ async function fetchCompatibleModelIds(connection) {
     baseUrl: connection.providerSpecificData?.baseUrl,
     apiKey: connection.apiKey,
     extraHeaders: { [INTERNAL_MODELS_FETCH_HEADER]: "1" },
+    timeoutMs: 5000,
   });
   return r.ok ? r.models : [];
 }
@@ -291,11 +293,8 @@ function comboSeatLimits(combo, combosByName, visiting = new Set()) {
 // singkat dapat diterima.
 export async function buildModelsList(kindFilter, options = {}) {
   const skipDynamicFetch = options.skipDynamicFetch === true;
-  const cached = getModelsCache(kindFilter, skipDynamicFetch);
-  if (cached) return cached;
-  const data = await buildModelsListUncached(kindFilter, options);
-  setModelsCache(kindFilter, skipDynamicFetch, data);
-  return data;
+  return getOrBuildModelsCache(kindFilter, skipDynamicFetch,
+    () => buildModelsListUncached(kindFilter, options));
 }
 
 async function buildModelsListUncached(kindFilter, options = {}) {
@@ -447,6 +446,20 @@ async function buildModelsListUncached(kindFilter, options = {}) {
       });
     }
   } else {
+    const compatibleCatalogs = new Map();
+    if (!skipDynamicFetch) {
+      const dynamicConnections = [...activeConnectionByProvider.values()].filter(conn =>
+        (isOpenAICompatibleProvider(conn.provider) || isAnthropicCompatibleProvider(conn.provider))
+        && !isReservedProviderPrefix(conn.providerSpecificData?.prefix)
+        && (providerMatchesKinds(conn.provider, kindFilter)
+          || [conn.provider, conn.providerSpecificData?.prefix, getProviderAlias(conn.provider)]
+            .some(alias => customKindProviders.has(alias)))
+        && !conn.providerSpecificData?.enabledModels?.length
+      );
+      await mapPool(dynamicConnections, 8, async conn => {
+        compatibleCatalogs.set(conn.provider, await fetchCompatibleModelIds(conn));
+      });
+    }
     for (const [providerId, conn] of activeConnectionByProvider.entries()) {
       if (!providerMatchesKinds(providerId, kindFilter)) {
         // Still enter when the user pinned custom models of a requested
@@ -500,7 +513,7 @@ async function buildModelsListUncached(kindFilter, options = {}) {
         : providerModels.map((model) => model.id);
 
       if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch) {
-        rawModelIds = await fetchCompatibleModelIds(conn);
+        rawModelIds = compatibleCatalogs.get(providerId) || [];
       }
 
       // Config-driven live catalog override (e.g. Kiro returns dynamic

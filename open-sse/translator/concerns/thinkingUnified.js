@@ -140,10 +140,8 @@ function resolveFormat(targetFormat, model, provider) {
   const caps = getCapabilitiesForModel(provider, model);
   const isOpenAIWire = targetFormat === "openai" || targetFormat === "openai-responses";
   if (caps.thinkingFormat && !(isOpenAIWire && NATIVE_ONLY_FORMATS.has(caps.thinkingFormat))) {
-    // Muse (Meta) strict Responses API menolak reasoning_effort top-level dan
-    // mewajibkan reasoning: { effort, summary } yang nested. Upstream lain tetap
-    // memakai effort bentuk Chat.
-    if (provider === "muse" && targetFormat === "openai-responses") {
+    // Native Responses backends keep effort and summary nested, including summary:none.
+    if ((provider === "muse" || provider === "kimi") && targetFormat === "openai-responses") {
       return "openai-responses";
     }
     return caps.thinkingFormat;
@@ -453,5 +451,9 @@ export function applyThinking(targetFormat, model, body, provider = null, intent
   const display = typeof body.thinking?.display === "string" ? body.thinking.display : intent?.display;
   stripAll(body);
   applyFormat(fmt, body, cfg, caps, supportedLevels, display, intent?.summary);
+  // Kimi disables a Responses summary by omission; "none" is not a wire enum.
+  if (provider === "kimi" && targetFormat === "openai-responses" && body.reasoning?.summary === "none") {
+    delete body.reasoning.summary;
+  }
   return body;
 }

@@ -1,7 +1,7 @@
 import { CLAUDE_API_HEADERS } from "../shared.js";
 
-// Dual auth (same pattern as xai): OAuth = Kimi Code subscription (device code),
-// API key = platform.moonshot / api.kimi.com. Transport is shared.
+// Kimi Code subscription credentials (OAuth or Code API key).
+// Moonshot platform keys belong to the separate moonshot provider.
 // CLIProxyAPI parity: client_id, auth.kimi.com device+token, X-Msh-* headers, device_id.
 export default {
   id: "kimi",
@@ -14,9 +14,9 @@ export default {
     icon: "psychology",
     color: "#1E3A8A",
     textIcon: "KM",
-    website: "https://kimi.moonshot.cn",
+    website: "https://www.kimi.com/code",
     notice: {
-      apiKeyUrl: "https://platform.moonshot.ai/console/api-keys",
+      apiKeyUrl: "https://www.kimi.com/code/console",
       signupUrl: "https://www.kimi.com/code",
     },
   },
@@ -24,9 +24,8 @@ export default {
   authModes: ["oauth", "apikey"],
   hasOAuth: true,
   transport: {
-    baseUrl: "https://api.kimi.com/coding/v1/messages",
+    baseUrl: "https://api.kimi.ai/coding/v1/messages",
     format: "claude",
-    urlSuffix: "?beta=true",
     headers: { ...CLAUDE_API_HEADERS },
     clientId: "17e5f671-d194-4dfb-9706-5516cb48c098",
     tokenUrl: "https://auth.kimi.com/api/oauth/token",
@@ -42,43 +41,40 @@ export default {
   transports: [
     {
       format: "openai",
-      baseUrl: "https://api.kimi.com/coding/v1/chat/completions",
+      baseUrl: "https://api.kimi.ai/coding/v1/chat/completions",
       auth: { combined: true, header: "Authorization", scheme: "bearer", hooks: ["kimiHeaders"] },
     },
     {
       format: "claude",
-      baseUrl: "https://api.kimi.com/coding/v1/messages",
-      urlSuffix: "?beta=true",
+      baseUrl: "https://api.kimi.ai/coding/v1/messages",
       headers: { ...CLAUDE_API_HEADERS },
       auth: { combined: true, header: "x-api-key", scheme: "raw", hooks: ["kimiHeaders"] },
     },
     // Kimi Code melayani OpenAI Responses API secara native (Codex wire_api = "responses").
     {
       format: "openai-responses",
-      baseUrl: "https://api.kimi.com/coding/v1/responses",
+      baseUrl: "https://api.kimi.ai/coding/v1/responses",
       auth: { combined: true, header: "Authorization", scheme: "bearer", hooks: ["kimiHeaders"] },
     },
   ],
   models: [
-    // Flagship K3 — platform.kimi.ai id `kimi-k3`, Kimi Code OAuth id `k3` (up to 1M)
-    { id: "kimi-k3", name: "Kimi K3" },
-    { id: "k3", name: "Kimi K3 (Code)" },
-    // Kimi Code subscription stable ids (map to K2.7 Code backend)
-    { id: "kimi-for-coding", name: "Kimi for Coding" },
-    { id: "kimi-for-coding-highspeed", name: "Kimi for Coding Highspeed" },
-    // Pay-as-you-go platform ids
-    { id: "kimi-k2.7-code", name: "Kimi K2.7 Code" },
-    { id: "kimi-k2.7-code-highspeed", name: "Kimi K2.7 Code Highspeed" },
-    { id: "kimi-k2.6", name: "Kimi K2.6" },
-    { id: "kimi-k2.5", name: "Kimi K2.5" },
-    { id: "kimi-k2.5-thinking", name: "Kimi K2.5 Thinking" },
-    { id: "kimi-latest", name: "Kimi Latest" },
+    // Official Code catalog, verified against GET /coding/v1/models.
+    { id: "k3.1-pro", name: "Kimi K3.1 Pro" },
+    { id: "k3.1-pro-highspeed", name: "Kimi K3.1 Pro Highspeed" },
+    { id: "k3", name: "Kimi K3" },
+    { id: "k3-256k", name: "Kimi K3 (256K)" },
+    { id: "kimi-for-coding", name: "Kimi K2.8 Preview" },
+    { id: "kimi-for-coding-highspeed", name: "Kimi K2.7 Code Highspeed" },
+    // Existing combos keep working without sending undocumented platform IDs.
+    { id: "kimi-k3", name: "Kimi K3 (legacy alias)", upstreamModelId: "k3" },
+    { id: "kimi-k2.7-code", name: "Kimi for Coding (legacy alias)", upstreamModelId: "kimi-for-coding" },
+    { id: "kimi-k2.7-code-highspeed", name: "Kimi Highspeed (legacy alias)", upstreamModelId: "kimi-for-coding-highspeed" },
   ],
   serviceKinds: ["llm", "webSearch"],
   searchViaChat: {
-    defaultModel: "kimi-k3",
-    endpoint: "https://api.moonshot.cn/v1/chat/completions",
-    pricingUrl: "https://platform.kimi.ai/docs/pricing/chat",
+    defaultModel: "k3.1-pro",
+    endpoint: "https://api.kimi.ai/coding/v1/responses",
+    pricingUrl: "https://www.kimi.com/code/docs/en/kimi-code/membership.html",
   },
   oauth: {
     clientId: "17e5f671-d194-4dfb-9706-5516cb48c098",

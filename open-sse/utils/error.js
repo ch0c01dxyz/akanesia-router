@@ -1,5 +1,6 @@
 import { ERROR_TYPES, DEFAULT_ERROR_MESSAGES } from "../config/errorConfig.js";
 import { bacaBodyTerbatas } from "./bacaBodyTerbatas.js";
+import { upstreamRetryResetMs } from "./upstreamHeaders.js";
 
 /**
  * Build OpenAI-compatible error response body
@@ -61,6 +62,10 @@ export async function parseUpstreamError(response, executor = null) {
   // Baca terbatas 16 KB (bukan response.text() tanpa batas): body error yang
   // besar dari upstream jahat/rusak bisa menyebabkan memory exhaustion.
   const bodyText = await bacaBodyTerbatas(response);
+  let json = null;
+  try { json = JSON.parse(bodyText); } catch { /* non-JSON upstream error */ }
+  const retryable = [401, 402, 403, 404, 409, 429].includes(response.status) || response.status >= 500;
+  const retryResetMs = retryable ? upstreamRetryResetMs(response.headers, json) : null;
 
   // Let executor-specific parser extract provider-specific fields (e.g. codex resetsAtMs)
   if (executor && typeof executor.parseError === "function") {
@@ -68,14 +73,14 @@ export async function parseUpstreamError(response, executor = null) {
       const parsed = executor.parseError(response, bodyText);
       if (parsed && typeof parsed === "object") {
         const msg = parsed.message || DEFAULT_ERROR_MESSAGES[response.status] || `Upstream error: ${response.status}`;
-        return { statusCode: parsed.status || response.status, message: msg, resetsAtMs: parsed.resetsAtMs };
+        return { statusCode: parsed.status || response.status, message: msg,
+          resetsAtMs: parsed.resetsAtMs ?? retryResetMs ?? undefined };
       }
     } catch { /* fall through to default parsing */ }
   }
 
   let message = "";
   try {
-    const json = JSON.parse(bodyText);
     message = json.error?.message || json.message || json.error || bodyText;
   } catch {
     message = bodyText;
@@ -84,7 +89,8 @@ export async function parseUpstreamError(response, executor = null) {
   const messageStr = typeof message === "string" ? message : JSON.stringify(message);
   const finalMessage = messageStr || DEFAULT_ERROR_MESSAGES[response.status] || `Upstream error: ${response.status}`;
 
-  return { statusCode: response.status, message: finalMessage };
+  return { statusCode: response.status, message: finalMessage,
+    ...(retryResetMs ? { resetsAtMs: retryResetMs } : {}) };
 }
 
 /**
@@ -100,7 +106,10 @@ export function createErrorResult(statusCode, message, resetsAtMs, extraHeaders 
     status: statusCode,
     error: message,
     resetsAtMs,
-    response: errorResponse(statusCode, message, extraHeaders)
+    response: errorResponse(statusCode, message, {
+      ...(resetsAtMs > Date.now() ? { "retry-after": String(Math.ceil((resetsAtMs - Date.now()) / 1000)) } : {}),
+      ...extraHeaders,
+    })
   };
 }
 

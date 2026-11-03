@@ -218,6 +218,16 @@ const DEVIN_CLI_GPT_CAPS = { vision: true, reasoning: true, search: true, thinki
  * Provider-specific capability overrides. Keyed by provider alias/id.
  */
 export const PROVIDER_CAPABILITIES = {
+  // Kimi Code model IDs differ from Moonshot's platform IDs and entitlements.
+  "kimi": {
+    "k3.1-pro": { ...MODEL_CAPABILITIES["kimi-k3.1-pro"] },
+    "k3.1-pro-highspeed": { ...MODEL_CAPABILITIES["kimi-k3.1-pro"] },
+    "k3": { ...MODEL_CAPABILITIES.k3, thinkingCanDisable: true },
+    "k3-256k": { ...MODEL_CAPABILITIES.k3, videoInput: false, thinkingCanDisable: true, contextWindow: 262144 },
+    "kimi-for-coding": { ...MODEL_CAPABILITIES["kimi-for-coding"], contextWindow: 1048576, thinkingCanDisable: true },
+    "kimi-for-coding-highspeed": { ...MODEL_CAPABILITIES["kimi-for-coding-highspeed"], thinkingCanDisable: true },
+    "kimi-k3": { ...MODEL_CAPABILITIES.k3, thinkingCanDisable: true },
+  },
   // NVIDIA NIM is OpenAI-compatible → rejects MiniMax/GLM native `thinking` field.
   // Force openai reasoning_effort format for its reasoning models. #issue
   "nvidia": {

@@ -288,6 +288,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
 
   // Try with available accounts (fallback on errors)
   const excludeConnectionIds = new Set();
+  const accountFallbackLimit = clampQuotaMaxFallbacks(chatSettings.quotaMaxFallbacks);
   let lastError = null;
   let lastStatus = null;
   let lastHeaders = null;
@@ -299,7 +300,7 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
     if (!credentials || credentials.allRateLimited) {
       if (credentials?.allRateLimited) {
         const errorMsg = lastError || credentials.lastError || "Unavailable";
-        const status = HTTP_STATUS.SERVICE_UNAVAILABLE;
+        const status = lastStatus || credentials.lastErrorCode || HTTP_STATUS.SERVICE_UNAVAILABLE;
         log.warn("CHAT", `[${provider}/${model}] ${errorMsg} (${credentials.retryAfterHuman})`);
         return unavailableResponse(status, `[${provider}/${model}] ${errorMsg}`, credentials.retryAfter, credentials.retryAfterHuman, lastHeaders);
       }
@@ -396,6 +397,10 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
       lastError = result.error;
       lastStatus = result.status;
       lastHeaders = upstreamResponseHeaders(result.response?.headers);
+      if (excludeConnectionIds.size > accountFallbackLimit) {
+        log.warn("FALLBACK", `Account fallback limit reached for ${provider}/${model}`);
+        return errorResponse(lastStatus, lastError, lastHeaders);
+      }
       continue;
     }
 

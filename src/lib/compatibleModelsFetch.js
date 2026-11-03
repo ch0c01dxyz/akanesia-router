@@ -9,7 +9,7 @@ const FETCH_TIMEOUT_MS = 60000;
 // GET /api/providers/[id]/models, POST /api/providers/validate.
 // Tidak pernah throw — selalu mengembalikan { ok, models, httpStatus, errorBody }
 // atau { ok: false, models: [], error, httpStatus, errorBody }.
-export async function fetchCompatibleModels({ provider, baseUrl, apiKey, extraHeaders = {}, fetchFn = fetch }) {
+export async function fetchCompatibleModels({ provider, baseUrl, apiKey, extraHeaders = {}, fetchFn = fetch, timeoutMs = FETCH_TIMEOUT_MS }) {
   const clean = typeof baseUrl === "string" ? baseUrl.trim().replace(/\/$/, "") : "";
   if (!clean) {
     return { ok: false, models: [], error: "no baseUrl", httpStatus: 0, errorBody: "" };
@@ -30,7 +30,7 @@ export async function fetchCompatibleModels({ provider, baseUrl, apiKey, extraHe
     const res = await fetchFn(url, {
       headers,
       cache: "no-store",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) {
       const errorBody = await res.text().then((t) => t.slice(0, 2000)).catch(() => "");

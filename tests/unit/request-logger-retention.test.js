@@ -39,6 +39,22 @@ afterAll(() => {
 });
 
 describe("requestLogger: retensi logs/", () => {
+  it("redacts client and provider credentials in diagnostic request files", async () => {
+    const logger = await createRequestLogger("openai", "claude", "audit-redaction");
+    const headers = { Authorization: "Bearer private-test-key", Cookie: "private-test-cookie",
+      "x-api-key": "private-provider-key", "x-9r-cli-token": "private-cli-token",
+      "Content-Type": "application/json" };
+    logger.logClientRawRequest("/v1/messages", {}, headers);
+    logger.logTargetRequest("https://example.com/messages", headers, {});
+    const files = fs.readdirSync(logger.sessionPath).filter(name => name.endsWith(".json"));
+    const saved = files.map(name => fs.readFileSync(path.join(logger.sessionPath, name), "utf8")).join("\n");
+    for (const secret of ["private-test-key", "private-test-cookie", "private-provider-key", "private-cli-token"]) {
+      expect(saved).not.toContain(secret);
+    }
+    expect(saved).toContain("[REDACTED]");
+    expect(saved).toContain("application/json");
+    expect(headers.Authorization).toBe("Bearer private-test-key");
+  });
   it("default 10MB; 0 = tanpa batas; nilai invalid = default", () => {
     delete process.env.REQUEST_LOG_MAX_BYTES;
     expect(__test__.requestLogMaxBytes()).toBe(10 * 1024 * 1024);

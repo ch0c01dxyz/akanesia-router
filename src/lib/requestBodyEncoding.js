@@ -58,7 +58,7 @@ export async function decodeRequestBodyBytes(bytes, encoding, maxOutputLength) {
 }
 
 /**
- * Parse a JSON request body, decoding Content-Encoding first when present.
+ * Parse a JSON request object, decoding Content-Encoding first when present.
  * Throws a generic Error on any failure (unsupported encoding, oversize
  * expansion, corrupt compressed data, invalid JSON) — callers map it to
  * their existing "Invalid JSON body" response without leaking zlib detail.
@@ -66,13 +66,19 @@ export async function decodeRequestBodyBytes(bytes, encoding, maxOutputLength) {
 export async function parseJsonRequestBody(request, options = {}) {
   const maxDecompressedBytes = options.maxDecompressedBytes ?? MAX_DECOMPRESSED_BODY_BYTES;
   const encoding = normalizeContentEncoding(request?.headers?.get?.("content-encoding"));
+  let body;
   if (!encoding) {
-    return await request.json();
+    body = await request.json();
+  } else {
+    const bytes = new Uint8Array(await request.arrayBuffer());
+    const decoded = await decodeRequestBodyBytes(bytes, encoding, maxDecompressedBytes);
+    if (!decoded.ok) {
+      throw new Error(`Request body decoding failed: ${decoded.reason}`);
+    }
+    body = JSON.parse(new TextDecoder().decode(decoded.body));
   }
-  const bytes = new Uint8Array(await request.arrayBuffer());
-  const decoded = await decodeRequestBodyBytes(bytes, encoding, maxDecompressedBytes);
-  if (!decoded.ok) {
-    throw new Error(`Request body decoding failed: ${decoded.reason}`);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error("Request body must be a JSON object");
   }
-  return JSON.parse(new TextDecoder().decode(decoded.body));
+  return body;
 }

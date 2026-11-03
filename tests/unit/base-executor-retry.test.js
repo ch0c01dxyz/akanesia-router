@@ -105,3 +105,52 @@ describe("BaseExecutor.execute — computeRetryDelay hook veto", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("BaseExecutor.execute — retry resource cleanup and cancellation", () => {
+  it("cancels discarded response bodies before a status retry", async () => {
+    const cancel = vi.fn(async () => {});
+    const failed = { ...res(502), body: { cancel } };
+    const ex = makeExec({ baseUrl: "https://x/api", retry: { 502: { attempts: 1, delayMs: 0 } } });
+    fetchMock.mockResolvedValueOnce(failed).mockImplementationOnce(async () => {
+      expect(cancel).toHaveBeenCalledOnce();
+      return res(200);
+    });
+    await ex.execute({ model: "m", body: {}, stream: false, credentials: creds });
+  });
+
+  it("cancels a discarded 429 body before URL fallback", async () => {
+    const cancel = vi.fn(async () => {});
+    const ex = makeExec({ baseUrls: ["https://a/api", "https://b/api"], retry: { 429: { attempts: 0 } } });
+    fetchMock.mockResolvedValueOnce({ ...res(429), body: { cancel } }).mockResolvedValueOnce(res(200));
+    await ex.execute({ model: "m", body: {}, stream: false, credentials: creds });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("aborts a long retry delay without making another upstream request", async () => {
+    const ctrl = new AbortController();
+    const ex = makeExec({ baseUrl: "https://x/api", retry: { 502: { attempts: 3, delayMs: 60000 } } });
+    fetchMock.mockResolvedValue(res(502));
+    const pending = ex.execute({ model: "m", body: {}, stream: false, credentials: creds,
+      signal: ctrl.signal, log: { debug: () => queueMicrotask(() => ctrl.abort()) } });
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not retry a client abort with a custom Error reason", async () => {
+    const ctrl = new AbortController();
+    const reason = new Error("client disconnected");
+    const ex = makeExec({ baseUrl: "https://x/api", retry: { 502: { attempts: 3, delayMs: 0 } } });
+    fetchMock.mockImplementationOnce(async () => { ctrl.abort(reason); throw reason; });
+    await expect(ex.execute({ model: "m", body: {}, stream: false, credentials: creds, signal: ctrl.signal }))
+      .rejects.toBe(reason);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not fetch when the caller is already aborted", async () => {
+    const signal = AbortSignal.abort();
+    const ex = makeExec({ baseUrl: "https://x/api" });
+    await expect(ex.execute({ model: "m", body: {}, stream: false, credentials: creds, signal }))
+      .rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

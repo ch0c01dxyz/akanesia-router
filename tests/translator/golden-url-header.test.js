@@ -17,7 +17,7 @@ const SPECIAL_CRED = {
 // Provider cần executor riêng (buildUrl/buildHeaders không nằm ở DefaultExecutor) → bỏ qua ở golden này.
 // Chúng được lock riêng ở 11-provider edge tests / unit test chuyên biệt.
 const SPECIALIZED = new Set([
-  "antigravity", "azure", "gemini-cli", "github", "iflow", "qoder", "kiro",
+  "antigravity", "azure", "bedrock", "bedrock-xai", "gemini-cli", "github", "iflow", "qoder", "kiro",
   "codex", "cursor", "vertex", "vertex-partner", "opencode",
   "opencode-go", "grok-web", "perplexity-web", "ollama-local", "commandcode",
   "xiaomi-tokenplan", "mimo-free",
@@ -26,12 +26,21 @@ const SPECIALIZED = new Set([
 // Sanitize header: khử token + field thời gian động (kimi X-Msh-Device-Id) để snapshot ổn định.
 function sanitize(headers) {
   const out = {};
+  const dynamic = {
+    "x-msh-device-id": "<DEVICE_ID>",
+    "x-msh-device-model": "<DEVICE_MODEL>",
+    "x-msh-device-name": "<HOSTNAME>",
+    "x-mavis-session-id": "<SESSION_ID>",
+    "x-mavis-timezone-offset": "<TIMEZONE>",
+    "x-platform": "<PLATFORM>",
+    "x-platform-version": "<RUNTIME_VERSION>",
+  };
   for (const [k, v] of Object.entries(headers)) {
-    out[k] = typeof v === "string"
+    out[k] = dynamic[k.toLowerCase()] || (typeof v === "string"
       ? v.replace(/Bearer .+/, "Bearer <TOK>")
           .replace(/sk-test-APIKEY|tok-test-ACCESS/g, "<CRED>")
           .replace(/kimi-\d{10,}/g, "kimi-<TS>")
-      : v;
+      : v);
   }
   return out;
 }

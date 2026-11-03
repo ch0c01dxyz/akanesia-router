@@ -10,6 +10,16 @@ function okFetch(json, capture) {
 }
 
 describe("fetchCompatibleModels", () => {
+  it("bounds catalog discovery without changing the default validation timeout", async () => {
+    const fetchFn = vi.fn((url, { signal }) => new Promise((resolve, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    }));
+    const r = await fetchCompatibleModels({ provider: "openai-compatible-chat-x",
+      baseUrl: "https://x.example.com", apiKey: "k", fetchFn, timeoutMs: 20 });
+    expect(r.ok).toBe(false);
+    expect(r.httpStatus).toBe(0);
+    expect(r.error).toMatch(/timeout/i);
+  });
   it("openai: GET {baseUrl}/models dengan Bearer", async () => {
     let got;
     const r = await fetchCompatibleModels({

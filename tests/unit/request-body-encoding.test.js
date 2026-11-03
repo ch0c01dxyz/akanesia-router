@@ -68,6 +68,13 @@ describe("decodeRequestBodyBytes", () => {
 });
 
 describe("parseJsonRequestBody", () => {
+  it.each([null, [], "text", 42, true])("rejects non-object JSON %j before chat admission", async body => {
+    await expect(parseJsonRequestBody(fakeRequest({ jsonValue: body })))
+      .rejects.toThrow("Request body must be a JSON object");
+    await expect(parseJsonRequestBody(fakeRequest({ encoding: "gzip",
+      bodyBuffer: zlib.gzipSync(Buffer.from(JSON.stringify(body))) })))
+      .rejects.toThrow("Request body must be a JSON object");
+  });
   it("passes uncompressed bodies through request.json() untouched", async () => {
     const body = { model: "x", stream: false };
     await expect(parseJsonRequestBody(fakeRequest({ jsonValue: body }))).resolves.toEqual(body);

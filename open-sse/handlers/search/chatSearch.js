@@ -241,51 +241,20 @@ const CHAT_SEARCH_CONFIG = {
 
   kimi: {
     endpoint: () => searchEndpoint("kimi"),
+    timeoutMs: 30000,
     buildBody: (query, model) => ({
       model,
-      messages: [{ role: "user", content: query }],
-      tools: [
-        { type: "builtin_function", function: { name: "$web_search" } }
-      ]
+      input: [{ role: "user", content: query }],
+      tools: [{ type: "web_search" }],
+      reasoning: { effort: "low" },
+      max_output_tokens: 512,
+      stream: false,
     }),
     buildHeaders: (token) => ({
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`
     }),
-    extractAnswer: (data) => {
-      const msg = data?.choices?.[0]?.message || {};
-      const text = msg.content || "";
-      const calls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
-      const citations = [];
-      for (const call of calls) {
-        const argStr = call?.function?.arguments;
-        if (!argStr) continue;
-        let parsed;
-        try {
-          parsed = typeof argStr === "string" ? JSON.parse(argStr) : argStr;
-        } catch {
-          continue;
-        }
-        const items =
-          parsed?.search_results ||
-          parsed?.results ||
-          parsed?.references ||
-          [];
-        if (Array.isArray(items)) {
-          for (const it of items) {
-            const url = it?.url || it?.link;
-            if (!url) continue;
-            citations.push({
-              url,
-              title: it.title || "",
-              snippet: it.snippet || it.summary || ""
-            });
-          }
-        }
-      }
-      const tokens = data?.usage?.total_tokens || 0;
-      return { text, citations, tokens };
-    }
+    extractAnswer: data => CHAT_SEARCH_CONFIG.xai.extractAnswer(data),
   },
 
   minimax: {
@@ -474,7 +443,7 @@ export async function handleChatSearch({
   const headers = cfg.buildHeaders(token);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), cfg.timeoutMs || REQUEST_TIMEOUT_MS);
 
   let upstreamStart = Date.now();
   let resp;

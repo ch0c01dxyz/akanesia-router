@@ -135,24 +135,26 @@ export function getModelLockKey(model) {
  */
 export function isModelLockActive(connection, model) {
   const key = getModelLockKey(model);
-  const expiry = connection[key] || connection[MODEL_LOCK_ALL];
-  if (!expiry) return false;
-  return new Date(expiry).getTime() > Date.now();
+  const now = Date.now();
+  return [connection[key], connection[MODEL_LOCK_ALL]]
+    .some(expiry => expiry && new Date(expiry).getTime() > now);
 }
 
 /**
  * Get earliest active model lock expiry across all modelLock_* fields.
- * Used for UI cooldown display.
+ * Without a model, used for UI cooldown display. With a model, return when
+ * both its own lock and the account-wide lock expire, ignoring other models.
  */
-export function getEarliestModelLockUntil(connection) {
+export function getEarliestModelLockUntil(connection, model = undefined) {
   if (!connection) return null;
   let earliest = null;
   const now = Date.now();
   for (const [key, val] of Object.entries(connection)) {
     if (!key.startsWith(MODEL_LOCK_PREFIX) || !val) continue;
+    if (model !== undefined && key !== getModelLockKey(model) && key !== MODEL_LOCK_ALL) continue;
     const t = new Date(val).getTime();
-    if (t <= now) continue;
-    if (!earliest || t < earliest) earliest = t;
+    if (!Number.isFinite(t) || t <= now) continue;
+    if (!earliest || (model === undefined ? t < earliest : t > earliest)) earliest = t;
   }
   return earliest ? new Date(earliest).toISOString() : null;
 }

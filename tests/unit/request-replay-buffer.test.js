@@ -40,12 +40,18 @@ describe("redactHeaders", () => {
       "Proxy-Authorization": "Basic xyz",
       "Content-Type": "application/json",
       "X-Custom": "boleh",
+      "x-9r-cli-token": "cli-secret",
+      "x-9r-peer-token": "peer-secret",
+      "Api-Key": "provider-secret",
     });
     for (const k of ["Authorization", "COOKIE", "Set-Cookie", "X-API-Key", "x-auth-token", "Proxy-Authorization"]) {
       expect(out[k]).toBe(REDACTED);
     }
     expect(out["Content-Type"]).toBe("application/json");
     expect(out["X-Custom"]).toBe("boleh");
+    expect(out["x-9r-cli-token"]).toBe(REDACTED);
+    expect(out["x-9r-peer-token"]).toBe(REDACTED);
+    expect(out["Api-Key"]).toBe(REDACTED);
   });
 
   it("tidak memutasi objek asli dan aman untuk input non-objek", () => {

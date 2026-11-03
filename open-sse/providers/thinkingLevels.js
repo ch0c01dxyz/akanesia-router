@@ -43,6 +43,10 @@ const CLAUDE_NO_XHIGH = ["none", "low", "medium", "high", "max"];
 
 // Model-name pattern overrides (glob, first match wins) — more precise than format default.
 const PATTERN_THINKING = [
+  { provider: "kimi", pattern: "k3.1-pro*", levels: ["low", "high", "max"] },
+  { provider: "kimi", pattern: "k3*", levels: ["none", "low", "high", "max"] },
+  { provider: "kimi", pattern: "kimi-for-coding", levels: ["none", "low", "high", "max"] },
+  { provider: "kimi", pattern: "kimi-for-coding-highspeed", levels: ["none", "thinking"] },
   // Gemini 4 (Argon) rejects "minimal" with 400 — LOW is the floor; cannot disable thinking.
   { pattern: "*gemini-4*", levels: ["low", "medium", "high"] },
   { pattern: "*claude*4.6*", levels: CLAUDE_NO_XHIGH },

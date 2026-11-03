@@ -72,7 +72,8 @@ export function redactHeaders(headers) {
   if (!headers || typeof headers !== "object") return {};
   const hasil = {};
   for (const [nama, value] of Object.entries(headers)) {
-    hasil[nama] = SENSITIVE_HEADERS.has(String(nama).toLowerCase()) ? REDACTED : value;
+    hasil[nama] = SENSITIVE_HEADERS.has(String(nama).toLowerCase())
+      || /api[-_]?key|token|secret|password/i.test(nama) ? REDACTED : value;
   }
   return hasil;
 }

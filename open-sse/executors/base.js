@@ -5,6 +5,7 @@ import { dbg } from "../utils/debugLog.js";
 import { ANTHROPIC_API_VERSION, OPENAI_COMPAT_BASE, ANTHROPIC_COMPAT_BASE } from "../providers/shared.js";
 import { resolveOpenAICompatibleApiType } from "../services/provider.js";
 import { applyCustomHeaders } from "../../src/shared/utils/customHeaders.js";
+import { setTimeout as delay } from "node:timers/promises";
 
 /**
  * BaseExecutor - Base class for provider executors
@@ -123,11 +124,13 @@ export class BaseExecutor {
       }
       retryAttemptsByUrl[urlIndex]++;
       log?.debug?.("RETRY", `${reason} retry ${retryAttemptsByUrl[urlIndex]}/${attempts} after ${waitMs / 1000}s`);
-      await new Promise(resolve => setTimeout(resolve, waitMs));
+      void response?.body?.cancel().catch(() => {});
+      await delay(waitMs, undefined, { signal });
       return true;
     };
 
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
+      signal?.throwIfAborted();
       const url = this.buildUrl(model, stream, urlIndex, credentials);
       const transformedBody = this.transformRequest(model, body, stream, credentials);
       const headers = this.buildHeaders(credentials, stream, url, model, transformedBody);
@@ -173,6 +176,7 @@ export class BaseExecutor {
         if (await tryRetry(urlIndex, response.status, `status ${response.status}`, response)) { urlIndex--; continue; }
 
         if (this.shouldRetry(response.status, urlIndex, fallbackCount)) {
+          void response.body?.cancel().catch(() => {});
           log?.debug?.("RETRY", `${response.status} on ${url}, trying fallback ${urlIndex + 1}`);
           lastStatus = response.status;
           continue;
@@ -195,7 +199,7 @@ export class BaseExecutor {
         // (name="Error", bukan "AbortError") sehingga chatCore memetakannya
         // ke 502 → failover akun tetap jalan. Client abort asli
         // (AbortError) diteruskan apa adanya → 499.
-        if (isConnectTimeout || error.name === "AbortError") throw error;
+        if (isConnectTimeout || signal?.aborted || error.name === "AbortError") throw error;
 
         // Map network/fetch exceptions to 502 retry config
         if (await tryRetry(urlIndex, HTTP_STATUS.BAD_GATEWAY, `network "${error.message}"`)) { urlIndex--; continue; }

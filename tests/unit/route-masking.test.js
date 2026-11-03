@@ -146,6 +146,8 @@ describe("renameModelAlias (atomik)", () => {
 
   afterEach(() => {
     process.env.DATA_DIR = originalDataDir;
+    global._dbAdapter?.instance?.close();
+    delete global._dbAdapter;
     cleanup();
     vi.resetModules();
   });
@@ -185,6 +187,8 @@ describe("getModelInfo: mask -> target prefix node kustom", () => {
 
   afterEach(() => {
     process.env.DATA_DIR = originalDataDir;
+    global._dbAdapter?.instance?.close();
+    delete global._dbAdapter;
     cleanup();
     vi.resetModules();
   });
@@ -278,6 +282,8 @@ describe("getModelInfo: full-string mask dicek dulu sebelum parse provider/model
 
   afterEach(() => {
     process.env.DATA_DIR = originalDataDir;
+    global._dbAdapter?.instance?.close();
+    delete global._dbAdapter;
     cleanup();
     vi.resetModules();
   });
