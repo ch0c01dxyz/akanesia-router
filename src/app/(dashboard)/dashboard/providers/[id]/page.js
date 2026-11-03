@@ -77,6 +77,8 @@ export default function ProviderDetailPage() {
   const [providerStrategy, setProviderStrategy] = useState(null);
   const [providerStickyLimit, setProviderStickyLimit] = useState("");
   const [thinkingMode, setThinkingMode] = useState("auto");
+  // Retry delay rate-limit per-provider (detik, "auto" = backoff mesin).
+  const [retryDelay, setRetryDelay] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {}, schedules: {} });
   const [scheduleConnection, setScheduleConnection] = useState(null);
   // Auto Sync Check Models (ide #6): true bila providerId ada di
@@ -521,6 +523,9 @@ export default function ProviderDetailPage() {
       // Load per-provider thinking config
       const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
       setThinkingMode(thinkingCfg.mode || "auto");
+      // Load per-provider retry delay override (detik; "auto" bila tak diatur)
+      const retryMap = settingsData.providerRetryDelaySeconds || {};
+      setRetryDelay(retryMap[providerId] != null ? String(retryMap[providerId]) : "auto");
       const autoPingSettingsKey = AUTO_PING_SETTINGS_KEYS[providerId];
       const apCfg = autoPingSettingsKey ? settingsData[autoPingSettingsKey] || {} : {};
       setAutoPing({ enabled: apCfg.enabled === true, connections: apCfg.connections || {}, schedules: apCfg.schedules || {} });
@@ -643,6 +648,35 @@ export default function ProviderDetailPage() {
   const handleThinkingModeChange = (mode) => {
     setThinkingMode(mode);
     saveThinkingConfig(mode);
+  };
+
+  // Retry delay rate-limit per-provider: disimpan di
+  // settings.providerRetryDelaySeconds[providerId] (detik). "auto" menghapus
+  // override sehingga backoff mesin yang ada kembali berlaku.
+  const saveRetryDelay = async (value) => {
+    try {
+      const settingsRes = await fetch("/api/settings", { cache: "no-store" });
+      const settingsData = settingsRes.ok ? await settingsRes.json() : {};
+      const current = settingsData.providerRetryDelaySeconds || {};
+      const updated = { ...current };
+      if (!value || value === "auto") {
+        delete updated[providerId];
+      } else {
+        updated[providerId] = Number(value);
+      }
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerRetryDelaySeconds: updated }),
+      });
+    } catch (error) {
+      console.log("Error saving retry delay:", error);
+    }
+  };
+
+  const handleRetryDelayChange = (value) => {
+    setRetryDelay(value);
+    saveRetryDelay(value);
   };
 
   const saveAutoPing = async (next) => {
@@ -2064,6 +2098,38 @@ export default function ProviderDetailPage() {
       {/* Override per-provider (custom header) — berdampingan dengan custom
           header per-node ide #8; node-level lebih spesifik & menang (lihat base.js) */}
       <CustomConfigCard providerId={providerId} />
+
+      {/* Retry delay rate-limit per-provider — jeda yang dipakai saat koneksi
+          provider ini kena rate limit dan upstream tidak memberi hint reset
+          yang presisi. "Auto" = backoff mesin yang sudah ada. */}
+      <Card>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold">
+              Retry Delay Rate Limit
+            </h2>
+            <p className="text-sm text-text-muted mt-1">
+              Jeda retry saat provider ini kena rate limit (429). Berlaku bila
+              upstream tidak memberi waktu reset yang pasti; tidak menimpa
+              resetAt presisi (mis. GitHub/Antigravity). Pilih Auto untuk
+              kembali ke backoff bawaan.
+            </p>
+          </div>
+          <select
+            value={retryDelay}
+            onChange={(e) => handleRetryDelayChange(e.target.value)}
+            aria-label="Retry delay rate limit"
+            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none sm:w-auto"
+          >
+            <option value="auto">Auto (backoff bawaan)</option>
+            <option value="10">10 detik</option>
+            <option value="30">30 detik</option>
+            <option value="60">60 detik</option>
+            <option value="120">120 detik</option>
+            <option value="300">300 detik</option>
+          </select>
+        </div>
+      </Card>
 
       {/* Models */}
       <Card>

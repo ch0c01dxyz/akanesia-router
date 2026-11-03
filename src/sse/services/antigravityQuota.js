@@ -7,6 +7,7 @@
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { getAntigravityUsage } from "open-sse/services/usage/google.js";
 import { recordFailure } from "./quotaIncidents.js";
+import { saveAntigravityCooldown, saveAntigravityCooldowns, clearPersistedAntigravityCooldowns } from "./argonCooldownStore.js";
 import * as log from "../utils/logger.js";
 
 // In-memory cache: connectionId → { [modelId]: { remainingPercentage, resetAt } }
@@ -58,6 +59,8 @@ export function releaseAntigravityQuota(connectionId) {
   quotaCache.delete(connectionId);
   lastRefreshAt.delete(connectionId);
   inflightRefresh.delete(connectionId);
+  // Hapus juga cooldown tersimpan koneksi ini agar tidak menumpuk di kv.
+  void clearPersistedAntigravityCooldowns(connectionId);
 }
 
 /**
@@ -133,6 +136,8 @@ async function _doRefresh(connectionId, accessToken, providerSpecificData, now) 
     // Strike blocks are re-asserted after every refresh so an optimistic
     // upstream reading cannot resurrect a pair we just circuit-broke.
     quotaCache.set(connectionId, applyActiveStrikeBlocks(connectionId, usage.quotas));
+    // Persistensi restart: entri 0% yang masih berlaku ikut tersimpan ke kv.
+    await saveAntigravityCooldowns(connectionId, usage.quotas);
 
     return usage.quotas;
   } catch (e) {
@@ -195,6 +200,8 @@ export async function handleAntigravityQuotaError(connectionId, status, model, a
       cached[model] = { remainingPercentage: 0, resetAt: new Date(blockedUntil).toISOString() };
       quotaCache.set(connectionId, cached);
       strikeBlocks.set(key, blockedUntil);
+      // Blok strike ikut tersimpan agar berlaku juga setelah restart.
+      await saveAntigravityCooldown(connectionId, model, blockedUntil);
       // Ide #4: pasangan dianggap tidak sehat → tampil di dashboard
       // (kelas quota_exhausted, langsung tanpa tunggu threshold).
       await recordAntigravityIncident(connectionId, model, status,

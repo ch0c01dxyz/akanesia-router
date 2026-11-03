@@ -9,6 +9,8 @@ const KIND_SLUG_MAP = {
   "embedding": ["embedding"],
   "image-to-text": ["imageToText"],
   "web": ["webSearch", "webFetch"],
+  // Decisions-capable (System One) models, e.g. nace/drex-max, v1m-decision-engine.
+  "systemone": ["systemone"],
 };
 
 const LLM_KIND = "llm";
@@ -36,7 +38,7 @@ function json(data, options = {}) {
 /**
  * GET /v1/models/{kind} - OpenAI-compatible models list filtered by capability.
  * GET /v1/models/{provider}/{model} - OpenAI-compatible single model lookup.
- * Supported kinds: image, tts, stt, embedding, image-to-text, web.
+ * Supported kinds: image, tts, stt, embedding, image-to-text, web, systemone.
  */
 export async function GET(request, { params }) {
   try {

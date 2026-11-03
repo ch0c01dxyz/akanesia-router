@@ -1100,6 +1100,71 @@ export function encodeMcpResultToolNotFound(name) {
 
 // ==================== EXPORTS ====================
 
+// ==================== INTERACTION QUERY ====================
+// AgentServerMessage.interaction_query (field 7): the hosted agent asks the
+// client to answer a tool query (webSearch, askQuestion, switchMode,
+// exaSearch, exaFetch, createPlan, webFetch). Left unanswered, the turn
+// stalls. Port of upstream's cursorAgentProtobuf interaction_query handling:
+// approve search/fetch queries, decline the rest with "not implemented",
+// leave setupVm (8) and unknown variants unanswered.
+const ASM_INTERACTION_QUERY = 7;
+const ACM_INTERACTION_RESPONSE = 6;
+const IQ_REASON_NOT_IMPLEMENTED = "not implemented by this client";
+
+export function decodeInteractionQuery(payload) {
+  if (!payload || payload.length === 0) return null;
+  const serverMessage = decodeMessage(payload);
+  const queryEntries = serverMessage.get(ASM_INTERACTION_QUERY);
+  const queryEntry = queryEntries?.[0];
+  if (!queryEntry || queryEntry.wireType !== WIRE_TYPE.LEN) return null;
+  const queryFields = decodeMessage(queryEntry.value);
+  const idEntry = queryFields.get(1)?.[0];
+  const id = idEntry && idEntry.wireType === WIRE_TYPE.VARINT ? Number(idEntry.value) : 0;
+  for (const [fieldNum, entries] of queryFields) {
+    if (fieldNum >= 2 && fieldNum <= 9 && entries[0]?.wireType === WIRE_TYPE.LEN) {
+      return { id, variantField: fieldNum };
+    }
+  }
+  return null;
+}
+
+function encodeInteractionResponseBody(variantField) {
+  if (variantField === 2 || variantField === 5 || variantField === 6 || variantField === 9) {
+    // Approve set: webSearch (2), exaSearch (5), exaFetch (6), webFetch (9).
+    // approved = field 1, empty message.
+    return encodeField(1, WIRE_TYPE.LEN, new Uint8Array());
+  }
+  if (variantField === 3) {
+    // askQuestion: result = 1 -> rejected = 3 -> reason = 1.
+    return encodeField(1, WIRE_TYPE.LEN, encodeField(3, WIRE_TYPE.LEN,
+      encodeField(1, WIRE_TYPE.LEN, IQ_REASON_NOT_IMPLEMENTED)));
+  }
+  if (variantField === 4) {
+    // switchMode: rejected = 2 -> reason = 1.
+    return encodeField(2, WIRE_TYPE.LEN,
+      encodeField(1, WIRE_TYPE.LEN, IQ_REASON_NOT_IMPLEMENTED));
+  }
+  if (variantField === 7) {
+    // createPlan: result = 1 -> error = 2 -> error = 1.
+    return encodeField(1, WIRE_TYPE.LEN, encodeField(2, WIRE_TYPE.LEN,
+      encodeField(1, WIRE_TYPE.LEN, IQ_REASON_NOT_IMPLEMENTED)));
+  }
+  // 8 (setupVm) or unknown: leave unanswered.
+  return null;
+}
+
+export function encodeInteractionResponseFrame(queryId, variantField) {
+  const body = encodeInteractionResponseBody(variantField);
+  if (!body) return null;
+  const interactionResponse = concatArrays(
+    encodeField(1, WIRE_TYPE.VARINT, queryId),
+    encodeField(variantField, WIRE_TYPE.LEN, body)
+  );
+  return wrapConnectRPCFrame(
+    encodeField(ACM_INTERACTION_RESPONSE, WIRE_TYPE.LEN, interactionResponse)
+  );
+}
+
 export default {
   encodeVarint,
   encodeField,
@@ -1120,4 +1185,6 @@ export default {
   encodeMcpResultSuccess,
   encodeMcpResultError,
   encodeMcpResultToolNotFound,
+  decodeInteractionQuery,
+  encodeInteractionResponseFrame,
 };

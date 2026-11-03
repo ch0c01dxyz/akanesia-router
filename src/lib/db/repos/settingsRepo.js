@@ -92,6 +92,12 @@ const DEFAULT_SETTINGS = {
   // { [providerId]: { headers: {..} } }. Berdampingan dengan custom header
   // per-node ide #8 (level koneksi) — lihat urutan merge di base.js execute().
   providerOverrides: {},
+  // Override jeda retry rate-limit per-provider (detik), diatur dari halaman
+  // detail provider. { [providerId]: seconds }. Provider tanpa entri memakai
+  // backoff mesin yang sudah ada (tidak berubah). Diterapkan di
+  // markAccountUnavailable hanya bila upstream tidak memberi hint reset
+  // yang presisi (tidak menimpa resetAt GitHub/Antigravity).
+  providerRetryDelaySeconds: {},
   // Kurasi model yang diiklankan di /v1/models (exact match pada id penuh,
   // mis. "openai/gpt-4o" atau nama combo). Allowlist non-kosong -> hanya yang
   // terdaftar yang tampil; denylist selalu mengecualikan (menang atas

@@ -7,6 +7,7 @@ import { reasoningDelta } from "../concerns/reasoning.js";
 import { encodeDataUri } from "../concerns/image.js";
 import { toOpenAIFinish } from "../concerns/finishReason.js";
 import { storeGeminiThoughtSignature } from "../../services/thoughtSignatureStore.js";
+import { GeminiPlanningLeakFilter } from "../../utils/geminiPlanningLeak.js";
 
 // Build chunk meta for current gemini state
 function chunkMeta(state) {
@@ -96,12 +97,29 @@ export function geminiToOpenAIResponse(chunk, state) {
       // Some responses include a thoughtSignature, but Google AI Studio/Gemini API
       // can also stream thought parts without a signature; those must not be
       // surfaced as normal assistant content in OpenAI-compatible clients.
+      // Separately, Gemini Flash models sometimes leak a leading planning JSON
+      // ({"thought":"…"}) into visible text; strip it like upstream does, so
+      // clients never see model-internal planning as assistant prose.
       if (part.text !== undefined && part.text !== "") {
-        results.push(buildChunk(
-          chunkMeta(state),
-          isThought ? reasoningDelta(part.text) : { content: part.text },
-          null
-        ));
+        let visibleText = part.text;
+        if (!isThought) {
+          if (state.planningLeakEnabled === undefined) {
+            state.planningLeakEnabled = /gemini.*flash/i.test(state.model || "");
+            if (state.planningLeakEnabled) {
+              state.planningLeak = new GeminiPlanningLeakFilter();
+            }
+          }
+          if (state.planningLeak) {
+            visibleText = state.planningLeak.feed(visibleText);
+          }
+        }
+        if (visibleText) {
+          results.push(buildChunk(
+            chunkMeta(state),
+            isThought ? reasoningDelta(visibleText) : { content: visibleText },
+            null
+          ));
+        }
       }
 
       // Function call
@@ -136,6 +154,14 @@ export function geminiToOpenAIResponse(chunk, state) {
 
   // Finish reason - include usage in final chunk
   if (candidate.finishReason) {
+    // Flush any held planning-leak buffer before the finish chunk, so a
+    // truncated trailing leak never swallows legitimate visible text.
+    if (state.planningLeak) {
+      const flushed = state.planningLeak.flush();
+      if (flushed) {
+        results.push(buildChunk(chunkMeta(state), { content: flushed }, null));
+      }
+    }
     let finishReason = toOpenAIFinish(candidate.finishReason, "gemini");
     if (finishReason === OPENAI_FINISH.STOP && state.geminiToolCallCount > 0) {
       finishReason = OPENAI_FINISH.TOOL_CALLS;

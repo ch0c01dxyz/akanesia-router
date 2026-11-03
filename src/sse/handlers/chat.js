@@ -30,6 +30,7 @@ import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
 import { getKeyAccessContext, enforceKeyAccess, filterAdapterModels } from "../services/keyAccess.js";
 import { resolveSessionIdentity } from "open-sse/utils/sessionManager.js";
 import { resolveSmartChoice } from "../services/systemoneRouter.js";
+import { parseJsonRequestBody } from "@/lib/requestBodyEncoding.js";
 
 /**
  * Handle chat completion request
@@ -39,7 +40,10 @@ import { resolveSmartChoice } from "../services/systemoneRouter.js";
 export async function handleChat(request, clientRawRequest = null) {
   let body;
   try {
-    body = await request.json();
+    // Shared admission for chat + responses: decode Content-Encoding
+    // (gzip/deflate/br/zstd) before JSON parsing; uncompressed bodies
+    // keep the exact previous behavior.
+    body = await parseJsonRequestBody(request);
   } catch {
     log.warn("CHAT", "Invalid JSON body");
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");

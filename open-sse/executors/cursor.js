@@ -10,6 +10,8 @@ import {
   extractTextFromResponse,
   encodeMcpTools,
   decodeMcpArgs,
+  decodeInteractionQuery,
+  encodeInteractionResponseFrame,
 } from "../utils/cursorProtobuf.js";
 import { buildCursorHeaders } from "../utils/cursorChecksum.js";
 import { resolveCursorModels, resolveAutoModelSelection } from "../services/cursorModels.js";
@@ -762,6 +764,9 @@ export class CursorExecutor extends BaseExecutor {
     const responseId = `chatcmpl-msg_${Date.now()}`;
     const created = Math.floor(Date.now() / 1000);
     const composerModel = isComposerModel(model);
+    // InteractionQuery ids already answered on this stream (deduped per
+    // stream like upstream: a repeated query must not produce a second write).
+    const ackedInteractionQueries = new Set();
     let pending = Buffer.alloc(0);
     let finished = false;
     let thinkingAcc = "";
@@ -839,6 +844,28 @@ export class CursorExecutor extends BaseExecutor {
                 session.write(encodeKvClientMessage(kvId, 2, agentMessage(1, new Uint8Array()), metadata));
               } else if (kv.has(3)) {
                 session.write(encodeKvClientMessage(kvId, 3, new Uint8Array(), metadata));
+              }
+            }
+
+            // AgentServerMessage.interaction_query (field 7): hosted tool
+            // queries (webSearch, askQuestion, switchMode, exaSearch,
+            // exaFetch, createPlan, webFetch). Auto-reply so the turn doesn't
+            // stall waiting for an answer this client never sends.
+            if (serverMessage.has(7)) {
+              const iq = decodeInteractionQuery(payload);
+              if (iq) {
+                const iqKey = `iq:${iq.id}`;
+                if (!ackedInteractionQueries.has(iqKey)) {
+                  ackedInteractionQueries.add(iqKey);
+                  const frame = encodeInteractionResponseFrame(iq.id, iq.variantField);
+                  if (frame) {
+                    try {
+                      session.write(frame);
+                    } catch (e) {
+                      debugLog("[CURSOR AGENT] interaction_query write failed:", e?.message || e);
+                    }
+                  }
+                }
               }
             }
 

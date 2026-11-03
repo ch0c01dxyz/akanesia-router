@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -81,6 +81,9 @@ export default function CombosPage() {
   const [presetLoading, setPresetLoading] = useState(null); // "cursor" | "claude" | null
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const importInputRef = useRef(null);
   const { copied, copy } = useCopyToClipboard();
 
   const fetchData = async () => {
@@ -230,6 +233,59 @@ export default function CombosPage() {
       }
     } catch (error) {
       console.log("Error creating combo:", error);
+    }
+  };
+
+  // Export semua combo sebagai file JSON tanpa secret (hanya nama, kind,
+  // model, dan strategi dashboard). Import menerima file itu kembali.
+  const handleExport = async () => {
+    try {
+      const res = await fetch("/api/combos/export");
+      if (!res.ok) {
+        alert("Failed to export combos");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] || "akanesia-combos.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.log("Error exporting combos:", error);
+      alert("Failed to export combos");
+    }
+  };
+
+  const handleImportConfirm = async (mode) => {
+    if (!importFile) return;
+    setImportBusy(true);
+    try {
+      const text = await importFile.text();
+      const body = JSON.parse(text);
+      body.mode = mode;
+      const res = await fetch("/api/combos/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to import combos");
+        return;
+      }
+      await fetchData();
+      setImportFile(null);
+      if (importInputRef.current) importInputRef.current.value = "";
+      const bits = [`Dibuat: ${data.created.length}`, `Dilewati: ${data.skipped.length}`];
+      if (mode === "replace") bits.push(`Dihapus: ${data.removed}`);
+      alert(`Import combo (${mode}): ${bits.join(", ")}.`);
+    } catch (error) {
+      console.log("Error importing combos:", error);
+      alert("File import tidak valid (bukan JSON combo).");
+    } finally {
+      setImportBusy(false);
     }
   };
 
@@ -406,6 +462,37 @@ export default function CombosPage() {
           <Button icon="add" onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto whitespace-nowrap">
             Create Combo
           </Button>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Button variant="secondary" size="sm" icon="download" onClick={handleExport} className="flex-1 whitespace-nowrap">
+              Export
+            </Button>
+            <Button variant="secondary" size="sm" icon="upload" onClick={() => importInputRef.current?.click()} className="flex-1 whitespace-nowrap">
+              Import
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+            />
+          </div>
+          {importFile && (
+            <div className="flex w-full flex-col gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+              <span className="truncate text-text-muted">File: <span className="text-text-main">{importFile.name}</span> (tanpa secret — merge tidak menimpa combo yang sudah ada)</span>
+              <div className="flex gap-2">
+                <Button size="sm" loading={importBusy} disabled={importBusy} onClick={() => handleImportConfirm("merge")} className="flex-1 whitespace-nowrap">
+                  Merge
+                </Button>
+                <Button size="sm" variant="danger" loading={importBusy} disabled={importBusy} onClick={() => handleImportConfirm("replace")} className="flex-1 whitespace-nowrap">
+                  Replace
+                </Button>
+                <Button size="sm" variant="ghost" disabled={importBusy} onClick={() => { setImportFile(null); if (importInputRef.current) importInputRef.current.value = ""; }} className="whitespace-nowrap">
+                  Batal
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="hidden">
             <Button
               variant="secondary"

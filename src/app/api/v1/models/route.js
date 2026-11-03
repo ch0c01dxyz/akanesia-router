@@ -27,6 +27,7 @@ export { invalidateModelsCache };
 import { fetchCompatibleModels } from "@/lib/compatibleModelsFetch.js";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
+import { collapseProviderPrefix } from "@/lib/modelIdPrefix.js";
 
 // Qoder shares one live resolver across intl (qoder) and CN (qoder-cn); the
 // credentials carry the provider id so qoderModels picks the right region's
@@ -385,6 +386,7 @@ async function buildModelsListUncached(kindFilter, options = {}) {
       id: combo.name,
       object: "model",
       owned_by: "combo",
+      name: combo.name,
     };
     if (combo.kind === "webSearch" || combo.kind === "webFetch") {
       entry.kind = combo.kind;
@@ -414,6 +416,7 @@ async function buildModelsListUncached(kindFilter, options = {}) {
           id: `${alias}/${model.id}`,
           object: "model",
           owned_by: alias,
+          name: model.name || model.id,
           capabilities: getCapabilitiesForModel(alias, model.id),
         };
         // Label (no-auth) pada model provider free tanpa kredensial agar user tidak bingung.
@@ -436,6 +439,7 @@ async function buildModelsListUncached(kindFilter, options = {}) {
         id: `${providerAlias}/${modelId}`,
         object: "model",
         owned_by: providerAlias,
+        name: modelId,
       });
     }
   } else {
@@ -479,6 +483,7 @@ async function buildModelsListUncached(kindFilter, options = {}) {
       );
       let liveModelKindById = new Map();
       let liveCapabilitiesById = new Map();
+      let liveNameById = new Map();
 
       let rawModelIds = hasExplicitEnabledModels
         ? Array.from(
@@ -513,6 +518,11 @@ async function buildModelsListUncached(kindFilter, options = {}) {
                 .filter((m) => m?.id && m.capabilities)
                 .map((m) => [m.id, m.capabilities])
             );
+            liveNameById = new Map(
+              live.models
+                .filter((m) => m?.id && m?.name)
+                .map((m) => [m.id, m.name])
+            );
           }
         } catch (err) {
           console.log(`Live model fetch failed for ${providerId}: ${err?.message || err}`);
@@ -522,15 +532,19 @@ async function buildModelsListUncached(kindFilter, options = {}) {
       const modelIds = rawModelIds
         .map((modelId) => {
           if (modelId.startsWith(`${outputAlias}/`)) {
-            return modelId.slice(outputAlias.length + 1);
+            modelId = modelId.slice(outputAlias.length + 1);
+          } else if (modelId.startsWith(`${staticAlias}/`)) {
+            modelId = modelId.slice(staticAlias.length + 1);
+          } else if (modelId.startsWith(`${providerId}/`)) {
+            modelId = modelId.slice(providerId.length + 1);
           }
-          if (modelId.startsWith(`${staticAlias}/`)) {
-            return modelId.slice(staticAlias.length + 1);
-          }
-          if (modelId.startsWith(`${providerId}/`)) {
-            return modelId.slice(providerId.length + 1);
-          }
-          return modelId;
+          // Compatible nodes only: collapse a stack of the node's own
+          // prefixes pasted from a prefixed listing (prefix/prefix/model),
+          // so the catalog never publishes a stacked id. Canonical
+          // providers keep the single-strip behavior above untouched.
+          return isCompatibleProvider
+            ? collapseProviderPrefix(modelId, [outputAlias, staticAlias, providerId])
+            : modelId;
         })
         .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "");
 
@@ -546,7 +560,12 @@ async function buildModelsListUncached(kindFilter, options = {}) {
           return alias === staticAlias || alias === outputAlias || alias === providerId;
         })
         .map((m) => {
-          const modelId = String(m.id).trim();
+          let modelId = String(m.id).trim();
+          // Same stack collapse as raw ids, scoped to compatible nodes:
+          // a stored custom id may already carry the node's prefix.
+          if (modelId && isCompatibleProvider) {
+            modelId = collapseProviderPrefix(modelId, [outputAlias, staticAlias, providerId]);
+          }
           if (modelId) customModelKindById.set(modelId, getModelKind(m) || LLM_KIND);
           return modelId;
         })
@@ -563,15 +582,16 @@ async function buildModelsListUncached(kindFilter, options = {}) {
         })
         .map((fullModel) => {
           if (fullModel.startsWith(`${outputAlias}/`)) {
-            return fullModel.slice(outputAlias.length + 1);
+            fullModel = fullModel.slice(outputAlias.length + 1);
+          } else if (fullModel.startsWith(`${staticAlias}/`)) {
+            fullModel = fullModel.slice(staticAlias.length + 1);
+          } else if (fullModel.startsWith(`${providerId}/`)) {
+            fullModel = fullModel.slice(providerId.length + 1);
           }
-          if (fullModel.startsWith(`${staticAlias}/`)) {
-            return fullModel.slice(staticAlias.length + 1);
-          }
-          if (fullModel.startsWith(`${providerId}/`)) {
-            return fullModel.slice(providerId.length + 1);
-          }
-          return fullModel;
+          // Same stack collapse as raw ids, scoped to compatible nodes.
+          return isCompatibleProvider
+            ? collapseProviderPrefix(fullModel, [outputAlias, staticAlias, providerId])
+            : fullModel;
         })
         .filter((modelId) => typeof modelId === "string" && modelId.trim() !== "");
 
@@ -592,9 +612,13 @@ async function buildModelsListUncached(kindFilter, options = {}) {
           object: "model",
           owned_by: outputAlias,
         };
+        // Display name: live catalog name, else registry model name, else the bare id.
+        model.name = liveNameById.get(modelId)
+          || providerModels.find((m) => m.id === modelId)?.name
+          || modelId;
         // Label (no-auth) pada model provider free tanpa kredensial agar user tidak bingung.
         if (FREE_PROVIDERS[providerId]?.noAuth) {
-          model.name = `${providerModels.find((m) => m.id === modelId)?.name || modelId} (no-auth)`;
+          model.name = `${model.name} (no-auth)`;
         }
         // Live-catalog resolvers (kiro/qoder/github/clinepass) mostly only return
         // { id, name } — no per-model capability data. Fall back to the same

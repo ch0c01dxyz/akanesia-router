@@ -1,6 +1,8 @@
 import { getProviderConnections, validateApiKey, updateProviderConnection, getSettings, getProxyPools } from "@/lib/localDb";
 import { resolveConnectionProxyConfig, pickProxyPoolId } from "@/lib/network/connectionProxy";
 import { formatRetryAfter, checkFallbackError, isModelLockActive, buildModelLockUpdate, getEarliestModelLockUntil } from "open-sse/services/accountFallback.js";
+import { resolveProviderRetryDelayMs } from "./providerRetryDelay.js";
+import { ensureAntigravityCooldownsRestored } from "./argonCooldownStore.js";
 import { MAX_RATE_LIMIT_COOLDOWN_MS } from "open-sse/config/errorConfig.js";
 import { resolveProviderId, FREE_PROVIDERS } from "@/shared/constants/providers.js";
 import { getAntigravityQuotaCache } from "./antigravityQuota.js";
@@ -85,6 +87,10 @@ export async function getProviderCredentials(provider, excludeConnectionIds = nu
     // Antigravity quota cache is lazy: only populated after that account returns 409/429.
     const isAntigravity = providerId === "antigravity";
     const antigravityQuotaCache = isAntigravity && model ? getAntigravityQuotaCache() : null;
+    // Restore sekali per proses: cooldown 0% yang tersimpan di kv (dari
+    // sebelum restart) kembali ke cache agar pre-filter tetap melewati
+    // akun/model yang masih habis kuotanya.
+    if (antigravityQuotaCache) await ensureAntigravityCooldownsRestored(antigravityQuotaCache);
 
     // Filter out model-locked, excluded, and Antigravity quota-exhausted connections.
     const availableConnections = connections.filter(c => {
@@ -285,6 +291,19 @@ export async function markAccountUnavailable(connectionId, status, errorText, pr
     newBackoffLevel = 0;
   } else {
     ({ shouldFallback, cooldownMs, newBackoffLevel } = checkFallbackError(status, errorText, backoffLevel, resolveProviderId(provider)));
+    // Override jeda retry per-provider (settings.providerRetryDelaySeconds):
+    // hanya berlaku bila upstream tidak memberi hint reset yang presisi
+    // (cabang GitHub/antigravity di atas tidak tersentuh). Fail-open: bila
+    // settings gagal dibaca, backoff mesin yang ada tetap dipakai.
+    if (shouldFallback) {
+      try {
+        const settings = await getSettings();
+        const overrideMs = resolveProviderRetryDelayMs(settings.providerRetryDelaySeconds || {}, [resolveProviderId(provider), provider]);
+        if (overrideMs !== null) cooldownMs = Math.min(overrideMs, MAX_RATE_LIMIT_COOLDOWN_MS);
+      } catch {
+        // Abaikan — backoff dari checkFallbackError tetap berlaku.
+      }
+    }
   }
   if (!shouldFallback) return { shouldFallback: false, cooldownMs: 0 };
 
